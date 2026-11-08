@@ -1,4 +1,5 @@
 "use client";
+import { SUPABASE_URL, SUPABASE_CHAVE } from "@/lib/supabase/chaves";
 import { createBrowserClient } from "@supabase/ssr";
 
 let cliente: ReturnType<typeof createBrowserClient> | null = null;
@@ -7,8 +8,8 @@ let cliente: ReturnType<typeof createBrowserClient> | null = null;
 export function supabaseNavegador() {
   if (!cliente) {
     cliente = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      SUPABASE_URL,
+      SUPABASE_CHAVE
     );
   }
   return cliente;

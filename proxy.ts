@@ -1,3 +1,4 @@
+import { SUPABASE_URL, SUPABASE_CHAVE } from "@/lib/supabase/chaves";
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -18,12 +19,12 @@ function eDominioPrincipal(host: string) {
 
 // Descobre a academia pelo domínio próprio (ex.: clubedeluta.com.br)
 async function slugDoDominio(host: string): Promise<string | null> {
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/academias?select=slug&ativa=eq.true&dominio=in.(${encodeURIComponent(host)},${encodeURIComponent("www." + host.replace(/^www\./, ""))},${encodeURIComponent(host.replace(/^www\./, ""))})&limit=1`;
+  const url = `${SUPABASE_URL}/rest/v1/academias?select=slug&ativa=eq.true&dominio=in.(${encodeURIComponent(host)},${encodeURIComponent("www." + host.replace(/^www\./, ""))},${encodeURIComponent(host.replace(/^www\./, ""))})&limit=1`;
   try {
     const r = await fetch(url, {
       headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_CHAVE,
+        Authorization: `Bearer ${SUPABASE_CHAVE}`,
       },
       next: { revalidate: 300 },
     });
@@ -55,8 +56,8 @@ export async function proxy(request: NextRequest) {
 
   // 2) Mantém a sessão do Supabase renovada
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_CHAVE,
     {
       cookies: {
         getAll() {

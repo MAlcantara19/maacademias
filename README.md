@@ -23,7 +23,7 @@ Os arquivos ficam em `supabase/`:
 ## Publicar na Vercel
 
 Importe o repositório na Vercel e cadastre as variáveis:
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e
 `NEXT_PUBLIC_DOMINIOS_PRINCIPAIS`.
 
 ## Domínio próprio de uma academia

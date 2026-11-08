@@ -1,3 +1,4 @@
+import { SUPABASE_URL, SUPABASE_CHAVE } from "@/lib/supabase/chaves";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -5,8 +6,8 @@ import { cookies } from "next/headers";
 export async function supabaseServidor() {
   const cookieStore = await cookies();
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_URL,
+    SUPABASE_CHAVE,
     {
       cookies: {
         getAll() {
