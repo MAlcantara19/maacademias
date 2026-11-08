@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* Paleta "kimono azul": fundo índigo profundo, texto claro, e a cor
+   de cada academia entra como --cor (definida na página da academia). */
+@theme {
+  --color-fundo: #121a36;
+  --color-painel: #1a2449;
+  --color-painel2: #22305c;
+  --color-linha: #2e3d6e;
+  --color-texto: #eef1fa;
+  --color-suave: #a3add1;
+  --color-ok: #2bb673;
+  --color-alerta: #f2b33d;
+  --color-erro: #e5484d;
+  --font-titulo: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-corpo: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+:root {
+  --cor: #7c3aed;
+  color-scheme: dark;
+}
+
+html, body {
+  background: var(--color-fundo);
+  color: var(--color-texto);
+  font-family: var(--font-corpo);
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1, h2, h3, .titulo {
+  font-family: var(--font-titulo);
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+}
+
+.numero {
+  font-family: var(--font-titulo);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cor);
+  outline-offset: 2px;
+}
+
+/* Botões e campos */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: .75rem; padding: .7rem 1.1rem; font-weight: 600;
+  background: var(--cor); color: white; transition: filter .15s, transform .1s;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: scale(.98); }
+.btn:disabled { opacity: .5; }
+.btn-sec {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: .75rem; padding: .65rem 1rem; font-weight: 600;
+  background: var(--color-painel2); color: var(--color-texto);
+  border: 1px solid var(--color-linha);
+}
+.btn-sec:hover { border-color: var(--cor); }
+.campo {
+  width: 100%; border-radius: .7rem; padding: .7rem .9rem;
+  background: var(--color-fundo); border: 1px solid var(--color-linha);
+  color: var(--color-texto);
+}
+.campo:focus { border-color: var(--cor); outline: none; }
+.rotulo { display: block; font-size: .85rem; color: var(--color-suave); margin-bottom: .3rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  border-radius: 999px; padding: .2rem .65rem; font-size: .8rem;
+  background: var(--color-painel2); border: 1px solid var(--color-linha);
+}
+
+/* Impressão (ficha do campeonato vira PDF) */
+@media print {
+  html, body { background: white !important; color: black !important; }
+  .nao-imprimir { display: none !important; }
+  .imprimir-claro { background: white !important; color: black !important; border-color: #ccc !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
