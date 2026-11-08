@@ -8,6 +8,7 @@ import { FAIXAS_ETARIAS, dataBR, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { NovoAluno } from "./NovoAluno";
+import { Solicitacoes } from "./Solicitacoes";
 
 const ORDENS: Record<string, string> = {
   nome: "Nome (A–Z)", idade: "Idade", dias_sem_vir: "Dias sem vir", frequencia_30d: "Frequência", aluno_desde: "Aluno desde",
@@ -68,6 +69,7 @@ function Lista() {
         <button className="btn" onClick={() => setNovo(true)}>Cadastrar aluno</button>
       </div>
 
+      <Solicitacoes onAprovar={carregar} />
       {novo && <NovoAluno onFechar={() => { setNovo(false); carregar(); }} />}
 
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">

@@ -17,10 +17,14 @@ export default function Config() {
   const router = useRouter();
   const [a, setA] = useState<any>(ctx.academia);
   const [link, setLink] = useState("");
+  const [linkCadastro, setLinkCadastro] = useState("");
   const [msg, setMsg] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
 
-  useEffect(() => { setLink(`${window.location.origin}/${a.slug}/checkin?t=${a.qr_fixo_token}`); }, [a.qr_fixo_token, a.slug]);
+  useEffect(() => {
+    setLink(`${window.location.origin}/${a.slug}/checkin?t=${a.qr_fixo_token}`);
+    setLinkCadastro(`${window.location.origin}/${a.slug}/cadastro`);
+  }, [a.qr_fixo_token, a.slug]);
 
   const muda = (k: string, v: any) => setA((x: any) => ({ ...x, [k]: v }));
 
@@ -36,7 +40,8 @@ export default function Config() {
     const { error } = await sb.from("academias").update({
       nome: a.nome, slogan: a.slogan, sobre: a.sobre, endereco: a.endereco, cidade: a.cidade,
       latitude: a.latitude ? Number(a.latitude) : null, longitude: a.longitude ? Number(a.longitude) : null,
-      maps_url: a.maps_url, whatsapp: a.whatsapp, instagram: a.instagram, logo_url,
+      maps_url: a.maps_url, whatsapp: a.whatsapp, instagram: a.instagram, logo_url, cnpj: a.cnpj || null,
+      pix_chave: a.pix_chave || null, pix_nome: a.pix_nome || null, pix_cidade: a.pix_cidade || null,
       cores: { ...(a.cores || {}), primaria: a.cores?.primaria || "#7c3aed" },
       modulos: a.modulos, no_diretorio: a.no_diretorio,
       checkin_raio_m: Number(a.checkin_raio_m), tolerancia_atraso_min: Number(a.tolerancia_atraso_min),
@@ -69,6 +74,16 @@ export default function Config() {
         <p className="nao-imprimir text-xs text-suave">O check-in só vale para quem está a até {a.checkin_raio_m} m da academia e no horário da aula.</p>
       </section>
 
+      <section className="nao-imprimir flex flex-col items-center gap-3 rounded-3xl bg-painel p-6 text-center">
+        <h2 className="text-3xl font-bold">Link de cadastro de alunos</h2>
+        <p className="max-w-sm text-suave">Mande no grupo da turma ou cole na recepção. O aluno preenche e você aprova em “Alunos”.</p>
+        <QR texto={linkCadastro} tamanho={180} />
+        <div className="flex flex-wrap justify-center gap-2">
+          <button className="btn-sec" onClick={() => navigator.clipboard.writeText(linkCadastro).then(() => setMsg("Link de cadastro copiado."))}>Copiar link</button>
+          <a className="btn-sec" target="_blank" href={`https://wa.me/?text=${encodeURIComponent(`Faça seu cadastro na ${a.nome}: ${linkCadastro}`)}`}>Mandar no WhatsApp</a>
+        </div>
+      </section>
+
       {ctx.admin ? (
         <section className="nao-imprimir space-y-4 rounded-2xl bg-painel p-4">
           <h2 className="text-2xl font-bold">Dados da academia</h2>
@@ -89,6 +104,15 @@ export default function Config() {
             <div><label className="rotulo">Longitude</label><input className="campo" value={a.longitude ?? ""} onChange={(e) => muda("longitude", e.target.value)} /></div>
             <div className="sm:col-span-2"><label className="rotulo">Link do Google Maps</label><input className="campo" value={a.maps_url || ""} onChange={(e) => muda("maps_url", e.target.value)} /></div>
             <p className="text-xs text-suave sm:col-span-2">Dica: no Google Maps, segure o dedo em cima da academia para ver a latitude e a longitude.</p>
+          </div>
+
+          <h3 className="pt-2 text-xl font-bold">Pix das mensalidades</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div><label className="rotulo">Chave Pix</label><input className="campo" placeholder="CPF, CNPJ, e-mail ou +5524999999999" value={a.pix_chave || ""} onChange={(e) => muda("pix_chave", e.target.value)} /></div>
+            <div><label className="rotulo">Nome do recebedor</label><input className="campo" maxLength={25} value={a.pix_nome || ""} onChange={(e) => muda("pix_nome", e.target.value)} /></div>
+            <div><label className="rotulo">Cidade</label><input className="campo" maxLength={15} value={a.pix_cidade || ""} onChange={(e) => muda("pix_cidade", e.target.value)} /></div>
+            <div><label className="rotulo">CNPJ (aparece no recibo)</label><input className="campo" value={a.cnpj || ""} onChange={(e) => muda("cnpj", e.target.value)} /></div>
+            <p className="text-xs text-suave sm:col-span-2">Com a chave preenchida, o aluno vê o botão “Pagar com Pix” com QR e copia e cola já com o valor, e envia o comprovante pelo app.</p>
           </div>
 
           <h3 className="pt-2 text-xl font-bold">Regras</h3>

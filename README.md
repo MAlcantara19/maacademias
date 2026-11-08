@@ -16,9 +16,12 @@ com seu link (`/slug`) ou domínio próprio.
 ## Banco de dados
 
 Os arquivos ficam em `supabase/`:
-- `banco-academias.sql` — estrutura completa (rode uma vez num projeto novo)
-- `piloto-academias.sql` — Academia Piloto de demonstração (pode rodar de novo
-  para recriar os dados)
+- `INSTALAR-TUDO.sql` — **use este**: recomeça o banco, cria tudo, coloca a
+  Academia Piloto e liga os logins. Pode rodar de novo quando quiser
+  (não apaga os usuários do Authentication).
+- `banco-academias.sql`, `piloto-academias.sql`, `pos-instalacao.sql`,
+  `recomecar.sql` — as partes separadas, caso precise.
+- `consertos.sql` — consultas úteis para conferir logins.
 
 ## Publicar na Vercel
 

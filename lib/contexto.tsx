@@ -7,6 +7,7 @@ export type Ctx = {
   papeis: string[];          // admin, professor, aluno, responsavel
   equipe: boolean;           // admin ou professor
   admin: boolean;
+  master?: boolean;
   membroId: string | null;   // meu vínculo (professor/admin ou aluno)
   meusAlunos: any[];         // eu (se aluno) + meus dependentes
 };

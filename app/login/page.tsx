@@ -3,6 +3,16 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseNavegador } from "@/lib/supabase/client";
+import { destinoDepoisDoLogin } from "@/lib/destino";
+
+// Traduz os erros do Supabase para algo que dá para resolver
+function traduzir(m: string) {
+  if (m.includes("Invalid login")) return "E-mail ou senha incorretos.";
+  if (m.includes("not confirmed")) return "Este e-mail ainda não foi confirmado. Abra o link que chegou no seu e-mail. (Se foi criado no painel do Supabase, marque “Auto Confirm User”.)";
+  if (m.includes("rate limit")) return "Muitas tentativas. Espere um minuto e tente de novo.";
+  if (m.includes("already registered")) return "Esse e-mail já tem conta. Use “Entrar”.";
+  return m;
+}
 
 function FormLogin() {
   const router = useRouter();
@@ -14,54 +24,41 @@ function FormLogin() {
   const [academias, setAcademias] = useState<any[]>([]);
   const [primeiro, setPrimeiro] = useState(false);
 
+  async function seguir() {
+    const proximo = params.get("next");
+    if (proximo) return router.replace(proximo);
+    const d = await destinoDepoisDoLogin(supabaseNavegador());
+    if (d.lista) { setAcademias(d.lista); setCarregando(false); return; }
+    router.replace(d.url!);
+    router.refresh();
+  }
+
+  async function entrar(e: React.FormEvent) {
+    e.preventDefault();
+    setCarregando(true); setMsg("");
+    const { error } = await supabaseNavegador().auth.signInWithPassword({ email: email.trim(), password: senha });
+    if (error) { setCarregando(false); return setMsg(traduzir(error.message)); }
+    await seguir();
+  }
+
   // Primeiro acesso: o aluno cria a senha com o e-mail que a academia cadastrou
   async function criarConta(e: React.FormEvent) {
     e.preventDefault();
     if (senha.length < 6) return setMsg("A senha precisa ter pelo menos 6 caracteres.");
     setCarregando(true); setMsg("");
     const { data, error } = await supabaseNavegador().auth.signUp({
-      email, password: senha, options: { emailRedirectTo: `${window.location.origin}/login` },
+      email: email.trim(), password: senha, options: { emailRedirectTo: `${window.location.origin}/login` },
     });
+    if (error) { setCarregando(false); return setMsg(traduzir(error.message)); }
+    if (data.session) return seguir();
     setCarregando(false);
-    if (error) return setMsg(error.message.includes("registered") ? "Esse e-mail já tem conta. Use “Entrar”." : error.message);
-    if (data.session) return entrar(e);
     setMsg("Conta criada! Confirme pelo link que enviamos ao seu e-mail e depois entre.");
     setPrimeiro(false);
   }
 
-  async function entrar(e: React.FormEvent) {
-    e.preventDefault();
-    setCarregando(true); setMsg("");
-    const sb = supabaseNavegador();
-    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
-    if (error) {
-      setCarregando(false);
-      return setMsg("E-mail ou senha incorretos.");
-    }
-    const proximo = params.get("next");
-    if (proximo) return router.replace(proximo);
-
-    // Descobre em quais academias a pessoa está (ela ou os filhos)
-    const { data: { user } } = await sb.auth.getUser();
-    const { data: perfil } = await sb.from("perfis").select("id").eq("user_id", user!.id).maybeSingle();
-    const ids = [perfil?.id].filter(Boolean);
-    const { data: deps } = await sb.from("responsaveis").select("dependente_id").eq("responsavel_id", perfil?.id || "00000000-0000-0000-0000-000000000000");
-    (deps || []).forEach((d: any) => ids.push(d.dependente_id));
-    const { data: vinculos } = await sb
-      .from("membros").select("academias(slug, nome)").in("perfil_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).eq("ativo", true);
-    const lista: any[] = Array.from(new Map((vinculos || []).map((v: any) => [v.academias.slug, v.academias])).values());
-
-    setCarregando(false);
-    if (lista.length === 1) return router.replace(`/${lista[0].slug}/app`);
-    if (lista.length > 1) return setAcademias(lista);
-    router.replace("/");
-  }
-
   async function esqueci() {
     if (!email) return setMsg("Digite seu e-mail acima e toque de novo em “Esqueci a senha”.");
-    await supabaseNavegador().auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login/nova-senha`,
-    });
+    await supabaseNavegador().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/login/nova-senha` });
     setMsg("Enviamos um link para criar uma nova senha no seu e-mail.");
   }
 
@@ -70,9 +67,7 @@ function FormLogin() {
       <div className="space-y-3">
         <h1 className="text-4xl font-extrabold">Qual academia?</h1>
         {academias.map((a) => (
-          <button key={a.slug} className="btn-sec w-full justify-start text-left" onClick={() => router.replace(`/${a.slug}/app`)}>
-            {a.nome}
-          </button>
+          <button key={a.slug} className="btn-sec w-full justify-start text-left" onClick={() => router.replace(`/${a.slug}/app`)}>{a.nome}</button>
         ))}
       </div>
     );

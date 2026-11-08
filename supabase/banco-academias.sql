@@ -59,6 +59,9 @@ create table academias (
   instagram      text,
   email          text,
   cnpj           text,
+  pix_chave      text,                          -- chave Pix para as mensalidades
+  pix_nome       text,                          -- nome do recebedor (até 25 letras)
+  pix_cidade     text,                          -- cidade do recebedor (até 15 letras)
   no_diretorio   boolean default false,         -- aparece na página geral/mapa?
   ativa          boolean default true,
 
@@ -601,6 +604,27 @@ create table aulas_experimentais (
   atualizada_em    timestamptz default now()
 );
 
+-- Cadastro feito pelo próprio aluno (link/QR da academia). A equipe aprova.
+create table solicitacoes_cadastro (
+  id               uuid primary key default gen_random_uuid(),
+  academia_id      uuid not null references academias(id) on delete cascade,
+  nome             text not null,
+  email            text,
+  telefone         text,
+  nascimento       date,
+  sexo             text check (sexo in ('M','F')),
+  modalidade_id    uuid references modalidades(id) on delete set null,
+  turma_id         uuid references turmas(id) on delete set null,
+  responsavel_nome text,                       -- para menores de idade
+  responsavel_email text,
+  responsavel_tel  text,
+  aceite_imagem    boolean default false,      -- autorização de uso de imagem
+  mensagem         text,
+  status           text not null default 'nova' check (status in ('nova','aprovada','recusada')),
+  avaliada_por     uuid references membros(id) on delete set null,
+  criada_em        timestamptz default now()
+);
+
 -- Sugestões, críticas e elogios (anônimo = autor vazio)
 create table feedbacks (
   id           uuid primary key default gen_random_uuid(),
@@ -807,6 +831,23 @@ end $$;
 create trigger trg_vincula_perfil
 before insert or update of email on perfis
 for each row execute function vincula_perfil_novo();
+
+-- Conserto pelo próprio usuário: liga o login ao cadastro com o mesmo e-mail
+-- (usado pela página /minha-conta, caso o vínculo automático não tenha acontecido)
+create or replace function vincular_minha_conta() returns int
+language plpgsql security definer set search_path = public as $$
+declare v_email text; v_n int;
+begin
+  select email into v_email from auth.users where id = auth.uid();
+  if v_email is null then return 0; end if;
+  if exists (select 1 from perfis where user_id = auth.uid()) then return 0; end if;
+  update perfis set user_id = auth.uid()
+   where id = (select id from perfis
+                where user_id is null and lower(email) = lower(v_email)
+                order by criado_em limit 1);
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
 
 
 -- =====================================================================
@@ -1688,6 +1729,30 @@ begin
 end $$;
 
 
+-- Aluno/responsável envia o comprovante do Pix; a equipe recebe aviso
+-- e só confere e dá baixa.
+create or replace function enviar_comprovante(p_cobranca uuid, p_url text)
+returns boolean
+language plpgsql security definer set search_path = public as $$
+declare v_c cobrancas%rowtype; v_nome text;
+begin
+  select * into v_c from cobrancas where id = p_cobranca;
+  if not found or v_c.membro_id not in (select meus_membros()) or v_c.status = 'paga' then
+    return false;
+  end if;
+  update cobrancas set comprovante_url = p_url where id = p_cobranca;
+  select coalesce(pf.apelido, pf.nome) into v_nome
+    from membros m join perfis pf on pf.id = m.perfil_id where m.id = v_c.membro_id;
+  insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+  select v_c.academia_id, m.perfil_id, 'vencimento', '🧾 Comprovante enviado',
+         v_nome || ' enviou o comprovante da mensalidade de ' || to_char(v_c.competencia, 'MM/YYYY') || '.',
+         '/mensalidades'
+    from membros m
+   where m.academia_id = v_c.academia_id and m.ativo and m.papel = 'admin';
+  return true;
+end $$;
+
+
 -- =====================================================================
 -- 17b. LEMBRETES AUTOMÁTICOS
 -- Rode a cada 10 minutos (pg_cron, ver passo no fim do arquivo).
@@ -2039,6 +2104,12 @@ create policy ver on cobrancas for select
   using (membro_id in (select meus_membros()) or sou_equipe(academia_id));
 create policy gerir on cobrancas for all
   using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+-- ---------- Cadastro feito pelo aluno ----------
+create policy pedir on solicitacoes_cadastro for insert with check (status = 'nova');
+create policy ver on solicitacoes_cadastro for select using (sou_equipe(academia_id));
+create policy gerir on solicitacoes_cadastro for update using (sou_equipe(academia_id));
+create policy apagar on solicitacoes_cadastro for delete using (sou_equipe(academia_id));
 
 -- ---------- Experimental e feedback ----------
 -- Qualquer visitante (mesmo sem login) pode pedir aula experimental

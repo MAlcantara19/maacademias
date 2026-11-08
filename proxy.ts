@@ -36,12 +36,15 @@ async function slugDoDominio(host: string): Promise<string | null> {
 }
 
 export async function proxy(request: NextRequest) {
+  // Sem as chaves do Supabase, não trava o site: deixa abrir a página /status
+  if (!SUPABASE_URL || !SUPABASE_CHAVE) return NextResponse.next({ request });
+
   const host = (request.headers.get("host") || "").split(":")[0].toLowerCase();
   const { pathname } = request.nextUrl;
 
   // 1) Domínio próprio → reescreve /qualquer-coisa para /<slug>/qualquer-coisa
   let resposta: NextResponse;
-  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth")) {
+  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth") && !pathname.startsWith("/status") && !pathname.startsWith("/minha-conta") && !pathname.startsWith("/master")) {
     const slug = await slugDoDominio(host);
     if (slug && !pathname.startsWith(`/${slug}`)) {
       const url = request.nextUrl.clone();
@@ -70,7 +73,11 @@ export async function proxy(request: NextRequest) {
       },
     }
   );
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    // se o Supabase estiver fora do ar, o site continua abrindo
+  }
 
   return resposta;
 }

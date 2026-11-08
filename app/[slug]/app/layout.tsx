@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { supabaseServidor } from "@/lib/supabase/server";
 import { buscarAcademia, corDa } from "@/lib/academia";
 import { Casca } from "./Casca";
@@ -30,15 +31,30 @@ export default async function LayoutApp({ children, params }: { children: React.
   const papeis = new Set<string>((meus || []).map((m: any) => m.papel));
   if (master) papeis.add("admin");
   if ((depMembros || []).length) papeis.add("responsavel");
-  if (!papeis.size) redirect("/login");
+  if (!papeis.size) redirect("/minha-conta");
 
-  const equipe = papeis.has("admin") || papeis.has("professor");
+  let equipe = papeis.has("admin") || papeis.has("professor");
   const membroEquipe = (meus || []).find((m: any) => m.papel !== "aluno");
   const membroAluno = (meus || []).find((m: any) => m.papel === "aluno");
-  const meusAlunos = [
+  let meusAlunos: any[] = [
     ...(membroAluno ? [{ id: membroAluno.id, nome: perfil?.nome, apelido: perfil?.apelido, foto_url: perfil?.foto_url, eu: true }] : []),
     ...(depMembros || []).map((d: any) => ({ id: d.id, nome: d.perfis?.nome, apelido: d.perfis?.apelido, foto_url: d.perfis?.foto_url, eu: false })),
   ];
+
+  // "Ver como aluno": a equipe vê o app do jeito que um aluno vê (ótimo para demonstrar)
+  let vendoComo: any = null;
+  const verComo = (await cookies()).get("ver_como")?.value;
+  if (equipe && verComo) {
+    const { data: exemplo } = await supabase.from("membros")
+      .select("id, perfis(nome, apelido, foto_url)").eq("academia_id", academia.id).eq("papel", "aluno").eq("ativo", true)
+      .eq(verComo === "primeiro" ? "papel" : "id", verComo === "primeiro" ? "aluno" : verComo).limit(1);
+    const ex = exemplo?.[0] as any;
+    if (ex) {
+      vendoComo = { id: ex.id, nome: ex.perfis?.apelido || ex.perfis?.nome };
+      equipe = false;
+      meusAlunos = [{ id: ex.id, nome: ex.perfis?.nome, apelido: ex.perfis?.apelido, foto_url: ex.perfis?.foto_url, eu: true }];
+    }
+  }
 
   // Último acesso (para o painel de alunos)
   if (perfil) await supabase.from("perfis").update({ ultimo_acesso: new Date().toISOString() }).eq("id", perfil.id);
@@ -49,9 +65,10 @@ export default async function LayoutApp({ children, params }: { children: React.
   return (
     <Casca
       ctx={{
-        academia, perfil, papeis: Array.from(papeis), equipe, admin: papeis.has("admin"),
-        membroId: membroEquipe?.id || membroAluno?.id || null, meusAlunos,
+        academia, perfil, papeis: vendoComo ? ["aluno"] : Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !!master,
+        membroId: vendoComo ? vendoComo.id : membroEquipe?.id || membroAluno?.id || null, meusAlunos,
       }}
+      vendoComo={vendoComo}
       cor={corDa(academia)}
       naoLidas={naoLidas || 0}
     >

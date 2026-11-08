@@ -6,36 +6,48 @@ import { ProvedorCtx, type Ctx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
 
-type Item = { href: string; rotulo: string; icone: string };
+type Item = { href: string; rotulo: string; icone: string; m?: string };
 
-export function Casca({ ctx, cor, naoLidas, children }: { ctx: Ctx; cor: string; naoLidas: number; children: React.ReactNode }) {
+export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [mais, setMais] = useState(false);
   const base = `/${ctx.academia.slug}/app`;
 
-  const itens: Item[] = ctx.equipe
+  const mod = (n: string) => ctx.academia.modulos?.[n] !== false;
+  const itens: Item[] = (ctx.equipe
     ? [
         { href: base, rotulo: "Início", icone: "🏠" },
         { href: `${base}/chamada`, rotulo: "Chamada", icone: "✅" },
         { href: `${base}/alunos`, rotulo: "Alunos", icone: "👥" },
-        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆" },
+        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
-        { href: `${base}/campeonatos`, rotulo: "Campeonatos", icone: "🥇" },
+        { href: `${base}/campeonatos`, rotulo: "Campeonatos", icone: "🥇", m: "campeonatos" },
+        { href: `${base}/mensalidades`, rotulo: "Mensalidades", icone: "💳", m: "mensalidades" },
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
-        { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋" },
+        { href: `${base}/avisos`, rotulo: "Avisos", icone: "📣" },
+        { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
+        { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
         { href: `${base}/config`, rotulo: "QR e ajustes", icone: "⚙️" },
       ]
     : [
         { href: base, rotulo: "Início", icone: "🏠" },
         { href: `${base}/meu`, rotulo: ctx.meusAlunos.length > 1 || !ctx.meusAlunos[0]?.eu ? "Meus atletas" : "Meu perfil", icone: "🥋" },
-        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆" },
+        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
-        { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "🪪" },
+        { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "🪪", m: "carteirinha" },
+        { href: `${base}/mensalidades`, rotulo: "Mensalidades", icone: "💳", m: "mensalidades" },
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
-      ];
+      ]
+  ).filter((i: any) => !i.m || mod(i.m));
+
+  function verComo(valor: string) {
+    document.cookie = `ver_como=${valor}; path=/; max-age=${valor ? 7200 : 0}`;
+    router.replace(base);
+    router.refresh();
+  }
 
   const ativo = (h: string) => (h === base ? path === base : path.startsWith(h));
   const principais = itens.slice(0, 4);
@@ -64,7 +76,9 @@ export function Casca({ ctx, cor, naoLidas, children }: { ctx: Ctx; cor: string;
           <div className="border-t border-linha pt-3 text-sm">
             <p className="truncate font-semibold">{ctx.perfil?.nome}</p>
             <p className="text-suave">{ctx.papeis.map((p) => ({ admin: "Admin", professor: "Professor", aluno: "Aluno", responsavel: "Responsável" } as any)[p]).join(" · ")}</p>
-            <button onClick={sair} className="mt-2 text-suave underline">Sair</button>
+            {ctx.equipe && <button onClick={() => verComo("primeiro")} className="mt-2 block text-suave underline">👁️ Ver como aluno</button>}
+            {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
+            <button onClick={sair} className="mt-1 block text-suave underline">Sair</button>
           </div>
         </aside>
 
@@ -77,6 +91,12 @@ export function Casca({ ctx, cor, naoLidas, children }: { ctx: Ctx; cor: string;
             </Link>
           </header>
 
+          {vendoComo && (
+            <div className="nao-imprimir flex items-center justify-between gap-2 bg-alerta px-4 py-2 text-sm font-semibold text-black">
+              <span>👁️ Vendo o app como aluno: {vendoComo.nome}</span>
+              <button className="underline" onClick={() => verComo("")}>Voltar para a minha visão</button>
+            </div>
+          )}
           <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 lg:px-8 lg:pb-12 lg:pt-8">{children}</main>
         </div>
 
@@ -103,7 +123,8 @@ export function Casca({ ctx, cor, naoLidas, children }: { ctx: Ctx; cor: string;
                   </Link>
                 ))}
               </div>
-              <button onClick={sair} className="btn-sec mt-4 w-full">Sair</button>
+              {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
+              <button onClick={sair} className="btn-sec mt-2 w-full">Sair</button>
             </div>
           </div>
         )}

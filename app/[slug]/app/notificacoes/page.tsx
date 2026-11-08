@@ -12,7 +12,7 @@ function destino(base: string, link?: string) {
   if (link.startsWith("/eventos/")) return `${base}/campeonatos/${link.split("/")[2]}`;
   if (link.startsWith("/alunos/")) return `${base}${link}`;
   const mapa: Record<string, string> = {
-    "/avisos": base, "/mensalidades": `${base}/meu`, "/materiais": base, "/aniversarios": `${base}/calendario`,
+    "/avisos": base, "/mensalidades": `${base}/mensalidades`, "/materiais": base, "/aniversarios": `${base}/calendario`,
     "/alunos": `${base}/alunos`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
   };
   return mapa[link] || (link.startsWith("/pendencias") ? `${base}/pendencias` : base);

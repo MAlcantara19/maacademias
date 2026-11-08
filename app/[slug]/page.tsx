@@ -188,6 +188,7 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
           <section id="experimental" className="rounded-3xl bg-painel p-6 sm:p-8">
             <h2 className="text-4xl font-extrabold">Agende sua aula experimental</h2>
             <p className="mt-2 text-suave">A primeira aula é para conhecer. Escolha a modalidade e o professor responde pelo WhatsApp.</p>
+            <p className="mt-1 text-sm text-suave">Já decidiu treinar? <Link href={`/${slug}/cadastro`} className="underline">Faça seu cadastro de aluno</Link>.</p>
             <FormExperimental
               academiaId={academia.id}
               modalidades={modalidades || []}
