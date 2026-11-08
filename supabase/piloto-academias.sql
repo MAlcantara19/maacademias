@@ -276,6 +276,12 @@ begin
     (t_tkd, criancas[1], hoje - 120);
   update membros set entrou_em = hoje - 200 where id = any(criancas);
   update matriculas set desde = hoje - 10 where membro_id = alunos[15];
+  -- Jiu-jitsu Kids lotado, com fila de espera
+  update turmas set vagas = 2 where id = t_jjk;
+  insert into lista_espera (academia_id, turma_id, nome, telefone, observacao, criado_em) values
+    (ac, t_jjk, 'Criança da Fila 01', '5500000000401', 'Mãe prefere terça', now() - interval '12 days'),
+    (ac, t_jjk, 'Criança da Fila 02', '5500000000402', null, now() - interval '4 days');
+
   -- Exemplo de matrícula trancada
   update matriculas set status = 'trancada' where membro_id = alunos[16] and turma_id = t_tkd;
 

@@ -5,7 +5,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 
 export function FormCadastro({ academiaId, slug, modalidades, turmas }: { academiaId: string; slug: string; modalidades: any[]; turmas: any[] }) {
   const [f, setF] = useState<any>({ sexo: "M", aceite_imagem: false });
-  const [enviado, setEnviado] = useState(false);
+  const [enviado, setEnviado] = useState<boolean | string>(false);
   const [erro, setErro] = useState("");
   const muda = (k: string, v: any) => setF((x: any) => ({ ...x, [k]: v }));
   const idade = f.nascimento ? Math.floor((Date.now() - new Date(f.nascimento + "T12:00:00").getTime()) / 31557600000) : null;
@@ -22,13 +22,21 @@ export function FormCadastro({ academiaId, slug, modalidades, turmas }: { academ
       responsavel_tel: menor ? f.responsavel_tel : null, aceite_imagem: !!f.aceite_imagem, mensagem: f.mensagem || null,
     });
     if (error) return setErro("Não foi possível enviar. Confira os dados e tente de novo.");
-    setEnviado(true);
+    const turma = turmas.find((t) => t.id === f.turma_id);
+    if (turma?.lotada) {
+      await supabaseNavegador().from("lista_espera").insert({
+        academia_id: academiaId, turma_id: turma.id, nome: f.nome,
+        telefone: (menor ? f.responsavel_tel : f.telefone) || null, email: (menor ? f.responsavel_email : f.email) || null,
+      });
+    }
+    setEnviado(turma?.lotada ? "fila" : true);
   }
 
   if (enviado) {
     return (
       <div className="space-y-3 rounded-2xl bg-painel p-6">
         <p className="text-3xl font-bold">Cadastro enviado! 🥋</p>
+        {enviado === "fila" && <p className="text-alerta">A turma escolhida está lotada: você entrou na lista de espera e será chamado quando abrir vaga.</p>}
         <p className="text-suave">Assim que a academia aprovar, entre em <b>Primeiro acesso</b> com {menor ? "o e-mail do responsável" : "o seu e-mail"} para criar a senha.</p>
         <Link href="/login" className="btn">Ir para o login</Link>
       </div>
@@ -68,7 +76,7 @@ export function FormCadastro({ academiaId, slug, modalidades, turmas }: { academ
         <div><label className="rotulo">Turma</label>
           <select className="campo" value={f.turma_id || ""} onChange={(e) => muda("turma_id", e.target.value)}>
             <option value="">Ainda não sei</option>
-            {turmas.filter((t) => t.modalidade_id === f.modalidade_id).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+            {turmas.filter((t) => t.modalidade_id === f.modalidade_id).map((t) => <option key={t.id} value={t.id}>{t.nome}{t.lotada ? " — lotada (lista de espera)" : ""}</option>)}
           </select>
         </div>
       )}

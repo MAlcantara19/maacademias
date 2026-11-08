@@ -34,3 +34,25 @@ Importe o repositório na Vercel e cadastre as variáveis:
 1. Na Vercel: Settings → Domains → adicione o domínio (ex.: clubedeluta.com.br).
 2. No registro do domínio, aponte o DNS como a Vercel mostrar.
 3. No Supabase, na tabela `academias`, preencha a coluna `dominio` dessa academia.
+
+## Notificações no celular (push) — opcional
+
+1. No PC, rode `npx web-push generate-vapid-keys` e guarde as duas chaves.
+2. Na Vercel (Environment Variables), cadastre:
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` = Public Key
+   - `VAPID_PRIVATE_KEY` = Private Key
+   - `VAPID_EMAIL` = `mailto:seu-email@gmail.com`
+   - `SUPABASE_SECRET_KEY` = chave **secret** do Supabase (Project Settings → API Keys)
+   - `PUSH_WEBHOOK_SECRET` = uma senha que você inventar
+   e faça Redeploy.
+3. No Supabase: Database → Webhooks → Create a new hook
+   - Tabela `notificacoes`, evento **Insert**, tipo **HTTP Request**, método POST
+   - URL: `https://SEU-SITE.vercel.app/api/push`
+   - HTTP Header: `x-segredo` = a mesma senha do `PUSH_WEBHOOK_SECRET`
+4. No app, em Notificações, toque em “Ativar notificações”.
+
+## Página de vendas
+
+`/conheca` apresenta o sistema. `/demo` entra direto na Academia Piloto se
+`NEXT_PUBLIC_DEMO_EMAIL` e `NEXT_PUBLIC_DEMO_SENHA` estiverem preenchidos
+(use um login só de teste — a senha fica visível no navegador).

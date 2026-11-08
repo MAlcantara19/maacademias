@@ -7,7 +7,7 @@ import { QR } from "@/components/QR";
 
 const MODULOS: [string, string][] = [
   ["sobre", "Sobre nós"], ["propaganda", "Propagandas"], ["calendario", "Calendário"], ["avisos", "Avisos"],
-  ["ranking", "Ranking"], ["feed", "Feed (em breve)"], ["materiais", "Material de apoio"], ["mensalidades", "Mensalidades"],
+  ["ranking", "Ranking"], ["feed", "Feed"], ["materiais", "Material de apoio"], ["mensalidades", "Mensalidades"],
   ["carteirinha", "Carteirinha"], ["campeonatos", "Campeonatos"], ["aula_experimental", "Aula experimental"], ["feedback", "Sugestões"],
 ];
 

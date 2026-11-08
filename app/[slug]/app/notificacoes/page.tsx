@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataHoraBR } from "@/lib/util";
+import { AtivarPush } from "@/components/AtivarPush";
 
 // Converte os links das notificações para as telas do app
 function destino(base: string, link?: string) {
@@ -13,7 +14,7 @@ function destino(base: string, link?: string) {
   if (link.startsWith("/alunos/")) return `${base}${link}`;
   const mapa: Record<string, string> = {
     "/avisos": base, "/mensalidades": `${base}/mensalidades`, "/materiais": base, "/aniversarios": `${base}/calendario`,
-    "/alunos": `${base}/alunos`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
+    "/alunos": `${base}/alunos`, "/gestao": `${base}/gestao`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
   };
   return mapa[link] || (link.startsWith("/pendencias") ? `${base}/pendencias` : base);
 }
@@ -45,6 +46,7 @@ export default function Notificacoes() {
         <h1 className="text-4xl font-extrabold">Notificações</h1>
         {lista.some((n) => !n.lida) && <button className="btn-sec text-sm" onClick={todasLidas}>Marcar todas como lidas</button>}
       </div>
+      <AtivarPush perfilId={ctx.perfil?.id} />
       <ul className="space-y-2">
         {lista.map((n) => (
           <li key={n.id}>

@@ -654,6 +654,24 @@ create table solicitacoes_cadastro (
   criada_em        timestamptz default now()
 );
 
+-- Lista de espera das turmas lotadas. Quando abre vaga, a equipe é avisada
+-- com o nome do próximo da fila.
+create table lista_espera (
+  id           uuid primary key default gen_random_uuid(),
+  academia_id  uuid not null references academias(id) on delete cascade,
+  turma_id     uuid not null references turmas(id) on delete cascade,
+  membro_id    uuid references membros(id) on delete set null,   -- se já é aluno
+  nome         text not null,
+  telefone     text,
+  email        text,
+  observacao   text,
+  status       text not null default 'aguardando'
+               check (status in ('aguardando','chamado','entrou','desistiu')),
+  chamado_em   timestamptz,
+  criado_em    timestamptz default now()
+);
+create index on lista_espera (turma_id, status, criado_em);
+
 -- Sugestões, críticas e elogios (anônimo = autor vazio)
 create table feedbacks (
   id           uuid primary key default gen_random_uuid(),
@@ -1531,6 +1549,39 @@ language sql stable as $$
    order by coalesce(pa.apelido, pa.nome);
 $$;
 
+-- Lotação das turmas (pública: mostra "turma cheia" no cadastro)
+create view turmas_vagas as
+select t.id as turma_id, t.academia_id, t.vagas,
+       (select count(*) from matriculas mt where mt.turma_id = t.id and mt.status = 'ativa') as ocupadas,
+       (select count(*) from lista_espera le where le.turma_id = t.id and le.status = 'aguardando') as na_espera,
+       t.vagas is not null
+         and (select count(*) from matriculas mt where mt.turma_id = t.id and mt.status = 'ativa') >= t.vagas as lotada
+  from turmas t
+ where t.ativa;
+
+-- Feed pronto para mostrar (todo mundo da academia vê nomes e fotos dos posts)
+create view feed_posts as
+select p.id, p.academia_id, p.autor_id, p.legenda, p.oculto, p.criado_em,
+       pf.nome as autor_nome, pf.apelido as autor_apelido, pf.foto_url as autor_foto,
+       coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'tipo', m.tipo, 'url', m.url, 'ordem', m.ordem) order by m.ordem)
+                   from post_midias m where m.post_id = p.id), '[]'::jsonb) as midias,
+       coalesce((select array_agg(c.membro_id) from curtidas c where c.post_id = p.id), '{}') as curtidas,
+       coalesce((select array_agg(coalesce(px.apelido, px.nome))
+                   from post_marcacoes pm join membros mx on mx.id = pm.membro_id
+                   join perfis px on px.id = mx.perfil_id
+                  where pm.post_id = p.id), '{}') as marcados
+  from posts p
+  join membros am on am.id = p.autor_id
+  join perfis pf on pf.id = am.perfil_id
+ where participo(p.academia_id)
+   and (not p.oculto or sou_equipe(p.academia_id));
+
+-- Colegas de academia (nome e apelido) para marcar nas fotos
+create view colegas as
+select m.id as membro_id, m.academia_id, pf.nome, pf.apelido, pf.foto_url
+  from membros m join perfis pf on pf.id = m.perfil_id
+ where m.ativo and m.papel = 'aluno' and participo(m.academia_id);
+
 -- Professores para a página pública (só dados públicos, sem login)
 create view professores_publicos as
 select
@@ -1780,6 +1831,35 @@ begin
    where m.academia_id = v_c.academia_id and m.ativo and m.papel = 'admin';
   return true;
 end $$;
+
+
+-- Abriu vaga numa turma com fila → avisa admins e o professor da turma
+create or replace function avisa_vaga_aberta() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_t turmas%rowtype; v_prox lista_espera%rowtype; v_ocup int;
+begin
+  if tg_op = 'UPDATE' and not (old.status = 'ativa' and new.status <> 'ativa') then return new; end if;
+  select * into v_t from turmas where id = old.turma_id;
+  if v_t.vagas is null then return coalesce(new, old); end if;
+  select count(*) into v_ocup from matriculas where turma_id = v_t.id and status = 'ativa';
+  if v_ocup >= v_t.vagas then return coalesce(new, old); end if;
+  select * into v_prox from lista_espera
+   where turma_id = v_t.id and status = 'aguardando' order by criado_em limit 1;
+  if not found then return coalesce(new, old); end if;
+  insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+  select distinct v_t.academia_id, m.perfil_id, 'vaga', '🟢 Abriu vaga: ' || v_t.nome,
+         'Próximo da lista de espera: ' || v_prox.nome || coalesce(' (' || v_prox.telefone || ')', '') || '.',
+         '/gestao'
+    from membros m
+   where m.academia_id = v_t.academia_id and m.ativo
+     and (m.papel = 'admin' or m.id = v_t.professor_id);
+  return coalesce(new, old);
+end $$;
+
+create trigger trg_vaga_aberta_upd after update of status on matriculas
+for each row execute function avisa_vaga_aberta();
+create trigger trg_vaga_aberta_del after delete on matriculas
+for each row execute function avisa_vaga_aberta();
 
 
 -- =====================================================================
@@ -2133,6 +2213,13 @@ create policy ver on cobrancas for select
   using (membro_id in (select meus_membros()) or sou_equipe(academia_id));
 create policy gerir on cobrancas for all
   using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+-- ---------- Lista de espera ----------
+create policy entrar on lista_espera for insert with check (status = 'aguardando');
+create policy ver on lista_espera for select
+  using (sou_equipe(academia_id) or membro_id in (select meus_membros()));
+create policy gerir on lista_espera for update using (sou_equipe(academia_id));
+create policy apagar on lista_espera for delete using (sou_equipe(academia_id));
 
 -- ---------- Cadastro feito pelo aluno ----------
 create policy pedir on solicitacoes_cadastro for insert with check (status = 'nova');
@@ -2564,6 +2651,12 @@ begin
     (t_tkd, criancas[1], hoje - 120);
   update membros set entrou_em = hoje - 200 where id = any(criancas);
   update matriculas set desde = hoje - 10 where membro_id = alunos[15];
+  -- Jiu-jitsu Kids lotado, com fila de espera
+  update turmas set vagas = 2 where id = t_jjk;
+  insert into lista_espera (academia_id, turma_id, nome, telefone, observacao, criado_em) values
+    (ac, t_jjk, 'Criança da Fila 01', '5500000000401', 'Mãe prefere terça', now() - interval '12 days'),
+    (ac, t_jjk, 'Criança da Fila 02', '5500000000402', null, now() - interval '4 days');
+
   -- Exemplo de matrícula trancada
   update matriculas set status = 'trancada' where membro_id = alunos[16] and turma_id = t_tkd;
 

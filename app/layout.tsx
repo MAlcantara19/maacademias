@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { RegistrarSW } from "@/components/RegistrarSW";
 
 export const metadata: Metadata = {
   title: "MA Academias",
@@ -27,7 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap"
         />
       </head>
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <RegistrarSW />
+        {children}
+      </body>
     </html>
   );
 }

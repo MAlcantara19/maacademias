@@ -12,7 +12,10 @@ export default async function Inicio() {
     <main className="mx-auto max-w-5xl px-5 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
       <header className="flex items-center justify-between py-3">
         <span className="titulo text-xl font-bold">MA Academias</span>
-        <Link href="/login" className="btn-sec text-sm">Entrar</Link>
+        <div className="flex gap-2">
+          <Link href="/conheca" className="btn-sec text-sm">Para academias</Link>
+          <Link href="/login" className="btn-sec text-sm">Entrar</Link>
+        </div>
       </header>
 
       <section className="pb-8 pt-10 sm:pt-16">

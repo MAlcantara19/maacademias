@@ -44,7 +44,7 @@ export async function proxy(request: NextRequest) {
 
   // 1) Domínio próprio → reescreve /qualquer-coisa para /<slug>/qualquer-coisa
   let resposta: NextResponse;
-  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth") && !pathname.startsWith("/status") && !pathname.startsWith("/minha-conta") && !pathname.startsWith("/master")) {
+  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth") && !pathname.startsWith("/status") && !pathname.startsWith("/minha-conta") && !pathname.startsWith("/master") && !pathname.startsWith("/conheca") && !pathname.startsWith("/demo")) {
     const slug = await slugDoDominio(host);
     if (slug && !pathname.startsWith(`/${slug}`)) {
       const url = request.nextUrl.clone();
@@ -83,5 +83,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon-.*|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|api/|sw.js|favicon.ico|icon-.*|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

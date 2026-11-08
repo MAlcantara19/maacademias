@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { DIAS, hora } from "@/lib/util";
+import { DIAS, dataBR, hora, primeiroNome, whatsapp } from "@/lib/util";
 import { Faixa } from "@/components/Faixa";
 import { Avatar } from "@/components/Avatar";
 
@@ -25,6 +25,9 @@ export default function Gestao() {
   const [form, setForm] = useState<any>(null);
   const [hor, setHor] = useState<Record<string, any>>({});
   const [msg, setMsg] = useState("");
+  const [vagas, setVagas] = useState<Record<string, any>>({});
+  const [fila, setFila] = useState<any[]>([]);
+  const [novoFila, setNovoFila] = useState<Record<string, any>>({});
 
   async function carregar() {
     const [m, t, p, a] = await Promise.all([
@@ -34,6 +37,12 @@ export default function Gestao() {
       sb.from("membros").select("perfil_id, perfis(nome)").eq("academia_id", acad).eq("papel", "aluno").eq("ativo", true),
     ]);
     setMods(m.data || []); setTurmas(t.data || []); setProfs(p.data || []); setAlunos(a.data || []);
+    const [v, f] = await Promise.all([
+      sb.from("turmas_vagas").select("*").eq("academia_id", acad),
+      sb.from("lista_espera").select("*").eq("academia_id", acad).in("status", ["aguardando", "chamado"]).order("criado_em"),
+    ]);
+    setVagas(Object.fromEntries((v.data || []).map((x: any) => [x.turma_id, x])));
+    setFila(f.data || []);
   }
   useEffect(() => { carregar(); }, []); // eslint-disable-line
 
@@ -79,6 +88,18 @@ export default function Gestao() {
   }
   async function alternarTurma(t: any) {
     await sb.from("turmas").update({ ativa: !t.ativa }).eq("id", t.id); carregar();
+  }
+
+  // ---------- Lista de espera ----------
+  async function addFila(turmaId: string) {
+    const n = novoFila[turmaId] || {};
+    if (!n.nome) return setMsg("Informe o nome para a lista de espera.");
+    await sb.from("lista_espera").insert({ academia_id: acad, turma_id: turmaId, nome: n.nome, telefone: n.telefone || null });
+    setNovoFila({ ...novoFila, [turmaId]: {} }); carregar();
+  }
+  async function mudarFila(id: string, status: string) {
+    await sb.from("lista_espera").update({ status, chamado_em: status === "chamado" ? new Date().toISOString() : undefined }).eq("id", id);
+    carregar();
   }
 
   // ---------- Professores ----------
@@ -149,7 +170,12 @@ export default function Gestao() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h2 className="text-2xl font-bold">{t.nome}</h2>
-                      <p className="text-sm text-suave">{m?.nome} · {nomeProf(t.professor_id)}{t.publico ? ` · ${t.publico}` : ""}{t.vagas ? ` · ${t.vagas} vagas` : ""}</p>
+                      <p className="text-sm text-suave">{m?.nome} · {nomeProf(t.professor_id)}{t.publico ? ` · ${t.publico}` : ""}</p>
+                      {t.vagas && vagas[t.id] && (
+                        <p className={`text-sm font-semibold ${vagas[t.id].lotada ? "text-alerta" : "text-ok"}`}>
+                          {vagas[t.id].ocupadas}/{t.vagas} vagas ocupadas{vagas[t.id].lotada ? " · LOTADA" : ""}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button className="btn-sec text-sm" onClick={() => setForm({ tipo: "turma", ...t })}>Editar</button>
@@ -164,6 +190,30 @@ export default function Gestao() {
                       </li>
                     ))}
                   </ul>
+                  {(t.vagas || fila.some((x) => x.turma_id === t.id)) && (
+                    <div className="mt-3 rounded-xl border border-linha p-3">
+                      <p className="mb-2 text-sm font-semibold">⏳ Lista de espera ({fila.filter((x) => x.turma_id === t.id).length})</p>
+                      <ol className="space-y-1">
+                        {fila.filter((x) => x.turma_id === t.id).map((x, i) => {
+                          const z = whatsapp(x.telefone, `Oi, ${primeiroNome(x.nome)}! Abriu uma vaga na turma ${t.nome} da ${ctx.academia.nome}. Ainda tem interesse?`);
+                          return (
+                            <li key={x.id} className="flex flex-wrap items-center gap-2 text-sm">
+                              <span className="numero w-6">{i + 1}º</span>
+                              <span className="flex-1">{x.nome} <span className="text-suave">desde {dataBR(x.criado_em)}{x.status === "chamado" ? " · já chamado" : ""}</span></span>
+                              {z && <a href={z} target="_blank" className="underline" onClick={() => mudarFila(x.id, "chamado")}>Chamar</a>}
+                              <button className="underline" onClick={() => mudarFila(x.id, "entrou")}>Entrou</button>
+                              <button className="text-suave underline" onClick={() => mudarFila(x.id, "desistiu")}>Desistiu</button>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                      <div className="mt-2 flex gap-2">
+                        <input className="campo text-sm" placeholder="Nome" value={novoFila[t.id]?.nome || ""} onChange={(e) => setNovoFila({ ...novoFila, [t.id]: { ...novoFila[t.id], nome: e.target.value } })} />
+                        <input className="campo text-sm" placeholder="WhatsApp" value={novoFila[t.id]?.telefone || ""} onChange={(e) => setNovoFila({ ...novoFila, [t.id]: { ...novoFila[t.id], telefone: e.target.value } })} />
+                        <button className="btn-sec text-sm" onClick={() => addFila(t.id)}>+ Fila</button>
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
                     <select className="campo" value={h.dia ?? ""} onChange={(e) => setHor({ ...hor, [t.id]: { ...h, dia: e.target.value } })}>
                       <option value="" disabled>Dia</option>
