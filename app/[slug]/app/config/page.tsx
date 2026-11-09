@@ -21,6 +21,31 @@ export default function Config() {
   const [linkCadastro, setLinkCadastro] = useState("");
   const [msg, setMsg] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
+  const [capa, setCapa] = useState<File | null>(null);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [novoBanner, setNovoBanner] = useState<any>(null);
+
+  async function carregarBanners() {
+    const { data } = await sb.from("propagandas").select("*").eq("academia_id", a.id).order("ordem");
+    setBanners(data || []);
+  }
+  useEffect(() => { carregarBanners(); }, []); // eslint-disable-line
+
+  async function enviar(arq: File, nome: string) {
+    const caminho = `${a.id}/${nome}-${Date.now()}.${arq.name.split(".").pop()}`;
+    const up = await sb.storage.from("publico").upload(caminho, arq);
+    if (up.error) { setMsg("Não foi possível enviar a imagem: " + up.error.message); return null; }
+    return sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl;
+  }
+  async function salvarBanner() {
+    if (!novoBanner?.arquivo) return setMsg("Escolha a imagem do banner.");
+    const url = await enviar(novoBanner.arquivo, "banner");
+    if (!url) return;
+    await sb.from("propagandas").insert({ academia_id: a.id, titulo: novoBanner.titulo || null, texto: novoBanner.texto || null, link: novoBanner.link || null, imagem_url: url, ordem: banners.length + 1 });
+    setNovoBanner(null); carregarBanners();
+  }
+  async function alternarBanner(b: any) { await sb.from("propagandas").update({ ativa: !b.ativa }).eq("id", b.id); carregarBanners(); }
+  async function apagarBanner(b: any) { if (confirm("Apagar este banner?")) { await sb.from("propagandas").delete().eq("id", b.id); carregarBanners(); } }
 
   useEffect(() => {
     setLink(`${window.location.origin}/${a.slug}/checkin?t=${a.qr_fixo_token}`);
@@ -31,17 +56,13 @@ export default function Config() {
 
   async function salvar() {
     setMsg("");
-    let logo_url = a.logo_url;
-    if (logo) {
-      const caminho = `${a.id}/logo-${Date.now()}.${logo.name.split(".").pop()}`;
-      const up = await sb.storage.from("publico").upload(caminho, logo);
-      if (up.error) return setMsg("Não foi possível enviar a logo: " + up.error.message);
-      logo_url = sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl;
-    }
+    let logo_url = a.logo_url, capa_url = a.capa_url;
+    if (logo) { logo_url = await enviar(logo, "logo"); if (!logo_url) return; }
+    if (capa) { capa_url = await enviar(capa, "capa"); if (!capa_url) return; }
     const { error } = await sb.from("academias").update({
       nome: a.nome, slogan: a.slogan, sobre: a.sobre, endereco: a.endereco, cidade: a.cidade,
       latitude: a.latitude ? Number(a.latitude) : null, longitude: a.longitude ? Number(a.longitude) : null,
-      maps_url: a.maps_url, whatsapp: a.whatsapp, instagram: a.instagram, logo_url, cnpj: a.cnpj || null,
+      maps_url: a.maps_url, whatsapp: a.whatsapp, instagram: a.instagram, logo_url, capa_url, cnpj: a.cnpj || null,
       pix_chave: a.pix_chave || null, pix_nome: a.pix_nome || null, pix_cidade: a.pix_cidade || null,
       cores: { ...(a.cores || {}), primaria: a.cores?.primaria || "#7c3aed" },
       modulos: a.modulos, no_diretorio: a.no_diretorio,
@@ -66,7 +87,14 @@ export default function Config() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-extrabold">QR e ajustes</h1>
+      <div className="nao-imprimir flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-4xl font-extrabold">Personalizar academia</h1>
+        <a href={`/${a.slug}`} target="_blank" className="btn-sec">👁️ Ver página pública</a>
+      </div>
+      <p className="nao-imprimir text-sm text-suave">
+        Aqui você muda o que aparece na página da academia: logo, capa, cores, textos, contatos e banners.
+        Horários, turmas e professores ficam em <b>Turmas e equipe</b>.
+      </p>
 
       <section className="imprimir-claro flex flex-col items-center gap-4 rounded-3xl bg-painel p-6 text-center">
         <h2 className="text-3xl font-bold">Check-in da {a.nome}</h2>
@@ -97,7 +125,26 @@ export default function Config() {
             <div><label className="rotulo">Nome</label><input className="campo" value={a.nome || ""} onChange={(e) => muda("nome", e.target.value)} /></div>
             <div><label className="rotulo">Frase de apresentação</label><input className="campo" value={a.slogan || ""} onChange={(e) => muda("slogan", e.target.value)} /></div>
             <div className="sm:col-span-2"><label className="rotulo">Sobre nós</label><textarea className="campo min-h-28" value={a.sobre || ""} onChange={(e) => muda("sobre", e.target.value)} /></div>
-            <div><label className="rotulo">Logo</label><input type="file" accept="image/*" className="campo" onChange={(e) => setLogo(e.target.files?.[0] || null)} /></div>
+            <div>
+              <label className="rotulo">Logo</label>
+              <div className="flex items-center gap-2">
+                {a.logo_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.logo_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                )}
+                <input type="file" accept="image/*" className="campo" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
+              </div>
+            </div>
+            <div>
+              <label className="rotulo">Foto de capa (topo da página)</label>
+              <div className="flex items-center gap-2">
+                {a.capa_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.capa_url} alt="" className="h-12 w-20 rounded-lg object-cover" />
+                )}
+                <input type="file" accept="image/*" className="campo" onChange={(e) => setCapa(e.target.files?.[0] || null)} />
+              </div>
+            </div>
             <div>
               <label className="rotulo">Cor da academia</label>
               <input type="color" className="h-12 w-full rounded-xl" value={a.cores?.primaria || "#7c3aed"} onChange={(e) => muda("cores", { ...(a.cores || {}), primaria: e.target.value })} />
@@ -147,6 +194,31 @@ export default function Config() {
             <div><label className="rotulo">“Sentimos sua falta” após (dias)</label><input type="number" className="campo" value={a.reengajar_dias} onChange={(e) => muda("reengajar_dias", e.target.value)} /></div>
             <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
+
+          <h3 className="pt-2 text-xl font-bold">Banners da página pública</h3>
+          <p className="text-xs text-suave">Aparecem no topo da página quando a função “Propagandas” está ligada (lá embaixo).</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {banners.map((b) => (
+              <div key={b.id} className={`overflow-hidden rounded-xl bg-painel2 ${b.ativa ? "" : "opacity-50"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={b.imagem_url} alt="" className="aspect-[12/5] w-full object-cover" />
+                <div className="flex items-center justify-between gap-2 p-2 text-xs">
+                  <span className="truncate">{b.titulo || "Sem título"}</span>
+                  <span className="flex gap-2"><button className="underline" onClick={() => alternarBanner(b)}>{b.ativa ? "ocultar" : "mostrar"}</button><button className="underline" onClick={() => apagarBanner(b)}>apagar</button></span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {novoBanner ? (
+            <div className="grid gap-2 rounded-xl border border-linha p-3 sm:grid-cols-2">
+              <input type="file" accept="image/*" className="campo sm:col-span-2" onChange={(e) => setNovoBanner({ ...novoBanner, arquivo: e.target.files?.[0] })} />
+              <input className="campo" placeholder="Título (ex.: Matrículas abertas)" onChange={(e) => setNovoBanner({ ...novoBanner, titulo: e.target.value })} />
+              <input className="campo" placeholder="Texto curto" onChange={(e) => setNovoBanner({ ...novoBanner, texto: e.target.value })} />
+              <input className="campo sm:col-span-2" placeholder="Link ao tocar (opcional)" onChange={(e) => setNovoBanner({ ...novoBanner, link: e.target.value })} />
+              <div className="flex gap-2"><button className="btn" onClick={salvarBanner}>Adicionar</button><button className="btn-sec" onClick={() => setNovoBanner(null)}>Cancelar</button></div>
+            </div>
+          ) : <button className="btn-sec w-fit" onClick={() => setNovoBanner({})}>+ Banner</button>}
+          <p className="text-xs text-suave">Tamanho ideal: 1200 × 500 pixels.</p>
 
           <h3 className="pt-2 text-xl font-bold">Tipo</h3>
           <div className="flex flex-wrap gap-2">

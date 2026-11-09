@@ -286,7 +286,7 @@ function Chamada() {
       )}
 
       <p className="text-sm text-suave">
-        Check-in pelo QR da parede: veja o código em <Link className="underline" href={`${base}/config`}>QR e ajustes</Link>.
+        Check-in pelo QR da parede: veja o código em <Link className="underline" href={`${base}/config`}>Personalizar academia</Link>.
       </p>
     </div>
   );

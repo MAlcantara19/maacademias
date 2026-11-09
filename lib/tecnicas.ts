@@ -27,3 +27,17 @@ export const CLASSIFICACOES: Record<string, string> = {
   "ma-sutemi": "Ma-sutemi (sacrifício de costas)", "yoko-sutemi": "Yoko-sutemi (sacrifício lateral)",
   "osaekomi-waza": "Osaekomi (imobilização)", "shime-waza": "Shime (estrangulamento)", "kansetsu-waza": "Kansetsu (chave)",
 };
+
+export const CORES_CATEGORIA: Record<string, string> = {
+  Etiqueta: "#2563eb", "Dojô": "#7c3aed", Arbitragem: "#dc2626", Fundamentos: "#16a34a", Treino: "#f97316",
+  "Técnicas": "#0d9488", "História": "#78350f", "Princípios": "#ca8a04", "Direções": "#475569",
+  "Palavras das técnicas": "#db2777", "Corpo e judogi": "#0891b2", "Números": "#111111",
+};
+export const corCategoria = (c?: string | null) => (c && CORES_CATEGORIA[c]) || "#64748b";
+
+// Embaralha uma lista (para o quiz)
+export function embaralhar<T>(l: T[]): T[] {
+  const a = [...l];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}

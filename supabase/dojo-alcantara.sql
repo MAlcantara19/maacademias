@@ -130,7 +130,7 @@ begin
   -- ---------- Projeto social (sem mensalidades) ----------
   insert into academias (slug, nome, slogan, sobre, cidade, cores, no_diretorio, tipo, modulos)
   values ('projeto-social-michel', 'Projeto Social de Judô', 'Judô para todos.',
-          'Projeto social do sensei Michel nas comunidades de Minas Gerais. (Troque o nome e o texto em QR e ajustes.)',
+          'Projeto social do sensei Michel nas comunidades de Minas Gerais. (Troque o nome e o texto em Personalizar academia.)',
           'Minas Gerais', '{"primaria":"#0f766e","secundaria":"#0b0b12"}', false, 'projeto_social',
           '{"sobre":true,"propaganda":false,"calendario":true,"avisos":true,"ranking":true,"feed":true,
             "materiais":true,"mensalidades":false,"carteirinha":true,"campeonatos":true,"aula_experimental":false,

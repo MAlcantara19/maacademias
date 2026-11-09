@@ -32,10 +32,11 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         { href: `${base}/lista-presenca`, rotulo: "Lista de presença", icone: "🧾" },
         { href: `${base}/planos`, rotulo: "Planos de aula", icone: "📝" },
         { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
+        { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
         { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
-        { href: `${base}/config`, rotulo: "QR e ajustes", icone: "⚙️" },
+        { href: `${base}/config`, rotulo: "Personalizar academia", icone: "🎨" },
       ]
     : [
         { href: base, rotulo: "Início", icone: "🏠" },
@@ -45,12 +46,13 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
         { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "🪪", m: "carteirinha" },
         { href: `${base}/tecnicas`, rotulo: "Matéria da faixa", icone: "📚" },
+        { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/mensalidades`, rotulo: "Mensalidades", icone: "💳", m: "mensalidades" },
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
       ]
   ).filter((i: any) => !i.m || mod(i.m) || (i.m === "feed" && ctx.academia.modulos?.galeria === true))
-   .filter((i: any) => !i.href.endsWith("/tecnicas") || ctx.academia.modulos?.tecnicas === true)
+   .filter((i: any) => !(i.href.endsWith("/tecnicas") || i.href.endsWith("/estudar")) || ctx.academia.modulos?.tecnicas === true)
    .filter((i: any) => !i.href.endsWith("/relatorio") || ctx.admin)
    .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));
 

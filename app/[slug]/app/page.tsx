@@ -48,6 +48,12 @@ export default function Inicio() {
       const eventos = comuns[1].data || [];
 
       if (ctx.equipe) {
+        const [mods, turmasCount, horariosCount, profsCount] = await Promise.all([
+          sb.from("modalidades").select("id", { count: "exact", head: true }).eq("academia_id", acad),
+          sb.from("turmas").select("id", { count: "exact", head: true }).eq("academia_id", acad),
+          sb.from("horarios").select("id, turmas!inner(academia_id)", { count: "exact", head: true }).eq("turmas.academia_id", acad),
+          sb.from("membros").select("id", { count: "exact", head: true }).eq("academia_id", acad).eq("papel", "professor"),
+        ]);
         const [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist, graduar] = await Promise.all([
           sb.from("resumo_academia").select("*").eq("academia_id", acad).maybeSingle(),
           sb.from("horarios").select("*, turmas!inner(id, nome, academia_id, modalidades(nome, cor))").eq("turmas.academia_id", acad).eq("dia_semana", dow).order("hora_inicio"),
@@ -65,6 +71,16 @@ export default function Inicio() {
           respondidas: respondidas.count || 0, ausencias: ausencias.count || 0, experimentais: experimentais.count || 0,
           sumidos: (painel.data || []).filter((p: any) => !p.afastado), aniversarios: anivUnicos, campeonato: checklist.data?.[0],
           graduar: graduar.data || [],
+          passos: [
+            { ok: !!ctx.academia.logo_url, t: "Colocar a logo", href: `${base}/config` },
+            { ok: !!ctx.academia.sobre && !ctx.academia.sobre.includes("Escreva aqui"), t: "Escrever o “Sobre nós”", href: `${base}/config` },
+            { ok: !!ctx.academia.whatsapp && !!ctx.academia.endereco, t: "WhatsApp e endereço", href: `${base}/config` },
+            { ok: (mods.count || 0) > 0, t: "Cadastrar as modalidades e faixas", href: `${base}/gestao` },
+            { ok: (turmasCount.count || 0) > 0, t: "Criar as turmas", href: `${base}/gestao` },
+            { ok: (horariosCount.count || 0) > 0, t: "Colocar os horários", href: `${base}/gestao` },
+            { ok: (profsCount.count || 0) > 0, t: "Cadastrar os professores", href: `${base}/gestao` },
+            { ok: (resumo.data?.alunos_ativos || 0) > 0, t: "Cadastrar alunos (ou mandar o link de cadastro)", href: `${base}/alunos` },
+          ],
         });
       } else {
         const ids = ctx.meusAlunos.map((a) => a.id);
@@ -112,6 +128,17 @@ export default function Inicio() {
 
       {ctx.equipe ? (
         <>
+          {ctx.admin && d.passos.some((p: any) => !p.ok) && (
+            <section className="rounded-2xl border-2 border-dashed p-4" style={{ borderColor: "var(--cor)" }}>
+              <h2 className="text-2xl font-bold">Primeiros passos da academia</h2>
+              <p className="mb-2 text-sm text-suave">{d.passos.filter((p: any) => p.ok).length} de {d.passos.length} prontos</p>
+              <ul className="space-y-1">
+                {d.passos.map((p: any) => (
+                  <li key={p.t}><Link href={p.href} className={`flex items-center gap-2 ${p.ok ? "text-suave line-through" : ""}`}><span>{p.ok ? "✅" : "⬜"}</span>{p.t}</Link></li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Numero valor={d.resumo?.alunos_ativos} rotulo="alunos ativos" />
             <Numero valor={d.resumo?.novos_no_mes} rotulo="novos este mês" />
