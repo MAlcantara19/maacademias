@@ -63,6 +63,8 @@ create table academias (
   pix_nome       text,                          -- nome do recebedor (até 25 letras)
   pix_cidade     text,                          -- cidade do recebedor (até 15 letras)
   no_diretorio   boolean default false,         -- aparece na página geral/mapa?
+  tipo           text not null default 'academia' check (tipo in ('academia','projeto_social')),
+  tecnicas_progressivas boolean default true,   -- aluno vê a matéria até a próxima faixa
   ativa          boolean default true,
 
   -- Módulos que a academia liga/desliga ("modo analógico" x "modo tecnológico")
@@ -70,7 +72,7 @@ create table academias (
     "sobre": true, "propaganda": false, "calendario": true, "avisos": true,
     "ranking": true, "feed": false, "materiais": true, "mensalidades": false,
     "carteirinha": true, "campeonatos": true, "aula_experimental": true,
-    "feedback": true, "ia": false
+    "feedback": true, "ia": false, "tecnicas": false, "galeria": false
   }'::jsonb,
 
   -- Chamada: manual, qr_fixo, facial (pode ter mais de um)
@@ -898,10 +900,24 @@ create table tecnicas (
   nome_original  text,                        -- ex.: nome em japonês
   descricao      text,
   video_url      text,
+  imagem_url     text,                        -- ficha/panfleto da técnica
+  classificacao  text,                        -- te-waza, koshi-waza, ashi-waza, ma-sutemi, yoko-sutemi...
+  conjunto       text,                        -- ex.: 1º grupo, 6º grupo, Shinmeisho (cor na roleta)
   ordem          int default 0,
   criada_em      timestamptz default now()
 );
 create index on tecnicas (modalidade_id, faixa, grupo, ordem);
+
+-- Galerias da academia ligadas a pastas do Google Drive
+create table galerias (
+  id           uuid primary key default gen_random_uuid(),
+  academia_id  uuid not null references academias(id) on delete cascade,
+  titulo       text not null,
+  pasta_url    text not null,
+  pasta_id     text not null,
+  ordem        int default 0,
+  criada_em    timestamptz default now()
+);
 
 -- Regras para sugerir graduação: tempo e aulas mínimas em cada faixa
 create table regras_graduacao (
@@ -1061,6 +1077,87 @@ language sql stable security definer set search_path = public as $$
        )
   );
 $$;
+
+
+-- Técnica liberada para mim? Equipe vê tudo. Aluno vê as faixas até a
+-- próxima da dele (se a academia usar o modo progressivo).
+create or replace function tecnica_liberada(t_acad uuid, t_mod uuid, t_faixa text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select sou_equipe(t_acad) or (
+    participo(t_acad) and (
+      t_faixa is null
+      or not coalesce((select tecnicas_progressivas from academias where id = t_acad), true)
+      or exists (
+        select 1
+          from modalidades mo
+          join lateral (
+            select g.faixa from graduacoes g
+              join membros m on m.id = g.membro_id
+             where m.id in (select meus_membros()) and g.modalidade_id = t_mod
+             order by g.data desc limit 1
+          ) minha on true
+         where mo.id = t_mod
+           and array_position(mo.graduacoes, t_faixa) <= coalesce(array_position(mo.graduacoes, minha.faixa), 1) + 1
+      )
+      -- sem graduação registrada: vê a 1ª e a 2ª faixa
+      or (not exists (select 1 from graduacoes g join membros m on m.id = g.membro_id
+                       where m.id in (select meus_membros()) and g.modalidade_id = t_mod)
+          and array_position((select graduacoes from modalidades where id = t_mod), t_faixa) <= 2)
+    )
+  );
+$$;
+
+-- Ranking de hierarquia: faixa e grau primeiro, depois o total de aulas.
+-- Todo mundo da academia vê (disputa sadia), mas só nome, faixa e aulas.
+create or replace function ranking_hierarquia(p_acad uuid, p_modalidade uuid)
+returns table (membro_id uuid, nome text, apelido text, foto_url text, faixa text, grau int,
+               cor_faixa text, total_aulas int, posicao bigint)
+language sql stable security definer set search_path = public as $$
+  with ult as (
+    select distinct on (g.membro_id) g.membro_id, g.faixa, g.grau
+      from graduacoes g where g.modalidade_id = p_modalidade
+     order by g.membro_id, g.data desc
+  ), base as (
+    select m.id, pf.nome, pf.apelido, pf.foto_url, u.faixa, coalesce(u.grau, 0) as grau,
+           mo.cores_graduacoes[array_position(mo.graduacoes, u.faixa)] as cor,
+           coalesce(array_position(mo.graduacoes, u.faixa), 0) as nivel,
+           (select count(*) from presencas p join aulas a on a.id = p.aula_id
+              join turmas t on t.id = a.turma_id
+             where p.membro_id = m.id and t.modalidade_id = p_modalidade)::int as aulas
+      from membros m
+      join perfis pf      on pf.id = m.perfil_id
+      join modalidades mo on mo.id = p_modalidade
+      left join ult u     on u.membro_id = m.id
+     where m.academia_id = p_acad and m.ativo and m.papel = 'aluno'
+       and participo(p_acad)
+       and (u.faixa is not null or exists (select 1 from matriculas mt join turmas t on t.id = mt.turma_id
+                                            where mt.membro_id = m.id and t.modalidade_id = p_modalidade
+                                              and mt.status = 'ativa'))
+  )
+  select id, nome, apelido, foto_url, faixa, grau, cor, aulas,
+         row_number() over (order by nivel desc, grau desc, aulas desc, nome)
+    from base
+   order by 9;
+$$;
+
+-- Copiar técnicas de uma modalidade para outra (ex.: do Dojô para o projeto
+-- social). Só funciona se você for admin das duas academias.
+create or replace function copiar_tecnicas(p_origem uuid, p_destino uuid, p_substituir boolean default false)
+returns int
+language plpgsql security definer set search_path = public as $$
+declare v_ao uuid; v_ad uuid; v_n int;
+begin
+  select academia_id into v_ao from modalidades where id = p_origem;
+  select academia_id into v_ad from modalidades where id = p_destino;
+  if not (sou_admin(v_ao) and sou_admin(v_ad)) then raise exception 'Você precisa ser admin das duas academias.'; end if;
+  if p_substituir then delete from tecnicas where modalidade_id = p_destino; end if;
+  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, video_url,
+                        imagem_url, classificacao, conjunto, ordem)
+  select v_ad, p_destino, faixa, grupo, nome, nome_original, descricao, video_url, imagem_url, classificacao, conjunto, ordem
+    from tecnicas where modalidade_id = p_origem;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
 
 
 -- =====================================================================
@@ -2663,7 +2760,7 @@ create policy gerir on cronograma_evento for all
   using (sou_equipe(acad_evento(evento_id))) with check (sou_equipe(acad_evento(evento_id)));
 
 -- ---------- Técnicas, regras, planos e exames ----------
-create policy ver on tecnicas for select using (participo(academia_id));
+create policy ver on tecnicas for select using (tecnica_liberada(academia_id, modalidade_id, faixa));
 create policy gerir on tecnicas for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
 
 create policy ver on regras_graduacao for select
@@ -2679,6 +2776,10 @@ create policy gerir on planos_aula for all using (sou_equipe(academia_id)) with 
 create policy ver on exames_faixa for select
   using (sou_equipe(academia_id) or membro_id in (select meus_membros()));
 create policy gerir on exames_faixa for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+-- ---------- Galerias (Google Drive) ----------
+create policy ver on galerias for select using (participo(academia_id));
+create policy gerir on galerias for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
 
 -- ---------- Histórico ----------
 create policy ver on historico for select using (sou_admin(academia_id));

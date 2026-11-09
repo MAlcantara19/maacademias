@@ -23,7 +23,8 @@ export default function Ranking() {
   const [periodo, setPeriodo] = useState("Este mês");
   const [modalidade, setModalidade] = useState("");
   const [turma, setTurma] = useState("");
-  const [modo, setModo] = useState<"percentual" | "quantidade" | "faixa">("percentual");
+  const [modo, setModo] = useState<"percentual" | "quantidade" | "faixa" | "hierarquia">("percentual");
+  const [hier, setHier] = useState<any[]>([]);
   const [faixaEtaria, setFaixaEtaria] = useState("Adultos (18–29)");
   const [minimo, setMinimo] = useState(4);
   const [mods, setMods] = useState<any[]>([]);
@@ -41,6 +42,14 @@ export default function Ranking() {
     sb.rpc("ranking_periodo", { p_acad: ctx.academia.id, p_de: de, p_ate: ate, p_modalidade: modalidade || null, p_turma: turma || null })
       .then(({ data }) => setLinhas(data || []));
   }, [periodo, modalidade, turma]); // eslint-disable-line
+
+  // Hierarquia: faixa e grau, depois total de aulas
+  useEffect(() => {
+    if (modo !== "hierarquia") return;
+    const m = modalidade || mods[0]?.id;
+    if (!m) return;
+    sb.rpc("ranking_hierarquia", { p_acad: ctx.academia.id, p_modalidade: m }).then(({ data }) => setHier(data || []));
+  }, [modo, modalidade, mods]); // eslint-disable-line
 
   const lista = useMemo(() => {
     let l = linhas;
@@ -66,14 +75,14 @@ export default function Ranking() {
       <h1 className="text-4xl font-extrabold">Ranking</h1>
 
       <div className="flex gap-1 rounded-2xl bg-painel p-1">
-        {([["percentual", "Porcentagem"], ["quantidade", "Quantidade"], ["faixa", "Por idade"]] as const).map(([k, v]) => (
+        {([["percentual", "%"], ["quantidade", "Aulas"], ["faixa", "Idade"], ["hierarquia", "Hierarquia"]] as const).map(([k, v]) => (
           <button key={k} onClick={() => setModo(k)} className={`flex-1 rounded-xl py-2 font-semibold ${modo === k ? "bg-painel2" : "text-suave"}`}
             style={modo === k ? { boxShadow: "inset 0 -3px 0 var(--cor)" } : {}}>{v}</button>
         ))}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-4">
-        <select className="campo" value={periodo} onChange={(e) => setPeriodo(e.target.value)} aria-label="Período">
+        <select className="campo" value={periodo} onChange={(e) => setPeriodo(e.target.value)} aria-label="Período" disabled={modo === "hierarquia"}>
           {Object.keys(PERIODOS).map((p) => <option key={p}>{p}</option>)}
         </select>
         <select className="campo" value={modalidade} onChange={(e) => { setModalidade(e.target.value); setTurma(""); }} aria-label="Modalidade">
@@ -100,6 +109,44 @@ export default function Ranking() {
         </p>
       )}
 
+      {modo === "hierarquia" && (() => {
+        const eu = hier.findIndex((r) => meusIds.includes(r.membro_id));
+        const mesmo = (a: any, b: any) => a && b && a.faixa === b.faixa && a.grau === b.grau;
+        const frente = eu > 0 ? hier[eu - 1] : null, atras = eu >= 0 ? hier[eu + 1] : null;
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-suave">Ordem: faixa mais alta → maior grau → mais aulas na carreira. Graduar sobe você de vez; aulas desempatam.</p>
+            {eu >= 0 && (
+              <div className="rounded-2xl p-4" style={{ background: "var(--cor)" }}>
+                <p className="numero text-3xl font-bold">Você está em {eu + 1}º</p>
+                {frente && (mesmo(frente, hier[eu])
+                  ? <p>Faltam <b>{frente.total_aulas - hier[eu].total_aulas + 1}</b> aulas para passar {frente.apelido || frente.nome.split(" ")[0]} 🔥</p>
+                  : <p>Para passar {frente.apelido || frente.nome.split(" ")[0]}, o próximo passo é graduar. 🥋</p>)}
+                {atras && mesmo(atras, hier[eu]) && <p className="text-sm opacity-90">{atras.apelido || atras.nome.split(" ")[0]} está {hier[eu].total_aulas - atras.total_aulas} aula(s) atrás de você. Não vacila! 👀</p>}
+              </div>
+            )}
+            <ol className="space-y-2">
+              {hier.map((r, i) => (
+                <li key={r.membro_id} className={`flex items-center gap-3 rounded-2xl p-3 ${meusIds.includes(r.membro_id) ? "bg-painel2 ring-2 ring-[var(--cor)]" : "bg-painel"}`}>
+                  <span className="numero w-8 text-center text-2xl font-bold">{r.posicao}º</span>
+                  <Avatar foto={r.foto_url} nome={r.nome} cor={r.cor_faixa} grau={r.grau} tamanho={40} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{r.apelido || r.nome}</p>
+                    <p className="text-xs text-suave">{r.faixa ? `Faixa ${r.faixa.toLowerCase()}${r.grau ? ` · ${r.grau}º grau` : ""}` : "Sem graduação"}</p>
+                  </div>
+                  <span className="text-right">
+                    <span className="numero block text-xl font-bold">{r.total_aulas}</span>
+                    <span className="text-xs text-suave">{i > 0 && mesmo(hier[i - 1], r) ? `−${hier[i - 1].total_aulas - r.total_aulas} do de cima` : "aulas"}</span>
+                  </span>
+                </li>
+              ))}
+              {!hier.length && <p className="text-suave">Ninguém com graduação nesta modalidade ainda.</p>}
+            </ol>
+          </div>
+        );
+      })()}
+
+      {modo !== "hierarquia" && <>
       {/* Pódio */}
       {podio.length > 0 && (
         <div className="grid grid-cols-3 items-end gap-3">
@@ -137,6 +184,7 @@ export default function Ranking() {
         {lista.length === 0 && <p className="text-suave">Ninguém no ranking com esses filtros ainda.</p>}
       </ol>
       <p className="text-xs text-suave">{MESES[new Date().getMonth()]}: empates dividem a mesma posição.</p>
+      </>}
     </div>
   );
 }

@@ -87,6 +87,7 @@ export default function Relatorio() {
             ))}
           </section>
 
+          {ctx.academia.tipo !== "projeto_social" && ctx.academia.modulos?.mensalidades !== false && (
           <section className="imprimir-claro rounded-2xl bg-painel p-4">
             <h3 className="mb-3 text-2xl font-bold">Financeiro</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -97,6 +98,7 @@ export default function Relatorio() {
             <div className="mt-3"><Barra pct={d.fin.previsto ? (100 * d.fin.recebido) / d.fin.previsto : 0} cor="var(--color-ok)" /></div>
             <p className="mt-2 text-sm text-suave">{d.fin.porForma.filter((x: any) => x.v).map((x: any) => `${formaNome[x.f]}: ${dinheiro(x.v)}`).join(" · ") || "Nenhum pagamento registrado."}</p>
           </section>
+          )}
 
           <section className="imprimir-claro rounded-2xl bg-painel p-4">
             <h3 className="mb-3 text-2xl font-bold">Frequência por turma</h3>

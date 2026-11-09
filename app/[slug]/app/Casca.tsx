@@ -9,7 +9,7 @@ import { BoasVindas } from "@/components/BoasVindas";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
-export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; children: React.ReactNode }) {
+export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; outras?: any[]; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [mais, setMais] = useState(false);
@@ -29,6 +29,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/avisos`, rotulo: "Avisos", icone: "📣" },
         { href: `${base}/relatorio`, rotulo: "Relatório do mês", icone: "📊" },
+        { href: `${base}/lista-presenca`, rotulo: "Lista de presença", icone: "🧾" },
         { href: `${base}/planos`, rotulo: "Planos de aula", icone: "📝" },
         { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
@@ -48,7 +49,10 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
       ]
-  ).filter((i: any) => !i.m || mod(i.m));
+  ).filter((i: any) => !i.m || mod(i.m) || (i.m === "feed" && ctx.academia.modulos?.galeria === true))
+   .filter((i: any) => !i.href.endsWith("/tecnicas") || ctx.academia.modulos?.tecnicas === true)
+   .filter((i: any) => !i.href.endsWith("/relatorio") || ctx.admin)
+   .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));
 
   function verComo(valor: string) {
     document.cookie = `ver_como=${valor}; path=/; max-age=${valor ? 7200 : 0}`;
@@ -71,7 +75,13 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
         {/* Lateral (computador) */}
         <aside className="nao-imprimir sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-linha bg-painel p-4 lg:flex">
           <Link href={`/${ctx.academia.slug}`} className="titulo text-2xl font-extrabold">{ctx.academia.nome}</Link>
-          <Faixa cor={cor} graus={2} altura={8} className="mb-4 mt-2" />
+          <Faixa cor={cor} graus={2} altura={8} className="mb-2 mt-2" />
+          {outras.length > 0 && (
+            <select className="campo mb-3 py-1.5 text-sm" value="" onChange={(e) => e.target.value && router.push(`/${e.target.value}/app`)} aria-label="Trocar de academia">
+              <option value="">↔ Trocar de academia</option>
+              {outras.map((a: any) => <option key={a.slug} value={a.slug}>{a.nome}</option>)}
+            </select>
+          )}
           <nav className="flex-1 space-y-1 overflow-y-auto">
             {itens.map((i) => (
               <Link key={i.href} href={i.href}
@@ -131,6 +141,11 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
                   </Link>
                 ))}
               </div>
+              {outras.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {outras.map((a: any) => <Link key={a.slug} href={`/${a.slug}/app`} onClick={() => setMais(false)} className="btn-sec w-full">↔ {a.nome}</Link>)}
+                </div>
+              )}
               {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
               <button onClick={sair} className="btn-sec mt-2 w-full">Sair</button>
             </div>

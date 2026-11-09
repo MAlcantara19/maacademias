@@ -90,7 +90,7 @@ begin
     true,
     '{"sobre":true,"propaganda":true,"calendario":true,"avisos":true,"ranking":true,
       "feed":true,"materiais":true,"mensalidades":true,"carteirinha":true,
-      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true}',
+      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":true,"galeria":true}',
     array['manual','qr_fixo','facial'], 'PILOTO-QR-DEMO')
   returning id into ac;
 

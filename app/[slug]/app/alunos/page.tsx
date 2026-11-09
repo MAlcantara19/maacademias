@@ -9,6 +9,7 @@ import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { NovoAluno } from "./NovoAluno";
 import { Solicitacoes } from "./Solicitacoes";
+import { TrazerAlunos } from "./TrazerAlunos";
 
 const ORDENS: Record<string, string> = {
   nome: "Nome (A–Z)", idade: "Idade", debito_atualizado: "Maior débito", dias_sem_vir: "Dias sem vir", frequencia_30d: "Frequência", aluno_desde: "Aluno desde",
@@ -27,6 +28,7 @@ function Lista() {
   const [filtro, setFiltro] = useState("");
   const [ordem, setOrdem] = useState(params.get("ordem") || "nome");
   const [novo, setNovo] = useState(false);
+  const [trazer, setTrazer] = useState(false);
 
   async function carregar() {
     const { data } = await sb.from("painel_alunos").select("*").eq("academia_id", ctx.academia.id);
@@ -67,11 +69,15 @@ function Lista() {
           <h1 className="text-4xl font-extrabold">Alunos</h1>
           <p className="text-suave">{lista.length} de {todos.length} cadastrados</p>
         </div>
-        <button className="btn" onClick={() => setNovo(true)}>Cadastrar aluno</button>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-sec" onClick={() => setTrazer(true)}>Trazer de outra academia</button>
+          <button className="btn" onClick={() => setNovo(true)}>Cadastrar aluno</button>
+        </div>
       </div>
 
       <Solicitacoes onAprovar={carregar} />
       {novo && <NovoAluno onFechar={() => { setNovo(false); carregar(); }} />}
+      {trazer && <TrazerAlunos jaAqui={todos.map((a) => a.perfil_id)} onFechar={() => { setTrazer(false); carregar(); }} />}
 
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <input className="campo sm:col-span-3 lg:col-span-2" placeholder="Buscar por nome ou apelido" value={busca} onChange={(e) => setBusca(e.target.value)} />

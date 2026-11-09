@@ -46,6 +46,11 @@ export default function Notificacoes() {
         <h1 className="text-4xl font-extrabold">Notificações</h1>
         {lista.some((n) => !n.lida) && <button className="btn-sec text-sm" onClick={todasLidas}>Marcar todas como lidas</button>}
       </div>
+      {ctx.vendoComo && (
+        <p className="rounded-xl bg-alerta/15 p-3 text-sm text-alerta">
+          No modo “ver como aluno”, esta lista mostra as SUAS notificações. Cada aluno só vê as dele.
+        </p>
+      )}
       <AtivarPush perfilId={ctx.perfil?.id} />
       <ul className="space-y-2">
         {lista.map((n) => (

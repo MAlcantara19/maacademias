@@ -59,16 +59,25 @@ export default async function LayoutApp({ children, params }: { children: React.
   // Último acesso (para o painel de alunos)
   if (perfil) await supabase.from("perfis").update({ ultimo_acesso: new Date().toISOString() }).eq("id", perfil.id);
 
+  // Outras academias em que estou (para trocar de academia no menu)
+  const idsPerfis = [perfil?.id, ...depIds].filter(Boolean);
+  const { data: vinc } = idsPerfis.length
+    ? await supabase.from("membros").select("academias(slug, nome)").in("perfil_id", idsPerfis).eq("ativo", true)
+    : { data: [] as any[] };
+  const outras = Array.from(new Map((vinc || []).map((v: any) => [v.academias?.slug, v.academias])).values())
+    .filter((a: any) => a?.slug && a.slug !== academia.slug);
+
   const { count: naoLidas } = await supabase.from("notificacoes")
     .select("id", { count: "exact", head: true }).eq("lida", false);
 
   return (
     <Casca
       ctx={{
-        academia, perfil, papeis: vendoComo ? ["aluno"] : Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !!master,
+        academia, perfil, papeis: vendoComo ? ["aluno"] : Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !!master, vendoComo: !!vendoComo,
         membroId: vendoComo ? vendoComo.id : membroEquipe?.id || membroAluno?.id || null, meusAlunos,
       }}
       vendoComo={vendoComo}
+      outras={outras}
       cor={corDa(academia)}
       naoLidas={naoLidas || 0}
     >

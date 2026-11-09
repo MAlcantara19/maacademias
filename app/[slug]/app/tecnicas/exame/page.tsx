@@ -26,6 +26,7 @@ function Exame() {
   const [itens, setItens] = useState<any[]>([]);
   const [exame, setExame] = useState<any>({ data: hojeISO(), resultado: "pendente", observacao: "" });
   const [msg, setMsg] = useState("");
+  const [certificado, setCertificado] = useState("");
 
   // Abrir um exame já salvo
   useEffect(() => {
@@ -87,7 +88,10 @@ function Exame() {
       membro_id: alunoId, modalidade_id: modId, faixa: faixaAlvo, grau: 0, data: exame.data, registrado_por: ctx.membroId,
       observacao: `Aprovado no exame${media != null ? ` (nota ${media})` : ""}`,
     });
-    setMsg(error ? error.message : `Graduação registrada: faixa ${faixaAlvo}! 🎉 A moldura da foto já mudou de cor.`);
+    if (error) return setMsg(error.message);
+    const { data: g } = await sb.from("graduacoes").select("id").eq("membro_id", alunoId).eq("modalidade_id", modId).eq("faixa", faixaAlvo).order("data", { ascending: false }).limit(1);
+    setMsg(`Graduação registrada: faixa ${faixaAlvo}! 🎉 A moldura da foto já mudou de cor.`);
+    if (g?.[0]) setCertificado(g[0].id);
   }
 
   const grupos = Array.from(new Set(itens.map((i) => i.grupo)));
@@ -168,7 +172,8 @@ function Exame() {
         </div>
         <textarea className="campo min-h-20" placeholder="Observações do avaliador" value={exame.observacao || ""} onChange={(e) => setExame({ ...exame, observacao: e.target.value })} />
         <div className="hidden pt-10 text-center text-sm print:block">_______________________________<br />Avaliador</div>
-        {exame.id && exame.resultado === "aprovado" && <button className="nao-imprimir btn" onClick={graduar}>🎉 Registrar a faixa {faixaAlvo}</button>}
+        {exame.id && exame.resultado === "aprovado" && !certificado && <button className="nao-imprimir btn" onClick={graduar}>🎉 Registrar a faixa {faixaAlvo}</button>}
+        {certificado && <Link className="nao-imprimir btn" href={`${base}/certificado/${certificado}`}>📜 Abrir o certificado</Link>}
       </section>
     </div>
   );

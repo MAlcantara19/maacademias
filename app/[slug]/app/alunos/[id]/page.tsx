@@ -6,7 +6,8 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { MOTIVOS_AUSENCIA, abrirAnexo, dataBR, dinheiro, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Faixa } from "@/components/Faixa";
-import { GraficoLinha, Barra } from "@/components/Grafico";
+import { Barra } from "@/components/Grafico";
+import { ComparaPeso } from "@/components/ComparaPeso";
 
 function Bloco({ titulo, children, acao }: { titulo: string; children: React.ReactNode; acao?: React.ReactNode }) {
   return (
@@ -257,7 +258,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           )}
           <p className="numero text-5xl font-bold">{ultimoPeso ? `${Number(ultimoPeso.peso_kg)} kg` : "—"}</p>
           <p className="mb-3 text-sm text-suave">{ultimoPeso ? `em ${dataBR(ultimoPeso.data)}` : "Nenhum peso registrado"}</p>
-          <GraficoLinha sufixo="" pontos={(x.medidas || []).filter((m: any) => m.peso_kg).slice(-8).map((m: any) => ({ rotulo: dataBR(m.data).slice(0, 5), valor: Number(m.peso_kg) }))} />
+          <ComparaPeso medidas={(x.medidas || []).filter((m: any) => m.peso_kg)} membroId={id} />
         </Bloco>
 
         {/* Graduação */}
@@ -284,7 +285,10 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
               const cor = g.modalidades?.cores_graduacoes?.[i];
               return (
                 <li key={g.id}>
-                  <div className="flex justify-between text-sm"><span className="font-semibold">{g.modalidades?.nome}: {g.faixa}{g.grau ? ` · ${g.grau}º grau` : ""}</span><span className="text-suave">{dataBR(g.data)}</span></div>
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold">{g.modalidades?.nome}: {g.faixa}{g.grau ? ` · ${g.grau}º grau` : ""}</span>
+                    <span className="text-suave">{dataBR(g.data)} · <Link className="underline" href={`${base}/certificado/${g.id}`}>certificado</Link></span>
+                  </div>
                   <Faixa cor={cor} graus={g.grau} altura={10} className="mt-1" />
                   {g.observacao && <p className="mt-1 text-xs text-suave">{g.observacao}</p>}
                 </li>

@@ -4,6 +4,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataHoraBR } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
+import { Galeria } from "./Galeria";
 
 const LIMITE_MB = 45;
 
@@ -17,6 +18,9 @@ export default function Feed() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState("");
+  const temFeed = ctx.academia.modulos?.feed !== false;
+  const temGaleria = ctx.academia.modulos?.galeria === true;
+  const [aba, setAba] = useState(temFeed ? "feed" : "galeria");
   const meus = new Set(ctx.equipe ? [ctx.membroId] : ctx.meusAlunos.map((a) => a.id));
   const eu = ctx.membroId;
 
@@ -87,9 +91,17 @@ export default function Feed() {
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-4xl font-extrabold">Feed</h1>
-        <button className="btn" onClick={() => setNovo({ marcados: [] })}>Postar treino</button>
+        <h1 className="text-4xl font-extrabold">{aba === "feed" ? "Feed" : "Galeria"}</h1>
+        {aba === "feed" && <button className="btn" onClick={() => setNovo({ marcados: [] })}>Postar treino</button>}
       </div>
+      {temFeed && temGaleria && (
+        <div className="flex gap-1 rounded-2xl bg-painel p-1">
+          {[["feed", "📸 Feed"], ["galeria", "📁 Galeria"]].map(([k, v]) => (
+            <button key={k} onClick={() => setAba(k)} className={`flex-1 rounded-xl py-2 text-sm font-semibold ${aba === k ? "bg-painel2" : "text-suave"}`}>{v}</button>
+          ))}
+        </div>
+      )}
+      {aba === "galeria" ? <Galeria /> : <>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
 
       {novo && (
@@ -150,6 +162,7 @@ export default function Feed() {
         );
       })}
       {!posts.length && <p className="text-suave">Nenhuma publicação ainda. Poste a foto do treino de hoje!</p>}
+      </>}
     </div>
   );
 }

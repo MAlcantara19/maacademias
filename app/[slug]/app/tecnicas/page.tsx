@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { GRUPOS, nomeGrupo, ordemGrupo } from "@/lib/tecnicas";
+import { CLASSIFICACOES, GRUPOS, corConjunto, nomeGrupo, ordemGrupo } from "@/lib/tecnicas";
 import { Faixa } from "@/components/Faixa";
 
 // Banco de técnicas por faixa: a "matéria" de cada exame
@@ -51,7 +51,8 @@ export default function Tecnicas() {
   async function salvar() {
     if (!form?.nome || !form?.grupo) return setMsg("Preencha o nome e o grupo.");
     const dados = { academia_id: ctx.academia.id, modalidade_id: modId, faixa: form.faixa || null, grupo: form.grupo, nome: form.nome,
-      nome_original: form.nome_original || null, descricao: form.descricao || null, video_url: form.video_url || null, ordem: Number(form.ordem || 0) };
+      nome_original: form.nome_original || null, descricao: form.descricao || null, video_url: form.video_url || null, ordem: Number(form.ordem || 0),
+      imagem_url: form.imagem_url || null, classificacao: form.classificacao || null, conjunto: form.conjunto || null };
     const { error } = form.id ? await sb.from("tecnicas").update(dados).eq("id", form.id) : await sb.from("tecnicas").insert(dados);
     setMsg(error ? error.message : "Técnica salva."); setForm(null); carregar();
   }
@@ -77,14 +78,31 @@ export default function Tecnicas() {
     setMsg(error ? error.message : `${dados.length} técnicas importadas.`); setCsv(null); carregar();
   }
 
+  // Copiar o programa para outra academia em que você também é admin (ex.: projeto social)
+  const [copia, setCopia] = useState<any>(null);
+  async function abrirCopia() {
+    const { data } = await sb.from("modalidades").select("id, nome, academias(nome)").neq("academia_id", ctx.academia.id);
+    setCopia({ destinos: data || [], destino: "" });
+  }
+  async function copiar() {
+    if (!copia?.destino) return;
+    const { data, error } = await sb.rpc("copiar_tecnicas", { p_origem: modId, p_destino: copia.destino, p_substituir: !!copia.substituir });
+    setMsg(error ? error.message : `${data} técnicas copiadas.`); setCopia(null);
+  }
+
   const Item = ({ t }: { t: any }) => (
-    <li className="rounded-xl bg-painel2">
+    <li className="rounded-xl bg-painel2" style={{ borderLeft: `5px solid ${corConjunto(t.conjunto)}` }}>
       <button className="flex w-full items-center justify-between gap-2 p-3 text-left" onClick={() => setAberta(aberta === t.id ? "" : t.id)}>
         <span><b>{t.nome_original || t.nome}</b>{t.nome_original && <span className="text-sm text-suave"> · {t.nome}</span>}</span>
         {t.video_url && <span aria-hidden>▶️</span>}
       </button>
       {aberta === t.id && (
         <div className="space-y-2 px-3 pb-3 text-sm">
+          {t.imagem_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={t.imagem_url} alt={t.nome} className="max-h-72 rounded-lg" />
+          )}
+          {(t.conjunto || t.classificacao) && <p className="text-xs text-suave">{[t.conjunto, CLASSIFICACOES[t.classificacao]].filter(Boolean).join(" · ")}</p>}
           {t.descricao && <p className="text-suave">{t.descricao}</p>}
           {t.video_url && <a href={t.video_url} target="_blank" className="btn-sec text-sm">Ver vídeo</a>}
           {ctx.equipe && (
@@ -107,8 +125,11 @@ export default function Tecnicas() {
             <button className="btn" onClick={() => setForm({ grupo: "nage-waza", faixa: faixas[1] || "" })}>Nova técnica</button>
             <button className="btn-sec" onClick={() => setCsv("")}>Importar lista</button>
             <Link className="btn-sec" href={`${base}/tecnicas/exame`}>Exame de faixa</Link>
+            <Link className="btn-sec" href={`${base}/tecnicas/roleta`}>🎯 Roleta</Link>
+            {ctx.admin && <button className="btn-sec" onClick={abrirCopia}>Copiar para outra academia</button>}
           </div>
         )}
+        {!ctx.equipe && <Link className="btn" href={`${base}/tecnicas/roleta`}>🎯 Roleta</Link>}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -117,6 +138,19 @@ export default function Tecnicas() {
         ))}
       </div>
       {msg && <p className="text-sm text-suave">{msg}</p>}
+
+      {copia && (
+        <section className="space-y-2 rounded-2xl border border-linha bg-painel p-4">
+          <p className="font-semibold">Copiar as técnicas de {mod?.nome} para:</p>
+          <select className="campo" value={copia.destino} onChange={(e) => setCopia({ ...copia, destino: e.target.value })}>
+            <option value="">Escolha a academia e a modalidade…</option>
+            {copia.destinos.map((d: any) => <option key={d.id} value={d.id}>{d.academias?.nome} — {d.nome}</option>)}
+          </select>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" onChange={(e) => setCopia({ ...copia, substituir: e.target.checked })} /> Apagar as técnicas que já existem lá antes</label>
+          <p className="text-xs text-suave">O conteúdo só vai para academias em que você também é admin. Ninguém de fora vê suas técnicas.</p>
+          <div className="flex gap-2"><button className="btn" onClick={copiar}>Copiar</button><button className="btn-sec" onClick={() => setCopia(null)}>Cancelar</button></div>
+        </section>
+      )}
 
       {csv !== null && (
         <section className="space-y-2 rounded-2xl border border-linha bg-painel p-4">
@@ -141,6 +175,13 @@ export default function Tecnicas() {
           <input className="campo sm:col-span-2" placeholder="Descrição / pontos de atenção" value={form.descricao || ""} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
           <input className="campo" placeholder="Link do vídeo (YouTube, Drive…)" value={form.video_url || ""} onChange={(e) => setForm({ ...form, video_url: e.target.value })} />
           <input className="campo" type="number" placeholder="Ordem" value={form.ordem ?? ""} onChange={(e) => setForm({ ...form, ordem: e.target.value })} />
+          <select className="campo" value={form.classificacao || ""} onChange={(e) => setForm({ ...form, classificacao: e.target.value })}>
+            <option value="">Classificação (para a roleta)…</option>
+            {Object.entries(CLASSIFICACOES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <input className="campo" list="conjuntos" placeholder="Grupo/cor (ex.: 1º grupo, 6º grupo, Shinmeisho)" value={form.conjunto || ""} onChange={(e) => setForm({ ...form, conjunto: e.target.value })} />
+          <datalist id="conjuntos">{["1º grupo", "2º grupo", "3º grupo", "4º grupo", "5º grupo", "6º grupo", "Shinmeisho", "Extras", "Katame-waza", "Kata"].map((c) => <option key={c} value={c} />)}</datalist>
+          <input className="campo sm:col-span-2" placeholder="Link da imagem/ficha da técnica (opcional)" value={form.imagem_url || ""} onChange={(e) => setForm({ ...form, imagem_url: e.target.value })} />
           <div className="flex gap-2 sm:col-span-2"><button className="btn" onClick={salvar}>Salvar</button><button className="btn-sec" onClick={() => setForm(null)}>Cancelar</button></div>
         </section>
       )}

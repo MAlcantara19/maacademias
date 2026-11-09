@@ -1,8 +1,8 @@
 -- #####################################################################
 -- MA ACADEMIAS — INSTALAR TUDO (um arquivo só)
--- Cole este arquivo inteiro no SQL Editor do Supabase e clique em Run.
--- Pode rodar de novo quando quiser: ele recomeça o banco do zero.
--- Os logins (Authentication → Users) NÃO são apagados.
+-- ATENÇÃO: apaga TODOS os dados do app e recria do zero (os logins do
+-- Authentication continuam). Use agora, enquanto ainda é teste.
+-- Depois que tiver alunos de verdade, NÃO rode mais este arquivo.
 -- #####################################################################
 
 
@@ -92,6 +92,8 @@ create table academias (
   pix_nome       text,                          -- nome do recebedor (até 25 letras)
   pix_cidade     text,                          -- cidade do recebedor (até 15 letras)
   no_diretorio   boolean default false,         -- aparece na página geral/mapa?
+  tipo           text not null default 'academia' check (tipo in ('academia','projeto_social')),
+  tecnicas_progressivas boolean default true,   -- aluno vê a matéria até a próxima faixa
   ativa          boolean default true,
 
   -- Módulos que a academia liga/desliga ("modo analógico" x "modo tecnológico")
@@ -99,7 +101,7 @@ create table academias (
     "sobre": true, "propaganda": false, "calendario": true, "avisos": true,
     "ranking": true, "feed": false, "materiais": true, "mensalidades": false,
     "carteirinha": true, "campeonatos": true, "aula_experimental": true,
-    "feedback": true, "ia": false
+    "feedback": true, "ia": false, "tecnicas": false, "galeria": false
   }'::jsonb,
 
   -- Chamada: manual, qr_fixo, facial (pode ter mais de um)
@@ -927,10 +929,24 @@ create table tecnicas (
   nome_original  text,                        -- ex.: nome em japonês
   descricao      text,
   video_url      text,
+  imagem_url     text,                        -- ficha/panfleto da técnica
+  classificacao  text,                        -- te-waza, koshi-waza, ashi-waza, ma-sutemi, yoko-sutemi...
+  conjunto       text,                        -- ex.: 1º grupo, 6º grupo, Shinmeisho (cor na roleta)
   ordem          int default 0,
   criada_em      timestamptz default now()
 );
 create index on tecnicas (modalidade_id, faixa, grupo, ordem);
+
+-- Galerias da academia ligadas a pastas do Google Drive
+create table galerias (
+  id           uuid primary key default gen_random_uuid(),
+  academia_id  uuid not null references academias(id) on delete cascade,
+  titulo       text not null,
+  pasta_url    text not null,
+  pasta_id     text not null,
+  ordem        int default 0,
+  criada_em    timestamptz default now()
+);
 
 -- Regras para sugerir graduação: tempo e aulas mínimas em cada faixa
 create table regras_graduacao (
@@ -1090,6 +1106,87 @@ language sql stable security definer set search_path = public as $$
        )
   );
 $$;
+
+
+-- Técnica liberada para mim? Equipe vê tudo. Aluno vê as faixas até a
+-- próxima da dele (se a academia usar o modo progressivo).
+create or replace function tecnica_liberada(t_acad uuid, t_mod uuid, t_faixa text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select sou_equipe(t_acad) or (
+    participo(t_acad) and (
+      t_faixa is null
+      or not coalesce((select tecnicas_progressivas from academias where id = t_acad), true)
+      or exists (
+        select 1
+          from modalidades mo
+          join lateral (
+            select g.faixa from graduacoes g
+              join membros m on m.id = g.membro_id
+             where m.id in (select meus_membros()) and g.modalidade_id = t_mod
+             order by g.data desc limit 1
+          ) minha on true
+         where mo.id = t_mod
+           and array_position(mo.graduacoes, t_faixa) <= coalesce(array_position(mo.graduacoes, minha.faixa), 1) + 1
+      )
+      -- sem graduação registrada: vê a 1ª e a 2ª faixa
+      or (not exists (select 1 from graduacoes g join membros m on m.id = g.membro_id
+                       where m.id in (select meus_membros()) and g.modalidade_id = t_mod)
+          and array_position((select graduacoes from modalidades where id = t_mod), t_faixa) <= 2)
+    )
+  );
+$$;
+
+-- Ranking de hierarquia: faixa e grau primeiro, depois o total de aulas.
+-- Todo mundo da academia vê (disputa sadia), mas só nome, faixa e aulas.
+create or replace function ranking_hierarquia(p_acad uuid, p_modalidade uuid)
+returns table (membro_id uuid, nome text, apelido text, foto_url text, faixa text, grau int,
+               cor_faixa text, total_aulas int, posicao bigint)
+language sql stable security definer set search_path = public as $$
+  with ult as (
+    select distinct on (g.membro_id) g.membro_id, g.faixa, g.grau
+      from graduacoes g where g.modalidade_id = p_modalidade
+     order by g.membro_id, g.data desc
+  ), base as (
+    select m.id, pf.nome, pf.apelido, pf.foto_url, u.faixa, coalesce(u.grau, 0) as grau,
+           mo.cores_graduacoes[array_position(mo.graduacoes, u.faixa)] as cor,
+           coalesce(array_position(mo.graduacoes, u.faixa), 0) as nivel,
+           (select count(*) from presencas p join aulas a on a.id = p.aula_id
+              join turmas t on t.id = a.turma_id
+             where p.membro_id = m.id and t.modalidade_id = p_modalidade)::int as aulas
+      from membros m
+      join perfis pf      on pf.id = m.perfil_id
+      join modalidades mo on mo.id = p_modalidade
+      left join ult u     on u.membro_id = m.id
+     where m.academia_id = p_acad and m.ativo and m.papel = 'aluno'
+       and participo(p_acad)
+       and (u.faixa is not null or exists (select 1 from matriculas mt join turmas t on t.id = mt.turma_id
+                                            where mt.membro_id = m.id and t.modalidade_id = p_modalidade
+                                              and mt.status = 'ativa'))
+  )
+  select id, nome, apelido, foto_url, faixa, grau, cor, aulas,
+         row_number() over (order by nivel desc, grau desc, aulas desc, nome)
+    from base
+   order by 9;
+$$;
+
+-- Copiar técnicas de uma modalidade para outra (ex.: do Dojô para o projeto
+-- social). Só funciona se você for admin das duas academias.
+create or replace function copiar_tecnicas(p_origem uuid, p_destino uuid, p_substituir boolean default false)
+returns int
+language plpgsql security definer set search_path = public as $$
+declare v_ao uuid; v_ad uuid; v_n int;
+begin
+  select academia_id into v_ao from modalidades where id = p_origem;
+  select academia_id into v_ad from modalidades where id = p_destino;
+  if not (sou_admin(v_ao) and sou_admin(v_ad)) then raise exception 'Você precisa ser admin das duas academias.'; end if;
+  if p_substituir then delete from tecnicas where modalidade_id = p_destino; end if;
+  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, video_url,
+                        imagem_url, classificacao, conjunto, ordem)
+  select v_ad, p_destino, faixa, grupo, nome, nome_original, descricao, video_url, imagem_url, classificacao, conjunto, ordem
+    from tecnicas where modalidade_id = p_origem;
+  get diagnostics v_n = row_count;
+  return v_n;
+end $$;
 
 
 -- =====================================================================
@@ -2692,7 +2789,7 @@ create policy gerir on cronograma_evento for all
   using (sou_equipe(acad_evento(evento_id))) with check (sou_equipe(acad_evento(evento_id)));
 
 -- ---------- Técnicas, regras, planos e exames ----------
-create policy ver on tecnicas for select using (participo(academia_id));
+create policy ver on tecnicas for select using (tecnica_liberada(academia_id, modalidade_id, faixa));
 create policy gerir on tecnicas for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
 
 create policy ver on regras_graduacao for select
@@ -2708,6 +2805,10 @@ create policy gerir on planos_aula for all using (sou_equipe(academia_id)) with 
 create policy ver on exames_faixa for select
   using (sou_equipe(academia_id) or membro_id in (select meus_membros()));
 create policy gerir on exames_faixa for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+-- ---------- Galerias (Google Drive) ----------
+create policy ver on galerias for select using (participo(academia_id));
+create policy gerir on galerias for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
 
 -- ---------- Histórico ----------
 create policy ver on historico for select using (sou_admin(academia_id));
@@ -2851,7 +2952,7 @@ begin
     true,
     '{"sobre":true,"propaganda":true,"calendario":true,"avisos":true,"ranking":true,
       "feed":true,"materiais":true,"mensalidades":true,"carteirinha":true,
-      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true}',
+      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":true,"galeria":true}',
     array['manual','qr_fixo','facial'], 'PILOTO-QR-DEMO')
   returning id into ac;
 
@@ -3588,7 +3689,157 @@ select
 
 
 -- #####################################################################
--- PARTE 4 — LIGAR LOGINS E MASTERS
+-- PARTE 4 — DOJÔ ALCÂNTARA E PROJETO SOCIAL
+-- #####################################################################
+
+-- =====================================================================
+-- DOJÔ ALCÂNTARA (sua academia) E PROJETO SOCIAL
+-- O conteúdo de técnicas fica só aqui: quem não é da academia não vê.
+-- PROGRAMA DE TÉCNICAS: proposta inicial pelo Gokyo do Kodokan (5 grupos)
+-- e katame-waza — ajuste à vontade no app (Técnicas e exames).
+-- =====================================================================
+delete from academias where slug in ('dojo-alcantara', 'projeto-social-michel');
+
+do $$
+declare
+  dj uuid; mj uuid; pj uuid; mpj uuid;
+  eu uuid; m_admin uuid; m_prof uuid;
+  faixas text[] := array['Branca','Azul','Amarela','Laranja','Verde','Roxa','Marrom','Preta'];
+  cores  text[] := array['#f5f5f5','#1d4ed8','#facc15','#f97316','#16a34a','#7c3aed','#78350f','#111111'];
+begin
+  -- Seu cadastro (o login judo.matheus.alcantara@gmail.com se liga sozinho)
+  select id into eu from perfis where lower(email) = 'judo.matheus.alcantara@gmail.com' limit 1;
+  if eu is null then
+    insert into perfis (nome, apelido, email, telefone, sexo, nascimento, trocar_senha, boas_vindas_em)
+    values ('Matheus Alcântara', 'Sensei Alcântara', 'judo.matheus.alcantara@gmail.com', '5524992924519', 'M', '1998-01-01', false, now())
+    returning id into eu;
+  end if;
+
+  -- ---------- Dojô Alcântara ----------
+  insert into academias (slug, nome, slogan, sobre, cidade, whatsapp, cores, no_diretorio, tipo, modulos)
+  values ('dojo-alcantara', 'Dojô Alcântara', 'Judô com técnica, respeito e evolução.',
+          'Espaço do sensei Alcântara para os alunos aprofundarem o judô: técnicas por faixa, vídeos, exames e carteirinha.',
+          'Três Rios - RJ', '5524992924519', '{"primaria":"#6d28d9","secundaria":"#0b0b12"}', true, 'academia',
+          '{"sobre":true,"propaganda":false,"calendario":true,"avisos":true,"ranking":true,"feed":true,
+            "materiais":true,"mensalidades":false,"carteirinha":true,"campeonatos":true,"aula_experimental":false,
+            "feedback":true,"ia":false,"tecnicas":true,"galeria":true}')
+  returning id into dj;
+
+  insert into modalidades (academia_id, nome, descricao, cor, icone, graduacoes, cores_graduacoes, ordem)
+  values (dj, 'Judô', 'Programa por faixa baseado no Kodokan.', '#6d28d9', '🥋', faixas, cores, 1)
+  returning id into mj;
+
+  insert into membros (academia_id, perfil_id, papel) values (dj, eu, 'admin') returning id into m_admin;
+  insert into membros (academia_id, perfil_id, papel) values (dj, eu, 'professor') returning id into m_prof;
+  insert into professores_modalidades (membro_id, modalidade_id, whatsapp_publico, graduacao, bio)
+  values (m_prof, mj, '5524992924519', 'Faixa preta 2º dan', 'Sensei do Dojô Alcântara.');
+
+  insert into turmas (academia_id, modalidade_id, professor_id, nome, publico) values
+    (dj, mj, m_prof, 'Judô Três Rios', 'todas as idades'),
+    (dj, mj, m_prof, 'Judô Juiz de Fora', 'todas as idades');
+
+  insert into regras_graduacao (modalidade_id, faixa, min_aulas, min_meses) values
+    (mj, 'Branca', 54, 6), (mj, 'Azul', 54, 6), (mj, 'Amarela', 54, 8), (mj, 'Laranja', 54, 10),
+    (mj, 'Verde', 54, 12), (mj, 'Roxa', 54, 12), (mj, 'Marrom', 54, 18);
+
+  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, classificacao, conjunto, ordem) values
+    (dj, mj, null, 'taiso', 'Aquecimento e ginástica', 'Taiso', 'Deslocamentos (tai-sabaki), polichinelo, flexões, abdominais.', null, null, 1),
+    (dj, mj, null, 'ukemi', 'Queda para trás', 'Ushiro-ukemi', null, null, null, 1),
+    (dj, mj, null, 'ukemi', 'Queda lateral', 'Yoko-ukemi', null, null, null, 2),
+    (dj, mj, null, 'ukemi', 'Queda para frente', 'Mae-ukemi', null, null, null, 3),
+    (dj, mj, null, 'ukemi', 'Rolamento para frente', 'Mae-mawari-ukemi', null, null, null, 4),
+    (dj, mj, 'Azul', 'nage-waza', 'Varrida no pé que avança', 'De-ashi-harai', null, 'ashi-waza', '1º grupo', 1),
+    (dj, mj, 'Azul', 'nage-waza', 'Roda no joelho', 'Hiza-guruma', null, 'ashi-waza', '1º grupo', 2),
+    (dj, mj, 'Azul', 'nage-waza', 'Calço no pé puxando', 'Sasae-tsurikomi-ashi', null, 'ashi-waza', '1º grupo', 3),
+    (dj, mj, 'Azul', 'nage-waza', 'Quadril flutuante', 'Uki-goshi', null, 'koshi-waza', '1º grupo', 4),
+    (dj, mj, 'Azul', 'nage-waza', 'Grande ceifada externa', 'O-soto-gari', null, 'ashi-waza', '1º grupo', 5),
+    (dj, mj, 'Azul', 'nage-waza', 'Grande quadril', 'O-goshi', null, 'koshi-waza', '1º grupo', 6),
+    (dj, mj, 'Azul', 'nage-waza', 'Grande ceifada interna', 'O-uchi-gari', null, 'ashi-waza', '1º grupo', 7),
+    (dj, mj, 'Azul', 'nage-waza', 'Projeção pelas costas', 'Seoi-nage', null, 'te-waza', '1º grupo', 8),
+    (dj, mj, 'Amarela', 'nage-waza', 'Pequena ceifada externa', 'Ko-soto-gari', null, 'ashi-waza', '2º grupo', 1),
+    (dj, mj, 'Amarela', 'nage-waza', 'Pequena ceifada interna', 'Ko-uchi-gari', null, 'ashi-waza', '2º grupo', 2),
+    (dj, mj, 'Amarela', 'nage-waza', 'Roda no quadril', 'Koshi-guruma', null, 'koshi-waza', '2º grupo', 3),
+    (dj, mj, 'Amarela', 'nage-waza', 'Quadril puxando e levantando', 'Tsurikomi-goshi', null, 'koshi-waza', '2º grupo', 4),
+    (dj, mj, 'Amarela', 'nage-waza', 'Varrida nos dois pés', 'Okuri-ashi-harai', null, 'ashi-waza', '2º grupo', 5),
+    (dj, mj, 'Amarela', 'nage-waza', 'Queda do corpo', 'Tai-otoshi', null, 'te-waza', '2º grupo', 6),
+    (dj, mj, 'Amarela', 'nage-waza', 'Quadril varrendo', 'Harai-goshi', null, 'koshi-waza', '2º grupo', 7),
+    (dj, mj, 'Amarela', 'nage-waza', 'Por dentro da coxa', 'Uchi-mata', null, 'ashi-waza', '2º grupo', 8),
+    (dj, mj, 'Laranja', 'nage-waza', 'Pequeno gancho externo', 'Ko-soto-gake', null, 'ashi-waza', '3º grupo', 1),
+    (dj, mj, 'Laranja', 'nage-waza', 'Quadril levantando', 'Tsuri-goshi', null, 'koshi-waza', '3º grupo', 2),
+    (dj, mj, 'Laranja', 'nage-waza', 'Queda lateral', 'Yoko-otoshi', null, 'yoko-sutemi', '3º grupo', 3),
+    (dj, mj, 'Laranja', 'nage-waza', 'Roda na perna', 'Ashi-guruma', null, 'ashi-waza', '3º grupo', 4),
+    (dj, mj, 'Laranja', 'nage-waza', 'Quadril com impulso', 'Hane-goshi', null, 'koshi-waza', '3º grupo', 5),
+    (dj, mj, 'Laranja', 'nage-waza', 'Varrida no pé puxando', 'Harai-tsurikomi-ashi', null, 'ashi-waza', '3º grupo', 6),
+    (dj, mj, 'Laranja', 'nage-waza', 'Projeção em círculo', 'Tomoe-nage', null, 'ma-sutemi', '3º grupo', 7),
+    (dj, mj, 'Laranja', 'nage-waza', 'Roda nos ombros', 'Kata-guruma', null, 'te-waza', '3º grupo', 8),
+    (dj, mj, 'Verde', 'nage-waza', 'Reversão pelo canto', 'Sumi-gaeshi', null, 'ma-sutemi', '4º grupo', 1),
+    (dj, mj, 'Verde', 'nage-waza', 'Queda no vale', 'Tani-otoshi', null, 'yoko-sutemi', '4º grupo', 2),
+    (dj, mj, 'Verde', 'nage-waza', 'Enrolando com impulso', 'Hane-makikomi', null, 'yoko-sutemi', '4º grupo', 3),
+    (dj, mj, 'Verde', 'nage-waza', 'Projeção recolhendo', 'Sukui-nage', null, 'te-waza', '4º grupo', 4),
+    (dj, mj, 'Verde', 'nage-waza', 'Mudança de quadril', 'Utsuri-goshi', null, 'koshi-waza', '4º grupo', 5),
+    (dj, mj, 'Verde', 'nage-waza', 'Grande roda', 'O-guruma', null, 'ashi-waza', '4º grupo', 6),
+    (dj, mj, 'Verde', 'nage-waza', 'Enrolando por fora', 'Soto-makikomi', null, 'yoko-sutemi', '4º grupo', 7),
+    (dj, mj, 'Verde', 'nage-waza', 'Queda flutuante', 'Uki-otoshi', null, 'te-waza', '4º grupo', 8),
+    (dj, mj, 'Roxa', 'nage-waza', 'Grande roda externa', 'O-soto-guruma', null, 'ashi-waza', '5º grupo', 1),
+    (dj, mj, 'Roxa', 'nage-waza', 'Técnica flutuante', 'Uki-waza', null, 'yoko-sutemi', '5º grupo', 2),
+    (dj, mj, 'Roxa', 'nage-waza', 'Separação lateral', 'Yoko-wakare', null, 'yoko-sutemi', '5º grupo', 3),
+    (dj, mj, 'Roxa', 'nage-waza', 'Roda lateral', 'Yoko-guruma', null, 'yoko-sutemi', '5º grupo', 4),
+    (dj, mj, 'Roxa', 'nage-waza', 'Quadril por trás', 'Ushiro-goshi', null, 'koshi-waza', '5º grupo', 5),
+    (dj, mj, 'Roxa', 'nage-waza', 'Projeção para trás', 'Ura-nage', null, 'ma-sutemi', '5º grupo', 6),
+    (dj, mj, 'Roxa', 'nage-waza', 'Queda pelo canto', 'Sumi-otoshi', null, 'te-waza', '5º grupo', 7),
+    (dj, mj, 'Roxa', 'nage-waza', 'Gancho lateral', 'Yoko-gake', null, 'yoko-sutemi', '5º grupo', 8),
+    (dj, mj, 'Azul', 'osaekomi-waza', 'Imobilização lateral pela gola', 'Kesa-gatame', null, 'osaekomi-waza', 'Katame-waza', 1),
+    (dj, mj, 'Azul', 'osaekomi-waza', 'Variação do kesa-gatame', 'Kuzure-kesa-gatame', null, 'osaekomi-waza', 'Katame-waza', 2),
+    (dj, mj, 'Azul', 'osaekomi-waza', 'Kesa-gatame invertido', 'Ushiro-kesa-gatame', 'Nome em desuso no dojô (*)', 'osaekomi-waza', 'Katame-waza', 3),
+    (dj, mj, 'Amarela', 'osaekomi-waza', 'Imobilização pelo ombro', 'Kata-gatame', null, 'osaekomi-waza', 'Katame-waza', 1),
+    (dj, mj, 'Amarela', 'osaekomi-waza', 'Imobilização pela cabeça', 'Kami-shiho-gatame', null, 'osaekomi-waza', 'Katame-waza', 2),
+    (dj, mj, 'Amarela', 'osaekomi-waza', 'Variação do kami-shiho', 'Kuzure-kami-shiho-gatame', null, 'osaekomi-waza', 'Katame-waza', 3),
+    (dj, mj, 'Laranja', 'osaekomi-waza', 'Imobilização lateral', 'Yoko-shiho-gatame', null, 'osaekomi-waza', 'Katame-waza', 1),
+    (dj, mj, 'Laranja', 'osaekomi-waza', 'Imobilização montada', 'Tate-shiho-gatame', null, 'osaekomi-waza', 'Katame-waza', 2),
+    (dj, mj, 'Laranja', 'osaekomi-waza', 'Imobilização flutuante', 'Uki-gatame', null, 'osaekomi-waza', 'Katame-waza', 3),
+    (dj, mj, 'Laranja', 'osaekomi-waza', 'Imobilização invertida', 'Ura-gatame', null, 'osaekomi-waza', 'Katame-waza', 4),
+    (dj, mj, 'Laranja', 'shime-waza', 'Estrangulamento cruzado normal', 'Nami-juji-jime', null, 'shime-waza', 'Katame-waza', 1),
+    (dj, mj, 'Laranja', 'shime-waza', 'Estrangulamento cruzado invertido', 'Gyaku-juji-jime', null, 'shime-waza', 'Katame-waza', 2),
+    (dj, mj, 'Laranja', 'shime-waza', 'Estrangulamento meio cruzado', 'Kata-juji-jime', null, 'shime-waza', 'Katame-waza', 3),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento sem a gola', 'Hadaka-jime', null, 'shime-waza', 'Katame-waza', 1),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento pela gola deslizante', 'Okuri-eri-jime', null, 'shime-waza', 'Katame-waza', 2),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento com uma asa', 'Kataha-jime', null, 'shime-waza', 'Katame-waza', 3),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento com uma mão', 'Katate-jime', null, 'shime-waza', 'Katame-waza', 4),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento com as duas mãos', 'Ryote-jime', null, 'shime-waza', 'Katame-waza', 5),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento em roda com a manga', 'Sode-guruma-jime', null, 'shime-waza', 'Katame-waza', 6),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento empurrando', 'Tsukkomi-jime', null, 'shime-waza', 'Katame-waza', 7),
+    (dj, mj, 'Verde', 'shime-waza', 'Estrangulamento em triângulo', 'Sankaku-jime', null, 'shime-waza', 'Katame-waza', 8),
+    (dj, mj, 'Verde', 'kansetsu-waza', 'Chave de braço enroscada', 'Ude-garami', null, 'kansetsu-waza', 'Katame-waza', 1),
+    (dj, mj, 'Verde', 'kansetsu-waza', 'Chave de braço em cruz', 'Ude-hishigi-juji-gatame', null, 'kansetsu-waza', 'Katame-waza', 2),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com o braço', 'Ude-hishigi-ude-gatame', null, 'kansetsu-waza', 'Katame-waza', 1),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com o joelho', 'Ude-hishigi-hiza-gatame', null, 'kansetsu-waza', 'Katame-waza', 2),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com a axila', 'Ude-hishigi-waki-gatame', null, 'kansetsu-waza', 'Katame-waza', 3),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com o abdômen', 'Ude-hishigi-hara-gatame', null, 'kansetsu-waza', 'Katame-waza', 4),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com a perna', 'Ude-hishigi-ashi-gatame', null, 'kansetsu-waza', 'Katame-waza', 5),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço com a mão', 'Ude-hishigi-te-gatame', null, 'kansetsu-waza', 'Katame-waza', 6),
+    (dj, mj, 'Roxa', 'kansetsu-waza', 'Chave de braço em triângulo', 'Ude-hishigi-sankaku-gatame', null, 'kansetsu-waza', 'Katame-waza', 7),
+    (dj, mj, 'Marrom', 'kata', 'Formas de projeção', 'Nage-no-kata', 'Exigido do marrom para o 1º dan.', null, 'Kata', 1),
+    (dj, mj, 'Preta', 'kata', 'Formas de controle no solo', 'Katame-no-kata', 'Exigido para o 2º dan.', null, 'Kata', 1);
+
+  -- ---------- Projeto social (sem mensalidades) ----------
+  insert into academias (slug, nome, slogan, sobre, cidade, cores, no_diretorio, tipo, modulos)
+  values ('projeto-social-michel', 'Projeto Social de Judô', 'Judô para todos.',
+          'Projeto social do sensei Michel nas comunidades de Minas Gerais. (Troque o nome e o texto em QR e ajustes.)',
+          'Minas Gerais', '{"primaria":"#0f766e","secundaria":"#0b0b12"}', false, 'projeto_social',
+          '{"sobre":true,"propaganda":false,"calendario":true,"avisos":true,"ranking":true,"feed":true,
+            "materiais":true,"mensalidades":false,"carteirinha":true,"campeonatos":true,"aula_experimental":false,
+            "feedback":false,"ia":false,"tecnicas":true,"galeria":true}')
+  returning id into pj;
+  insert into modalidades (academia_id, nome, cor, icone, graduacoes, cores_graduacoes, ordem)
+  values (pj, 'Judô', '#0f766e', '🥋', faixas, cores, 1) returning id into mpj;
+  insert into membros (academia_id, perfil_id, papel) values (pj, eu, 'admin');
+  insert into turmas (academia_id, modalidade_id, nome, publico) values
+    (pj, mpj, 'Chiador', 'infantil'), (pj, mpj, 'Parada Braga', 'infantil'), (pj, mpj, 'Penhalonga', 'infantil');
+end $$;
+
+
+-- #####################################################################
+-- PARTE 5 — LIGAR LOGINS E MASTERS
 -- #####################################################################
 
 -- =====================================================================

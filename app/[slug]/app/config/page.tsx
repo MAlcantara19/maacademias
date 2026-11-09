@@ -9,6 +9,7 @@ const MODULOS: [string, string][] = [
   ["sobre", "Sobre nós"], ["propaganda", "Propagandas"], ["calendario", "Calendário"], ["avisos", "Avisos"],
   ["ranking", "Ranking"], ["feed", "Feed"], ["materiais", "Material de apoio"], ["mensalidades", "Mensalidades"],
   ["carteirinha", "Carteirinha"], ["campeonatos", "Campeonatos"], ["aula_experimental", "Aula experimental"], ["feedback", "Sugestões"],
+  ["tecnicas", "Técnicas, roleta e exames"], ["galeria", "Galeria (Google Drive)"],
 ];
 
 export default function Config() {
@@ -49,6 +50,7 @@ export default function Config() {
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
+      tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas,
       alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
@@ -145,6 +147,16 @@ export default function Config() {
             <div><label className="rotulo">“Sentimos sua falta” após (dias)</label><input type="number" className="campo" value={a.reengajar_dias} onChange={(e) => muda("reengajar_dias", e.target.value)} /></div>
             <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
+
+          <h3 className="pt-2 text-xl font-bold">Tipo</h3>
+          <div className="flex flex-wrap gap-2">
+            {[["academia", "🥋 Academia"], ["projeto_social", "🤝 Projeto social"]].map(([k, v]) => (
+              <button key={k} className="chip py-2" style={(a.tipo || "academia") === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+                onClick={() => setA((x: any) => ({ ...x, tipo: k, modulos: k === "projeto_social" ? { ...(x.modulos || {}), mensalidades: false } : x.modulos }))}>{v}</button>
+            ))}
+          </div>
+          <p className="text-xs text-suave">Projeto social: sem mensalidades e com relatório e lista de presença para prestação de contas.</p>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tecnicas_progressivas} onChange={(e) => muda("tecnicas_progressivas", e.target.checked)} /> Técnicas progressivas: o aluno vê a matéria até a próxima faixa dele</label>
 
           <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>
           <div className="flex flex-wrap gap-2">

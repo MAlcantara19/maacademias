@@ -56,3 +56,17 @@ Importe o repositório na Vercel e cadastre as variáveis:
 `/conheca` apresenta o sistema. `/demo` entra direto na Academia Piloto se
 `NEXT_PUBLIC_DEMO_EMAIL` e `NEXT_PUBLIC_DEMO_SENHA` estiverem preenchidos
 (use um login só de teste — a senha fica visível no navegador).
+
+## Galeria pelo Google Drive — opcional
+
+1. Acesse https://console.cloud.google.com → crie um projeto (pode ser o mesmo do Dojô).
+2. Em "APIs e serviços → Biblioteca", ative a **Google Drive API**.
+3. Em "APIs e serviços → Credenciais", crie uma **Chave de API** e restrinja à Google Drive API.
+4. Cadastre na Vercel e no `.env.local`: `GOOGLE_API_KEY=...`
+5. No Drive, compartilhe a pasta como "Qualquer pessoa com o link (leitor)" e cole o link em Feed → Galeria.
+
+## ⚠️ Sobre o INSTALAR-TUDO.sql
+
+Ele APAGA todos os dados do app e recria do zero. Use enquanto for teste.
+Quando tiver alunos de verdade, as próximas atualizações virão como
+arquivos `ATUALIZAR-xx.sql`, que só acrescentam coisas sem apagar nada.
