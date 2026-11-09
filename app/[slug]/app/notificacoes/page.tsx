@@ -14,7 +14,7 @@ function destino(base: string, link?: string) {
   if (link.startsWith("/alunos/")) return `${base}${link}`;
   const mapa: Record<string, string> = {
     "/avisos": base, "/mensalidades": `${base}/mensalidades`, "/materiais": base, "/aniversarios": `${base}/calendario`,
-    "/alunos": `${base}/alunos`, "/gestao": `${base}/gestao`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
+    "/alunos": `${base}/alunos`, "/gestao": `${base}/gestao`, "/meu": `${base}/meu`, "/carteirinha": `${base}/carteirinha`, "/calendario": `${base}/calendario`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
   };
   return mapa[link] || (link.startsWith("/pendencias") ? `${base}/pendencias` : base);
 }

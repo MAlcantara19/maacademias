@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ProvedorCtx, type Ctx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
+import { BoasVindas } from "@/components/BoasVindas";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
@@ -28,6 +29,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/avisos`, rotulo: "Avisos", icone: "📣" },
         { href: `${base}/relatorio`, rotulo: "Relatório do mês", icone: "📊" },
+        { href: `${base}/planos`, rotulo: "Planos de aula", icone: "📝" },
+        { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
         { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
@@ -40,6 +43,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
         { href: `${base}/feed`, rotulo: "Feed", icone: "📸", m: "feed" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
         { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "🪪", m: "carteirinha" },
+        { href: `${base}/tecnicas`, rotulo: "Matéria da faixa", icone: "📚" },
         { href: `${base}/mensalidades`, rotulo: "Mensalidades", icone: "💳", m: "mensalidades" },
         { href: `${base}/pendencias`, rotulo: "Pendências", icone: "📌" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
@@ -63,6 +67,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, children }: { ctx: Ctx; c
   return (
     <ProvedorCtx value={ctx}>
       <div style={{ ["--cor" as any]: cor }} className="min-h-dvh lg:flex">
+        {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
         {/* Lateral (computador) */}
         <aside className="nao-imprimir sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-linha bg-painel p-4 lg:flex">
           <Link href={`/${ctx.academia.slug}`} className="titulo text-2xl font-extrabold">{ctx.academia.nome}</Link>

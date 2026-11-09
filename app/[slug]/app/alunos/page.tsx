@@ -4,14 +4,14 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { FAIXAS_ETARIAS, dataBR, primeiroNome, whatsapp } from "@/lib/util";
+import { FAIXAS_ETARIAS, dataBR, dinheiro, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { NovoAluno } from "./NovoAluno";
 import { Solicitacoes } from "./Solicitacoes";
 
 const ORDENS: Record<string, string> = {
-  nome: "Nome (A–Z)", idade: "Idade", dias_sem_vir: "Dias sem vir", frequencia_30d: "Frequência", aluno_desde: "Aluno desde",
+  nome: "Nome (A–Z)", idade: "Idade", debito_atualizado: "Maior débito", dias_sem_vir: "Dias sem vir", frequencia_30d: "Frequência", aluno_desde: "Aluno desde",
 };
 
 function Lista() {
@@ -46,12 +46,13 @@ function Lista() {
       (!filtro ||
         (filtro === "sumidos" && (a.dias_sem_vir ?? 0) >= (ctx.academia.alerta_dias_sem_vir || 7) && !a.afastado) ||
         (filtro === "atrasados" && a.mensalidades_atrasadas > 0) ||
+        (filtro === "nunca_entrou" && a.tem_login && a.nunca_entrou) ||
         (filtro === "pendencias" && a.pendencias_abertas > 0) ||
         (filtro === "sem_login" && !a.tem_login) ||
         (filtro === "afastados" && a.afastado) ||
         (filtro === "sem_carteirinha" && !a.carteirinha_ok))
     );
-    const dir = ordem === "dias_sem_vir" || ordem === "frequencia_30d" ? -1 : 1;
+    const dir = ordem === "dias_sem_vir" || ordem === "frequencia_30d" || ordem === "debito_atualizado" ? -1 : 1;
     return l.sort((x, y) => {
       const a = x[ordem], b = y[ordem];
       if (a == null) return 1; if (b == null) return -1;
@@ -90,7 +91,7 @@ function Lista() {
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ["atrasados", "💳 Mensalidade atrasada"], ["sem_carteirinha", "🪪 Sem carteirinha"], ["sem_login", "🔑 Sem login"]].map(([k, v]) => (
+        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ["atrasados", "💳 Mensalidade atrasada"], ["sem_carteirinha", "🪪 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
           <button key={k} onClick={() => setFiltro(k)} className="chip" style={filtro === k ? { borderColor: "var(--cor)", background: "var(--cor)" } : {}}>{v}</button>
         ))}
       </div>
@@ -114,7 +115,7 @@ function Lista() {
                   {a.dias_sem_vir != null && a.dias_sem_vir >= (ctx.academia.alerta_dias_sem_vir || 7) && a.ativo ? ` · ⚠️ ${a.dias_sem_vir} dias sem vir` : ""}
                   {a.afastado ? " · 🩹 afastado" : ""}
                   {a.pendencias_abertas > 0 ? ` · 📌 ${a.pendencias_abertas}` : ""}
-                  {a.mensalidades_atrasadas > 0 ? ` · 💳 ${a.mensalidades_atrasadas}` : ""}
+                  {a.mensalidades_atrasadas > 0 ? ` · 💳 ${a.mensalidades_atrasadas} atrasada(s), deve ${dinheiro(a.debito_atualizado)}` : ""}
                 </p>
                 <div className="mt-1.5 max-w-48"><Barra pct={a.frequencia_30d} /></div>
               </Link>

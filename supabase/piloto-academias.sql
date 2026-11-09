@@ -437,6 +437,54 @@ begin
    where c.modalidade_id = mo_jj;
 
   -- =================================================================
+  -- PROGRAMA DE FAIXA DO JUDÔ (EXEMPLO — ajuste ao programa da sua federação)
+  -- "faixa" = faixa que o aluno está disputando no exame
+  -- =================================================================
+  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, ordem) values
+    (ac, mo_judo, null, 'taiso', 'Aquecimento e ginástica', 'Taiso', 'Polichinelo, flexões, abdominais e deslocamentos (tai-sabaki).', 1),
+    (ac, mo_judo, null, 'ukemi', 'Queda para trás', 'Ushiro-ukemi', null, 1),
+    (ac, mo_judo, null, 'ukemi', 'Queda lateral', 'Yoko-ukemi', null, 2),
+    (ac, mo_judo, null, 'ukemi', 'Queda para frente', 'Mae-ukemi', null, 3),
+    (ac, mo_judo, null, 'ukemi', 'Rolamento para frente', 'Mae-mawari-ukemi', null, 4),
+    (ac, mo_judo, 'Azul', 'nage-waza', 'Varrida no pé que avança', 'De-ashi-harai', null, 1),
+    (ac, mo_judo, 'Azul', 'nage-waza', 'Roda no joelho', 'Hiza-guruma', null, 2),
+    (ac, mo_judo, 'Azul', 'nage-waza', 'Calço no pé puxando', 'Sasae-tsurikomi-ashi', null, 3),
+    (ac, mo_judo, 'Azul', 'nage-waza', 'Quadril flutuante', 'Uki-goshi', null, 4),
+    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização lateral pela gola', 'Kesa-gatame', null, 1),
+    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização pelo ombro', 'Kata-gatame', null, 2),
+    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada externa', 'O-soto-gari', null, 1),
+    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande quadril', 'O-goshi', null, 2),
+    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada interna', 'O-uchi-gari', null, 3),
+    (ac, mo_judo, 'Amarela', 'nage-waza', 'Projeção pelas costas', 'Seoi-nage', null, 4),
+    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização pela cabeça', 'Kami-shiho-gatame', null, 1),
+    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização lateral', 'Yoko-shiho-gatame', null, 2),
+    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização montada', 'Tate-shiho-gatame', null, 3),
+    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado normal', 'Nami-juji-jime', null, 1),
+    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado invertido', 'Gyaku-juji-jime', null, 2),
+    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento pela gola deslizante', 'Okuri-eri-jime', null, 3),
+    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço enroscada', 'Ude-garami', null, 1),
+    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço em cruz', 'Ude-hishigi-juji-gatame', null, 2);
+
+  insert into regras_graduacao (modalidade_id, faixa, min_aulas, min_meses, idade_minima) values
+    (mo_judo, 'Branca', 8, 2, null), (mo_judo, 'Azul', 40, 6, null),
+    (mo_judo, 'Amarela', 40, 6, null), (mo_judo, 'Laranja', 50, 8, null),
+    (mo_jj, 'Branca', 15, 2, null), (mo_jj, 'Azul', 120, 24, 16),
+    (mo_tkd, 'Branca', 16, 3, null), (mo_mt, 'Branco', 16, 3, null);
+
+  -- Plano de aula da próxima quarta (treino pesado de jiu-jitsu) e um modelo
+  insert into planos_aula (academia_id, turma_id, data, titulo, blocos, autor_id) values
+    (ac, t_jj, hoje + ((3 - extract(dow from hoje)::int + 7) % 7), 'Pesado: passagem e rola',
+     '[{"tipo":"Aquecimento","minutos":10,"texto":"Corrida, fuga de quadril, rolamentos"},
+       {"tipo":"Técnica","minutos":25,"texto":"Passagem toreando + finalização no 100 kg"},
+       {"tipo":"Rola","minutos":30,"texto":"5 rounds de 6 min, troca de dupla a cada round"},
+       {"tipo":"Volta à calma","minutos":5,"texto":"Alongamento"}]', pr_jj),
+    (ac, t_judo, null, 'Modelo: aula de projeção',
+     '[{"tipo":"Taiso","minutos":10,"texto":"Aquecimento e ukemi"},
+       {"tipo":"Uchikomi","minutos":15,"texto":"3 x 20 repetições da técnica do dia"},
+       {"tipo":"Nage-komi","minutos":15,"texto":"Projeção com queda"},
+       {"tipo":"Randori","minutos":20,"texto":"4 rounds de 4 min"}]', pr_judo);
+
+  -- =================================================================
   -- EVENTOS DO CALENDÁRIO
   -- =================================================================
   insert into eventos (academia_id, modalidade_id, tipo, titulo, descricao, inicio, fim,

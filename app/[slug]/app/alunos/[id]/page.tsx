@@ -3,7 +3,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { MOTIVOS_AUSENCIA, abrirAnexo, dataBR, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
+import { MOTIVOS_AUSENCIA, abrirAnexo, dataBR, dinheiro, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Faixa } from "@/components/Faixa";
 import { GraficoLinha, Barra } from "@/components/Grafico";
@@ -27,13 +27,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
   const [form, setForm] = useState<any>({});
   const [aberto, setAberto] = useState("");
   const [msg, setMsg] = useState("");
+  const [login, setLogin] = useState<any>(null);
   const meu = ctx.meusAlunos.some((m) => m.id === id);
 
   async function carregar() {
     const { data: p } = await sb.from("painel_alunos").select("*").eq("membro_id", id).maybeSingle();
     if (!p) return setA(false);
     setA(p);
-    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro] = await Promise.all([
+    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames] = await Promise.all([
       sb.from("medidas").select("*").eq("perfil_id", p.perfil_id).order("data"),
       sb.from("graduacoes").select("*, modalidades(nome, graduacoes, cores_graduacoes)").eq("membro_id", id).order("data", { ascending: false }),
       sb.from("historico_ausencias").select("*").eq("membro_id", id).order("ano", { ascending: false }),
@@ -45,11 +46,12 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       sb.from("carteirinhas").select("*").eq("membro_id", id).order("ano", { ascending: false }),
       sb.from("perfis").select("*").eq("id", p.perfil_id).maybeSingle(),
       ctx.equipe ? sb.from("membros").select("apelido_interno, observacoes").eq("id", id).maybeSingle() : Promise.resolve({ data: null }),
+      sb.from("exames_faixa").select("*, modalidades(nome)").eq("membro_id", id).order("data", { ascending: false }),
     ]);
     setX({
       medidas: med.data || [], graduacoes: grad.data || [], historico: hist.data || [], ausencias: aus.data || [],
       pendencias: pend.data || [], matriculas: mats.data || [], modalidades: mods.data || [], turmas: turmas.data || [],
-      carteirinhas: cart.data || [], perfil: perfil.data, membro: membro.data,
+      carteirinhas: cart.data || [], perfil: perfil.data, membro: membro.data, exames: exames.data || [],
     });
   }
   useEffect(() => { carregar(); }, [id]); // eslint-disable-line
@@ -143,6 +145,22 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
     carregar();
   }
 
+  async function criarLogin() {
+    setMsg("");
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch("/api/criar-login", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ perfil_id: a.perfil_id }),
+    });
+    const j = await r.json();
+    if (!r.ok) return setMsg(j.erro || "Não foi possível criar o login.");
+    setLogin(j); carregar();
+  }
+
+  // Tempo de academia: "8 meses", "1 ano e 3 meses"
+  const meses = a.aluno_desde ? Math.max(0, Math.floor((Date.now() - new Date(a.aluno_desde + "T12:00:00").getTime()) / 2629800000)) : 0;
+  const tempo = meses < 12 ? `${meses} ${meses === 1 ? "mês" : "meses"}` : `${Math.floor(meses / 12)} ${meses >= 24 ? "anos" : "ano"}${meses % 12 ? ` e ${meses % 12} ${meses % 12 === 1 ? "mês" : "meses"}` : ""}`;
+
   const z = whatsapp(a.whatsapp, `Oi, ${primeiroNome(a.apelido || a.nome)}! Aqui é da ${ctx.academia.nome}.`);
   const podeEditar = ctx.equipe || meu;
 
@@ -164,12 +182,31 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             {a.ultimo_acesso ? ` · último acesso ao app ${dataBR(a.ultimo_acesso)}` : ""}
           </p>
           {ctx.equipe && x.membro?.apelido_interno && <p className="mt-1 text-sm text-alerta">🔒 {x.membro.apelido_interno}</p>}
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+            {a.ativo && meses >= 1 && <span className="chip">🏠 {tempo} de academia</span>}
+            {ctx.equipe && a.debito_atualizado > 0 && <span className="chip border-erro text-erro">💳 deve {dinheiro(a.debito_atualizado)}</span>}
+            {ctx.equipe && !a.tem_login && <span className="chip">🔑 sem login</span>}
+          </div>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
           {z && ctx.equipe && <a href={z} target="_blank" className="btn">WhatsApp</a>}
           {podeEditar && <button className="btn-sec" onClick={() => setAberto("dados")}>Editar dados</button>}
+          {ctx.equipe && !a.tem_login && x.perfil?.email && <button className="btn-sec" onClick={criarLogin}>Criar login</button>}
+          {ctx.equipe && <Link className="btn-sec" href={`${base}/tecnicas/exame?aluno=${id}`}>Exame de faixa</Link>}
         </div>
       </section>
+
+      {msg && !aberto && <p className="text-sm text-alerta">{msg}</p>}
+      {login && (
+        <section className="rounded-2xl border-2 border-ok bg-painel p-4">
+          <p className="font-semibold">Login criado ✓</p>
+          <p className="text-sm">E-mail: <b>{login.email}</b> · Senha provisória: <b className="numero text-lg">{login.senha}</b></p>
+          <p className="text-xs text-suave">No primeiro acesso a pessoa cria a própria senha.</p>
+          {whatsapp(a.whatsapp) && (
+            <a className="btn mt-2" target="_blank" href={whatsapp(a.whatsapp, `Oi, ${primeiroNome(a.nome)}! Seu acesso ao app da ${ctx.academia.nome} está pronto 🥋\n\nEntre em: ${typeof window !== "undefined" ? window.location.origin : ""}/login\nE-mail: ${login.email}\nSenha provisória: ${login.senha}\n\nNo primeiro acesso você cria sua senha.`)!}>Mandar pelo WhatsApp</a>
+          )}
+        </section>
+      )}
 
       {aberto === "dados" && (
         <Bloco titulo="Dados">
@@ -254,6 +291,22 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
               );
             })}
             {!x.graduacoes?.length && <p className="text-suave">Nenhuma graduação registrada.</p>}
+          </ul>
+        </Bloco>
+
+        {/* Exames de faixa */}
+        <Bloco titulo="Exames de faixa" acao={<Link href={`${base}/tecnicas${ctx.equipe ? `/exame?aluno=${id}` : ""}`} className="btn-sec text-sm">{ctx.equipe ? "Novo exame" : "Ver matéria"}</Link>}>
+          <ul className="space-y-2">
+            {x.exames?.map((e: any) => (
+              <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-3">
+                <span>{e.modalidades?.nome}: {e.faixa_atual || "—"} → <b>{e.faixa_alvo}</b> <span className="text-sm text-suave">{dataBR(e.data)}{e.nota_final != null ? ` · nota ${e.nota_final}` : ""}</span></span>
+                <span className="flex items-center gap-2">
+                  <span className={`chip ${e.resultado === "aprovado" ? "border-ok" : e.resultado === "reprovado" ? "border-erro" : ""}`}>{e.resultado}</span>
+                  <Link className="text-sm underline" href={`${base}/tecnicas/exame?exame=${e.id}`}>abrir</Link>
+                </span>
+              </li>
+            ))}
+            {!x.exames?.length && <p className="text-suave">Nenhum exame registrado.</p>}
           </ul>
         </Bloco>
 

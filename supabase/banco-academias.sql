@@ -87,6 +87,17 @@ create table academias (
   alerta_dias_sem_vir    int default 7,     -- ou X dias sem aparecer
   aviso_aniversario_dias int default 7,     -- avisa X dias antes do aniversário
   aviso_vencimento_dias  int default 3,     -- lembra a mensalidade X dias antes
+  -- Financeiro
+  gerar_mensalidades_auto boolean default true,  -- cria as cobranças do mês sozinho
+  multa_pct              numeric(5,2) default 2,    -- multa por atraso (% uma vez)
+  juros_mes_pct          numeric(5,2) default 1,    -- juros ao mês (% pro rata dia)
+  juros_dias_uteis       boolean default false,     -- conta só dias úteis no atraso
+  cobrar_apos_dias       int default 5,             -- lembrete de atraso X dias depois
+  pendencia_apos_dias    int default 10,            -- vira pendência "conversar" após X dias
+  alerta_mensalidades_atrasadas int default 2,      -- aviso no check-in a partir de X atrasadas
+  -- Engajamento
+  reengajar_dias         int default 14,            -- "sentimos sua falta" após X dias
+  lembrete_peso_semanal  boolean default true,      -- segunda-feira: lembrar competidores do peso
 
   criado_em      timestamptz default now()
 );
@@ -127,6 +138,7 @@ create table perfis (
   trocar_senha          boolean default true,   -- senha provisória no 1º acesso
   ultimo_acesso         timestamptz,            -- atualizado pelo site a cada visita
   tours_vistos          text[] default '{}',    -- tours guiados já concluídos
+  boas_vindas_em        timestamptz,            -- quando viu a tela de boas-vindas
   criado_em             timestamptz default now()
 );
 
@@ -869,6 +881,73 @@ end $$;
 
 
 -- =====================================================================
+-- 15c. TÉCNICAS, PROGRAMA DE FAIXA, PLANOS DE AULA E EXAMES
+-- =====================================================================
+
+-- Banco de técnicas. "faixa" = faixa em que a técnica é cobrada no exame
+-- (ex.: técnicas da faixa Azul são o que o faixa branca demonstra).
+-- grupo: taiso, ukemi, nage-waza, osaekomi-waza, shime-waza, kansetsu-waza,
+-- kata, defesa-pessoal, outro (texto livre)
+create table tecnicas (
+  id             uuid primary key default gen_random_uuid(),
+  academia_id    uuid not null references academias(id) on delete cascade,
+  modalidade_id  uuid not null references modalidades(id) on delete cascade,
+  faixa          text,                        -- vazio = vale para todas as faixas
+  grupo          text not null,
+  nome           text not null,
+  nome_original  text,                        -- ex.: nome em japonês
+  descricao      text,
+  video_url      text,
+  ordem          int default 0,
+  criada_em      timestamptz default now()
+);
+create index on tecnicas (modalidade_id, faixa, grupo, ordem);
+
+-- Regras para sugerir graduação: tempo e aulas mínimas em cada faixa
+create table regras_graduacao (
+  id             uuid primary key default gen_random_uuid(),
+  modalidade_id  uuid not null references modalidades(id) on delete cascade,
+  faixa          text not null,               -- faixa ATUAL do aluno
+  min_aulas      int not null default 40,
+  min_meses      int not null default 6,
+  idade_minima   int,
+  unique (modalidade_id, faixa)
+);
+
+-- Plano de aula: blocos (aquecimento, técnica, rola...) e técnicas usadas
+create table planos_aula (
+  id             uuid primary key default gen_random_uuid(),
+  academia_id    uuid not null references academias(id) on delete cascade,
+  turma_id       uuid references turmas(id) on delete set null,
+  data           date,                        -- vazio = modelo para reaproveitar
+  titulo         text not null,
+  blocos         jsonb default '[]'::jsonb,   -- [{"tipo":"Aquecimento","minutos":10,"texto":"..."}]
+  tecnicas       uuid[] default '{}',
+  visivel_alunos boolean default true,
+  autor_id       uuid references membros(id) on delete set null,
+  criado_em      timestamptz default now()
+);
+create index on planos_aula (turma_id, data);
+
+-- Exame de faixa: notas por item, resultado e (se aprovado) graduação
+create table exames_faixa (
+  id             uuid primary key default gen_random_uuid(),
+  academia_id    uuid not null references academias(id) on delete cascade,
+  membro_id      uuid not null references membros(id) on delete cascade,
+  modalidade_id  uuid not null references modalidades(id) on delete cascade,
+  faixa_atual    text,
+  faixa_alvo     text not null,
+  data           date default current_date,
+  itens          jsonb default '[]'::jsonb,   -- [{"grupo":"nage-waza","nome":"...","nota":8}]
+  nota_final     numeric(4,1),
+  resultado      text check (resultado in ('aprovado','reprovado','pendente')) default 'pendente',
+  observacao     text,
+  avaliador_id   uuid references membros(id) on delete set null,
+  criado_em      timestamptz default now()
+);
+
+
+-- =====================================================================
 -- 16. FUNÇÕES DE SEGURANÇA
 -- =====================================================================
 create or replace function sou_master() returns boolean
@@ -1222,6 +1301,66 @@ left join lateral (
 ) cp on true
 where m.papel = 'aluno' and m.ativo;
 
+-- Dias úteis (seg a sex) entre duas datas, sem contar a primeira
+create or replace function dias_uteis_entre(d1 date, d2 date) returns int
+language sql immutable as $$
+  select count(*)::int from generate_series(d1 + 1, d2, interval '1 day') g
+   where extract(dow from g) not in (0, 6);
+$$;
+
+-- Cobranças com atraso, multa e juros calculados até hoje
+create view cobrancas_situacao with (security_invoker = true) as
+select c.*,
+       case when c.status = 'aberta' and c.vencimento < current_date then
+         case when ac.juros_dias_uteis then dias_uteis_entre(c.vencimento, current_date)
+              else current_date - c.vencimento end
+       else 0 end                                                     as dias_atraso,
+       (c.status = 'aberta' and c.vencimento < current_date)            as atrasada,
+       case when c.status = 'aberta' and c.vencimento < current_date
+            then round(c.valor * ac.multa_pct / 100, 2) else 0 end      as multa,
+       case when c.status = 'aberta' and c.vencimento < current_date
+            then round(c.valor * ac.juros_mes_pct / 100 / 30 *
+                       case when ac.juros_dias_uteis then dias_uteis_entre(c.vencimento, current_date)
+                            else current_date - c.vencimento end, 2)
+            else 0 end                                                  as juros
+  from cobrancas c join academias ac on ac.id = c.academia_id;
+
+-- Valor total atualizado (valor + multa + juros) — calculado à parte para ficar legível
+create view cobrancas_atualizadas with (security_invoker = true) as
+select cs.*, cs.valor + cs.multa + cs.juros as total_atualizado
+  from cobrancas_situacao cs;
+
+-- Sugestão de graduação: quem já cumpriu tempo e aulas na faixa atual
+create view sugestoes_graduacao with (security_invoker = true) as
+with ultima as (
+  select distinct on (g.membro_id, g.modalidade_id)
+         g.membro_id, g.modalidade_id, g.faixa, g.grau, g.data
+    from graduacoes g
+   order by g.membro_id, g.modalidade_id, g.data desc
+)
+select m.academia_id, u.membro_id, u.modalidade_id, mo.nome as modalidade,
+       pf.nome, pf.apelido, pf.foto_url, u.faixa, u.grau, u.data as desde,
+       mo.graduacoes[array_position(mo.graduacoes, u.faixa) + 1] as proxima_faixa,
+       r.min_aulas, r.min_meses,
+       (select count(*) from presencas p join aulas a on a.id = p.aula_id
+          join turmas t on t.id = a.turma_id
+         where p.membro_id = u.membro_id and t.modalidade_id = u.modalidade_id
+           and a.data >= u.data)::int as aulas_na_faixa,
+       (extract(year from age(current_date, u.data)) * 12
+        + extract(month from age(current_date, u.data)))::int as meses_na_faixa
+  from ultima u
+  join membros m      on m.id = u.membro_id and m.ativo
+  join perfis pf      on pf.id = m.perfil_id
+  join modalidades mo on mo.id = u.modalidade_id
+  join regras_graduacao r on r.modalidade_id = u.modalidade_id and r.faixa = u.faixa
+ where mo.graduacoes[array_position(mo.graduacoes, u.faixa) + 1] is not null
+   and (r.idade_minima is null or extract(year from age(pf.nascimento)) >= r.idade_minima)
+   and (select count(*) from presencas p join aulas a on a.id = p.aula_id
+          join turmas t on t.id = a.turma_id
+         where p.membro_id = u.membro_id and t.modalidade_id = u.modalidade_id
+           and a.data >= u.data) >= r.min_aulas
+   and age(current_date, u.data) >= make_interval(months => r.min_meses);
+
 -- Painel geral de alunos: tudo numa tabela para filtrar, ordenar e
 -- chamar no WhatsApp direto (whatsapp = do aluno ou do responsável).
 create view painel_alunos with (security_invoker = true) as
@@ -1262,6 +1401,8 @@ select
   (pf.user_id is not null) as tem_login,
   cob.em_aberto       as mensalidades_em_aberto,
   cob.atrasadas       as mensalidades_atrasadas,
+  cob.debito          as debito_atualizado,             -- soma com multa e juros
+  (pf.boas_vindas_em is null) as nunca_entrou,
   exists (select 1 from carteirinhas c
            where c.membro_id = m.id and c.tipo = 'academia' and c.ativa) as carteirinha_ok
 from membros m
@@ -1300,8 +1441,9 @@ left join lateral (
 ) fr on true
 left join lateral (
   select count(*) filter (where c.status = 'aberta')                              as em_aberto,
-         count(*) filter (where c.status = 'aberta' and c.vencimento < current_date) as atrasadas
-    from cobrancas c where c.membro_id = m.id
+         count(*) filter (where c.status = 'aberta' and c.vencimento < current_date) as atrasadas,
+         coalesce(sum(c.total_atualizado) filter (where c.atrasada), 0)              as debito
+    from cobrancas_atualizadas c where c.membro_id = m.id
 ) cob on true
 where m.papel = 'aluno';
 
@@ -1664,7 +1806,14 @@ begin
     'ok', true,
     'turma', v_h.turma,
     'atraso_min', v_atraso,
-    'atrasado', v_atraso > v_acad.tolerancia_atraso_min
+    'atrasado', v_atraso > v_acad.tolerancia_atraso_min,
+    -- aviso suave: não bloqueia, só informa
+    'mensalidades_atrasadas', (select count(*) from cobrancas c
+                                where c.membro_id = v_membro and c.status = 'aberta'
+                                  and c.vencimento < v_hoje),
+    'aviso_financeiro', (select count(*) from cobrancas c
+                          where c.membro_id = v_membro and c.status = 'aberta'
+                            and c.vencimento < v_hoje) >= v_acad.alerta_mensalidades_atrasadas
   );
 end $$;
 
@@ -1833,6 +1982,37 @@ create trigger trg_vaga_aberta_del after delete on matriculas
 for each row execute function avisa_vaga_aberta();
 
 
+-- Aula cancelada → avisa a turma inteira (e responsáveis) na hora
+create or replace function avisa_aula_cancelada() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_t turmas%rowtype;
+begin
+  if new.status <> 'cancelada' or coalesce(old.status, '') = 'cancelada' then return new; end if;
+  if new.data < (now() at time zone 'America/Sao_Paulo')::date then return new; end if;
+  select * into v_t from turmas where id = new.turma_id;
+  insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+  select distinct v_t.academia_id, d.pid, 'aula_cancelada', '🚫 Aula cancelada: ' || v_t.nome,
+         'A aula de ' || to_char(new.data, 'DD/MM') || ' às ' || to_char(new.hora_inicio, 'HH24:MI') || ' não vai acontecer'
+           || coalesce('. ' || new.observacao, '.'), '/calendario'
+    from (select m.perfil_id as pid from matriculas mt join membros m on m.id = mt.membro_id
+           where mt.turma_id = new.turma_id and mt.status = 'ativa' and m.ativo
+          union
+          select r.responsavel_id from matriculas mt join membros m on m.id = mt.membro_id
+            join responsaveis r on r.dependente_id = m.perfil_id
+           where mt.turma_id = new.turma_id and mt.status = 'ativa' and m.ativo) d;
+  return new;
+end $$;
+
+create trigger trg_aula_cancelada after insert or update of status on aulas
+for each row execute function avisa_aula_cancelada();
+
+-- Boas-vindas: marca que a pessoa já viu (e já trocou a senha provisória)
+create or replace function marcar_boas_vindas() returns void
+language sql security definer set search_path = public as $$
+  update perfis set boas_vindas_em = now(), trocar_senha = false where user_id = auth.uid();
+$$;
+
+
 -- =====================================================================
 -- 17b. LEMBRETES AUTOMÁTICOS
 -- Rode a cada 10 minutos (pg_cron, ver passo no fim do arquivo).
@@ -1947,26 +2127,48 @@ begin
     v_total := v_total + v_n;
   end loop;
 
-  -- 3) Mensalidade vencendo (para o aluno ou o responsável)
+  -- 3) Mensalidades: cobrança escalonada (antes, no dia, depois) e pendência
   for r in
-    select c.*, ac.aviso_vencimento_dias as dias, m.perfil_id
+    select c.*, ac.aviso_vencimento_dias, ac.cobrar_apos_dias, ac.pendencia_apos_dias,
+           m.perfil_id, coalesce(pf.apelido, pf.nome) as nome_aluno,
+           v_hoje - c.vencimento as atraso,
+           case when v_hoje = c.vencimento - ac.aviso_vencimento_dias then 'antes'
+                when v_hoje = c.vencimento then 'hoje'
+                when v_hoje = c.vencimento + ac.cobrar_apos_dias then 'atraso'
+                when v_hoje >= c.vencimento + ac.pendencia_apos_dias then 'pendencia' end as etapa
       from cobrancas c
       join academias ac on ac.id = c.academia_id
-      join membros m    on m.id = c.membro_id
+      join membros m    on m.id = c.membro_id and m.ativo
+      join perfis pf    on pf.id = m.perfil_id
      where c.status = 'aberta'
-       and c.vencimento = v_hoje + ac.aviso_vencimento_dias
+       and (v_hoje in (c.vencimento - ac.aviso_vencimento_dias, c.vencimento, c.vencimento + ac.cobrar_apos_dias)
+            or v_hoje >= c.vencimento + ac.pendencia_apos_dias)
   loop
-    insert into lembretes_enviados (chave) values ('venc:' || r.id) on conflict do nothing;
+    insert into lembretes_enviados (chave) values ('venc:' || r.id || ':' || r.etapa) on conflict do nothing;
     if not found then continue; end if;
-    insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
-    select r.academia_id, d.pid, 'vencimento',
-           '💳 Mensalidade vence em ' || r.dias || ' dias',
-           'Valor: R$ ' || replace(to_char(r.valor, 'FM999990.00'), '.', ',') || ' — vencimento '
-             || to_char(r.vencimento, 'DD/MM'), '/mensalidades'
-      from (select r.perfil_id as pid
-            union
-            select responsavel_id from responsaveis
-             where dependente_id = r.perfil_id and principal) d;
+
+    if r.etapa = 'pendencia' then
+      -- anotação só da equipe, aparece na chamada ao lado do nome
+      insert into pendencias (academia_id, membro_id, tipo, titulo, descricao, visivel_aluno, automatica)
+      values (r.academia_id, r.membro_id, 'pagamento', 'Conversar sobre mensalidade atrasada',
+              'Mensalidade de ' || to_char(r.competencia, 'MM/YYYY') || ' com ' || r.atraso || ' dias de atraso.',
+              false, true);
+    else
+      insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+      select r.academia_id, d.pid, 'vencimento',
+             case r.etapa when 'antes' then '💳 Mensalidade vence em ' || r.aviso_vencimento_dias || ' dias'
+                          when 'hoje'  then '💳 Mensalidade vence hoje'
+                          else '⚠️ Mensalidade em atraso' end,
+             'Mensalidade de ' || to_char(r.competencia, 'MM/YYYY') || ' — R$ '
+               || replace(to_char(r.valor, 'FM999990.00'), '.', ',')
+               || case when r.etapa = 'atraso' then ' (venceu em ' || to_char(r.vencimento, 'DD/MM') || '). Pague pelo app com Pix.'
+                       else ', vencimento ' || to_char(r.vencimento, 'DD/MM') || '.' end,
+             '/mensalidades'
+        from (select r.perfil_id as pid
+              union
+              select responsavel_id from responsaveis
+               where dependente_id = r.perfil_id and principal) d;
+    end if;
     get diagnostics v_n = row_count;
     v_total := v_total + v_n;
   end loop;
@@ -1998,6 +2200,172 @@ begin
        and (m.papel = 'admin' or m.id in (
              select t.professor_id from matriculas mt join turmas t on t.id = mt.turma_id
               where mt.membro_id = r.membro_id and mt.status = 'ativa'));
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+  end loop;
+
+  -- 4b) Reengajamento: o próprio aluno recebe "sentimos sua falta"
+  for r in
+    select u.membro_id, u.academia_id, u.ultima_aula, m.perfil_id, coalesce(pf.apelido, pf.nome) as nome,
+           ac.nome as academia, v_hoje - u.ultima_aula as dias,
+           (select min(case when h.dia_semana >= extract(dow from v_hoje) then h.dia_semana - extract(dow from v_hoje)
+                            else h.dia_semana + 7 - extract(dow from v_hoje) end)
+              from matriculas mt join horarios h on h.turma_id = mt.turma_id
+             where mt.membro_id = u.membro_id and mt.status = 'ativa')::int as em_dias
+      from ultima_presenca u
+      join membros m    on m.id = u.membro_id
+      join perfis pf    on pf.id = m.perfil_id
+      join academias ac on ac.id = u.academia_id
+     where u.ultima_aula is not null
+       and v_hoje - u.ultima_aula >= ac.reengajar_dias
+       and not exists (select 1 from ausencias j
+                        where j.membro_id = u.membro_id and j.status <> 'nao_justificada'
+                          and v_hoje between j.de and j.ate)
+  loop
+    insert into lembretes_enviados (chave) values ('volta:' || r.membro_id || ':' || r.ultima_aula) on conflict do nothing;
+    if not found then continue; end if;
+    insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+    select r.academia_id, d.pid, 'reengajar', '🥋 Sentimos sua falta, ' || r.nome || '!',
+           'Faz ' || r.dias || ' dias que você não treina. '
+             || case when r.em_dias = 0 then 'Tem aula hoje, bora?'
+                     when r.em_dias = 1 then 'Tem aula amanhã, te esperamos!'
+                     when r.em_dias is not null then 'A próxima aula da sua turma é em ' || r.em_dias || ' dias.'
+                     else 'Volta pro tatame!' end,
+           '/calendario'
+      from (select r.perfil_id as pid
+            union
+            select responsavel_id from responsaveis where dependente_id = r.perfil_id and principal) d;
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+  end loop;
+
+  -- 4c) Gera as mensalidades do mês sozinho (uma vez por dia, sem duplicar)
+  insert into lembretes_enviados (chave) values ('mens:' || v_hoje) on conflict do nothing;
+  if found then
+    insert into cobrancas (academia_id, membro_id, competencia, vencimento, valor)
+    select m.academia_id, s.membro_id, date_trunc('month', v_hoje)::date,
+           least(date_trunc('month', v_hoje)::date + (s.dia_vencimento - 1),
+                 (date_trunc('month', v_hoje) + interval '1 month - 1 day')::date),
+           s.valor
+      from assinaturas s
+      join membros m    on m.id = s.membro_id and m.ativo
+      join academias ac on ac.id = m.academia_id and ac.gerar_mensalidades_auto
+     where s.ativa
+    on conflict (membro_id, competencia) do nothing;
+  end if;
+
+  -- 4d) Segunda-feira: lembrete de peso para quem vai competir
+  if extract(dow from v_hoje) = 1 then
+    for r in
+      select distinct m.id as membro_id, m.perfil_id, e.academia_id, e.titulo
+        from inscricoes_evento i
+        join eventos e    on e.id = i.evento_id and e.tipo = 'campeonato'
+                         and e.inicio between now() and now() + interval '60 days'
+        join membros m    on m.id = i.membro_id and m.ativo
+        join academias ac on ac.id = e.academia_id and ac.lembrete_peso_semanal
+    loop
+      insert into lembretes_enviados (chave) values ('peso:' || r.membro_id || ':' || v_hoje) on conflict do nothing;
+      if not found then continue; end if;
+      insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+      select r.academia_id, d.pid, 'peso', '⚖️ Segunda é dia de pesar',
+             'Registre seu peso no app para acompanhar a categoria no ' || r.titulo || '.', '/meu'
+        from (select r.perfil_id as pid
+              union
+              select responsavel_id from responsaveis where dependente_id = r.perfil_id and principal) d;
+      get diagnostics v_n = row_count;
+      v_total := v_total + v_n;
+    end loop;
+  end if;
+
+  -- 4e) Domingo à noite: resumo da semana para professores e admins
+  if extract(dow from v_hoje) = 0 and extract(hour from now() at time zone 'America/Sao_Paulo') >= 18 then
+    for r in
+      select m.id, m.perfil_id, m.academia_id, m.papel
+        from membros m join academias ac on ac.id = m.academia_id and ac.ativa
+       where m.ativo and m.papel in ('admin', 'professor')
+    loop
+      insert into lembretes_enviados (chave) values ('resumo:' || r.id || ':' || v_hoje) on conflict do nothing;
+      if not found then continue; end if;
+      insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+      values (r.academia_id, r.perfil_id, 'resumo', '📊 Resumo da semana',
+        (select count(*) from presencas p join aulas a on a.id = p.aula_id join turmas t on t.id = a.turma_id
+          where t.academia_id = r.academia_id and a.data between v_hoje - 6 and v_hoje
+            and (r.papel = 'admin' or t.professor_id = r.id)) || ' presenças · '
+        || (select count(*) from painel_alunos pa where pa.academia_id = r.academia_id and pa.ativo
+              and pa.dias_sem_vir >= 7 and not pa.afastado) || ' alunos sumidos · '
+        || (select count(*) from proximos_aniversarios an where an.academia_id = r.academia_id
+              and an.proximo_aniversario between v_hoje + 1 and v_hoje + 7) || ' aniversários na semana · '
+        || (select count(*) from sugestoes_graduacao sg where sg.academia_id = r.academia_id) || ' prontos para graduar'
+        || case when r.papel = 'admin' then ' · '
+             || (select count(*) from cobrancas c where c.academia_id = r.academia_id and c.status = 'aberta'
+                   and c.vencimento < v_hoje) || ' mensalidades atrasadas' else '' end,
+        '/');
+      v_total := v_total + 1;
+    end loop;
+  end if;
+
+  -- 4f) Aniversário de academia: 6 meses, 1 ano, 2 anos...
+  for r in
+    select m.id, m.perfil_id, m.academia_id, coalesce(pf.apelido, pf.nome) as nome, m.entrou_em,
+           (extract(year from age(v_hoje, m.entrou_em)) * 12 + extract(month from age(v_hoje, m.entrou_em)))::int as meses
+      from membros m join perfis pf on pf.id = m.perfil_id
+     where m.ativo and m.papel = 'aluno' and m.entrou_em < v_hoje
+       and extract(day from m.entrou_em) = extract(day from v_hoje)
+  loop
+    if not (r.meses = 6 or (r.meses >= 12 and r.meses % 12 = 0)) then continue; end if;
+    insert into lembretes_enviados (chave) values ('casa:' || r.id || ':' || r.meses) on conflict do nothing;
+    if not found then continue; end if;
+    insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+    select r.academia_id, d.pid, 'conquista',
+           '🎉 ' || case when r.meses = 6 then '6 meses' when r.meses = 12 then '1 ano' else (r.meses / 12) || ' anos' end
+             || ' de academia!',
+           case when d.equipe then r.nome || ' completa hoje ' else 'Hoje você completa ' end
+             || case when r.meses = 6 then '6 meses' when r.meses = 12 then '1 ano' else (r.meses / 12) || ' anos' end
+             || ' de treino com a gente. 👏', '/'
+      from (select r.perfil_id as pid, false as equipe
+            union
+            select m2.perfil_id, true from membros m2
+             where m2.academia_id = r.academia_id and m2.ativo and m2.papel = 'admin') d;
+    get diagnostics v_n = row_count;
+    v_total := v_total + v_n;
+  end loop;
+
+  -- 4g) Janeiro: carteirinha do ano nova disponível
+  if extract(month from v_hoje) = 1 then
+    for r in
+      select m.id, m.perfil_id, m.academia_id from membros m
+        join academias ac on ac.id = m.academia_id and coalesce((ac.modulos->>'carteirinha')::boolean, true)
+       where m.ativo and m.papel = 'aluno'
+    loop
+      insert into lembretes_enviados (chave) values ('cart:' || r.id || ':' || extract(year from v_hoje)) on conflict do nothing;
+      if not found then continue; end if;
+      insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+      values (r.academia_id, r.perfil_id, 'carteirinha', '🪪 Carteirinha ' || extract(year from v_hoje) || ' liberada',
+              'Confira sua foto e baixe a carteirinha nova no app.', '/carteirinha');
+      v_total := v_total + 1;
+    end loop;
+  end if;
+
+  -- 4h) Graduação sugerida: avisa o professor uma vez por faixa
+  for r in
+    select sg.*, t.professor_id
+      from sugestoes_graduacao sg
+      left join lateral (
+        select tu.professor_id from matriculas mt join turmas tu on tu.id = mt.turma_id
+         where mt.membro_id = sg.membro_id and tu.modalidade_id = sg.modalidade_id and mt.status = 'ativa'
+         limit 1) t on true
+  loop
+    insert into lembretes_enviados (chave)
+    values ('grad:' || r.membro_id || ':' || r.modalidade_id || ':' || r.faixa || ':' || r.desde) on conflict do nothing;
+    if not found then continue; end if;
+    insert into notificacoes (academia_id, perfil_id, tipo, titulo, texto, link)
+    select distinct r.academia_id, m.perfil_id, 'graduacao', '🥋 Pronto para graduar: ' || coalesce(r.apelido, r.nome),
+           r.aulas_na_faixa || ' aulas e ' || r.meses_na_faixa || ' meses na faixa ' || lower(r.faixa)
+             || ' (' || r.modalidade || '). Próxima: ' || lower(r.proxima_faixa) || '.',
+           '/alunos/' || r.membro_id
+      from membros m
+     where m.academia_id = r.academia_id and m.ativo
+       and (m.id = r.professor_id or m.papel = 'admin');
     get diagnostics v_n = row_count;
     v_total := v_total + v_n;
   end loop;
@@ -2293,6 +2661,24 @@ create policy ver on cronograma_evento for select
                   and (e.publico or participo(e.academia_id))));
 create policy gerir on cronograma_evento for all
   using (sou_equipe(acad_evento(evento_id))) with check (sou_equipe(acad_evento(evento_id)));
+
+-- ---------- Técnicas, regras, planos e exames ----------
+create policy ver on tecnicas for select using (participo(academia_id));
+create policy gerir on tecnicas for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+create policy ver on regras_graduacao for select
+  using (participo((select academia_id from modalidades where id = modalidade_id)));
+create policy gerir on regras_graduacao for all
+  using (sou_admin((select academia_id from modalidades where id = modalidade_id)))
+  with check (sou_admin((select academia_id from modalidades where id = modalidade_id)));
+
+create policy ver on planos_aula for select
+  using (sou_equipe(academia_id) or (visivel_alunos and participo(academia_id)));
+create policy gerir on planos_aula for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
+
+create policy ver on exames_faixa for select
+  using (sou_equipe(academia_id) or membro_id in (select meus_membros()));
+create policy gerir on exames_faixa for all using (sou_equipe(academia_id)) with check (sou_equipe(academia_id));
 
 -- ---------- Histórico ----------
 create policy ver on historico for select using (sou_admin(academia_id));

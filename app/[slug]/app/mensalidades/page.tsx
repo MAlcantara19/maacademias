@@ -23,22 +23,43 @@ export default function Mensalidades() {
   const [filtro, setFiltro] = useState("todas");
   const [msg, setMsg] = useState("");
   const [pix, setPix] = useState<any>(null);
+  const [devedores, setDevedores] = useState<any[]>([]);
+
+  // Junta nome e telefone do aluno (as visões de cobrança não trazem isso)
+  async function comNomes(linhas: any[]) {
+    const ids = Array.from(new Set(linhas.map((c) => c.membro_id)));
+    if (!ids.length) return linhas;
+    const { data } = await sb.from("membros").select("id, perfis(nome, apelido, telefone)").in("id", ids);
+    const m = new Map((data || []).map((x: any) => [x.id, x]));
+    return linhas.map((c) => ({ ...c, membros: m.get(c.membro_id) }));
+  }
 
   async function carregar() {
     if (ctx.equipe) {
       const [c, p, membros, ass] = await Promise.all([
-        sb.from("cobrancas").select("*, membros!membro_id(id, perfis(nome, apelido, telefone))").eq("academia_id", ctx.academia.id).eq("competencia", mes + "-01").order("vencimento"),
+        sb.from("cobrancas_atualizadas").select("*").eq("academia_id", ctx.academia.id).eq("competencia", mes + "-01").order("vencimento"),
         sb.from("planos").select("*").eq("academia_id", ctx.academia.id).eq("ativo", true).order("valor"),
         sb.from("membros").select("id, perfis(nome)").eq("academia_id", ctx.academia.id).eq("papel", "aluno").eq("ativo", true),
         sb.from("assinaturas").select("membro_id, membros!inner(academia_id)").eq("membros.academia_id", ctx.academia.id).eq("ativa", true),
       ]);
-      setCobrancas(c.data || []); setPlanos(p.data || []);
+      setCobrancas(await comNomes(c.data || [])); setPlanos(p.data || []);
       const com = new Set((ass.data || []).map((a: any) => a.membro_id));
       setSemPlano((membros.data || []).filter((m: any) => !com.has(m.id)));
+      // todos os atrasados (de qualquer mês) para a lista de devedores
+      const { data: atr0 } = await sb.from("cobrancas_atualizadas").select("*")
+        .eq("academia_id", ctx.academia.id).eq("status", "aberta").lt("vencimento", hoje).order("vencimento");
+      const atr = await comNomes(atr0 || []);
+      const mapa = new Map<string, any>();
+      (atr || []).forEach((c: any) => {
+        const d = mapa.get(c.membro_id) || { membro: c.membros, membro_id: c.membro_id, meses: [] as any[], total: 0, original: 0 };
+        d.meses.push(c); d.total += Number(c.total_atualizado); d.original += Number(c.valor);
+        mapa.set(c.membro_id, d);
+      });
+      setDevedores(Array.from(mapa.values()).sort((a, b) => b.total - a.total));
     } else {
       const ids = ctx.meusAlunos.map((a) => a.id);
-      const { data } = await sb.from("cobrancas").select("*, membros!membro_id(perfis(nome))").in("membro_id", ids.length ? ids : [NENHUM]).order("competencia", { ascending: false });
-      setCobrancas(data || []);
+      const { data } = await sb.from("cobrancas_atualizadas").select("*").in("membro_id", ids.length ? ids : [NENHUM]).order("competencia", { ascending: false });
+      setCobrancas(await comNomes(data || []));
     }
   }
   useEffect(() => { carregar(); }, [mes]); // eslint-disable-line
@@ -94,7 +115,7 @@ export default function Mensalidades() {
   function abrirPix(c: any) {
     const a = ctx.academia;
     setPix({
-      c, codigo: gerarPix({ chave: a.pix_chave, nome: a.pix_nome || a.nome, cidade: a.pix_cidade || a.cidade || "BRASIL", valor: Number(c.valor), txid: "MENS" + c.recibo_numero }),
+      c, codigo: gerarPix({ chave: a.pix_chave, nome: a.pix_nome || a.nome, cidade: a.pix_cidade || a.cidade || "BRASIL", valor: Number(c.total_atualizado || c.valor), txid: "MENS" + c.recibo_numero }),
     });
   }
   async function enviarComprovante(c: any, arquivo?: File) {
@@ -115,7 +136,7 @@ export default function Mensalidades() {
         {msg && <p className="text-sm text-suave">{msg}</p>}
         {pix && (
           <section className="flex flex-col items-center gap-3 rounded-2xl bg-painel p-5 text-center">
-            <h2 className="text-2xl font-bold">Pagar {dinheiro(pix.c.valor)} com Pix</h2>
+            <h2 className="text-2xl font-bold">Pagar {dinheiro(pix.c.total_atualizado || pix.c.valor)} com Pix</h2>
             <QR texto={pix.codigo} tamanho={220} />
             <p className="text-sm text-suave">Abra o app do banco e escaneie, ou copie o código:</p>
             <button className="btn-sec w-full break-all text-xs" onClick={() => navigator.clipboard.writeText(pix.codigo).then(() => setMsg("Código Pix copiado!"))}>📋 Copiar Pix copia e cola</button>
@@ -132,7 +153,10 @@ export default function Mensalidades() {
               <li key={c.id} className="flex items-center justify-between gap-3 rounded-2xl bg-painel p-4">
                 <div>
                   <p className="font-semibold">{MESES[Number(c.competencia.slice(5, 7)) - 1]} {c.competencia.slice(0, 4)}{ctx.meusAlunos.length > 1 ? ` · ${c.membros?.perfis?.nome}` : ""}</p>
-                  <p className="text-sm text-suave">{dinheiro(c.valor)} · vence {dataBR(c.vencimento)}</p>
+                  <p className="text-sm text-suave">
+                    {dinheiro(c.valor)} · vence {dataBR(c.vencimento)}
+                    {c.atrasada && Number(c.multa) + Number(c.juros) > 0 && <> · <b className="text-erro">hoje {dinheiro(c.total_atualizado)}</b> (multa {dinheiro(c.multa)} + juros {dinheiro(c.juros)})</>}
+                  </p>
                 </div>
                 {s === "paga"
                   ? <Link href={`${base}/recibo/${c.id}`} className="btn-sec text-sm">✓ Pago · recibo</Link>
@@ -201,8 +225,11 @@ export default function Mensalidades() {
                 <Link href={`${base}/alunos/${c.membro_id}`} className="font-semibold">{nome}</Link>
                 <p className="text-sm text-suave">
                   {dinheiro(c.valor)} · vence {dataBR(c.vencimento)}
-                  {s === "paga" ? ` · pago ${dataBR(c.pago_em)} (${FORMAS[c.forma] || c.forma}) · recibo nº ${c.recibo_numero}` : s === "atrasada" ? " · ATRASADA" : s === "isenta" ? " · isenta" : ""}
+                  {s === "paga" ? ` · pago ${dataBR(c.pago_em)} (${FORMAS[c.forma] || c.forma}) · recibo nº ${c.recibo_numero}` : s === "atrasada" ? ` · ATRASADA há ${c.dias_atraso} dia(s)` : s === "isenta" ? " · isenta" : ""}
                 </p>
+                {s === "atrasada" && Number(c.multa) + Number(c.juros) > 0 && (
+                  <p className="text-sm">Hoje: <b className="text-erro">{dinheiro(c.total_atualizado)}</b> <span className="text-suave">(multa {dinheiro(c.multa)} + juros {dinheiro(c.juros)})</span></p>
+                )}
                 {c.comprovante_url && s !== "paga" && (
                   <button className="text-sm font-semibold underline" style={{ color: "var(--color-alerta)" }} onClick={() => abrirAnexo(sb, c.comprovante_url)}>🧾 Ver comprovante enviado</button>
                 )}
@@ -215,7 +242,7 @@ export default function Mensalidades() {
                   </>
                 ) : (
                   <>
-                    <button className="btn text-sm" onClick={() => setBaixa(c)}>Dar baixa</button>
+                    <button className="btn text-sm" onClick={() => setBaixa({ ...c, valor: c.atrasada ? c.total_atualizado : c.valor })}>Dar baixa</button>
                     {z && s !== "isenta" && <a href={z} target="_blank" className="btn-sec text-sm">Lembrar</a>}
                     <button className="text-sm text-suave underline" onClick={() => isentar(c)}>{s === "isenta" ? "cobrar" : "isentar"}</button>
                   </>
@@ -226,6 +253,33 @@ export default function Mensalidades() {
         })}
         {!lista.length && <p className="text-suave">Nenhuma mensalidade neste mês. Toque em “Gerar do mês”.</p>}
       </ul>
+
+      {/* Devedores (todos os meses) */}
+      {devedores.length > 0 && (
+        <section className="rounded-2xl bg-painel p-4">
+          <h2 className="mb-1 text-2xl font-bold">Em atraso ({devedores.length})</h2>
+          <p className="mb-3 text-sm text-suave">
+            Total com multa e juros: <b className="text-erro">{dinheiro(devedores.reduce((s, d) => s + d.total, 0))}</b>
+            {" "}(sem acréscimos: {dinheiro(devedores.reduce((s, d) => s + d.original, 0))})
+          </p>
+          <ul className="space-y-2">
+            {devedores.map((d) => {
+              const nome = d.membro?.perfis?.apelido || d.membro?.perfis?.nome;
+              const z = whatsapp(d.membro?.perfis?.telefone, `Oi, ${primeiroNome(nome)}! Tudo bem? Consta em aberto: ${d.meses.map((c: any) => `${MESES[Number(c.competencia.slice(5, 7)) - 1]} (venc. ${dataBR(c.vencimento)})`).join(", ")}. Total atualizado: ${dinheiro(d.total)}. Dá para pagar pelo app com Pix. Qualquer coisa, me chama! 🥋`);
+              return (
+                <li key={d.membro_id} className="flex flex-wrap items-center gap-3 rounded-xl bg-painel2 p-3">
+                  <div className="min-w-0 flex-1">
+                    <Link href={`${base}/alunos/${d.membro_id}`} className="font-semibold">{nome}</Link>
+                    <p className="text-sm text-suave">{d.meses.map((c: any) => `${dataBR(c.vencimento).slice(0, 5)} (${c.dias_atraso}d)`).join(" · ")}</p>
+                  </div>
+                  <span className="numero text-lg font-bold text-erro">{dinheiro(d.total)}</span>
+                  {z && <a href={z} target="_blank" className="btn-sec text-sm">Cobrar</a>}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Planos */}
       <section className="rounded-2xl bg-painel p-4">

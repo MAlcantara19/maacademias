@@ -10,6 +10,7 @@ function Checkin({ slug }: { slug: string }) {
   const [estado, setEstado] = useState<"carregando" | "login" | "ok" | "erro">("carregando");
   const [texto, setTexto] = useState("");
   const [detalhe, setDetalhe] = useState("");
+  const [aviso, setAviso] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -22,6 +23,7 @@ function Checkin({ slug }: { slug: string }) {
         setEstado("ok");
         setTexto(`Presença marcada: ${data.turma}`);
         setDetalhe(data.atrasado ? `Você chegou ${data.atraso_min} min depois do início. Bora pro aquecimento! 🏃` : "Bom treino! 🥋");
+        if (data.aviso_financeiro) setAviso(`Você tem ${data.mensalidades_atrasadas} mensalidades em aberto. Dá uma olhada em “Mensalidades” no app ou fale com a recepção.`);
       };
       if (!navigator.geolocation) return marcar(null, null);
       navigator.geolocation.getCurrentPosition(
@@ -48,6 +50,7 @@ function Checkin({ slug }: { slug: string }) {
           <div className="flex h-28 w-28 items-center justify-center rounded-full bg-ok text-6xl text-white">✓</div>
           <h1 className="text-4xl font-extrabold">{texto}</h1>
           <p className="text-lg text-suave">{detalhe}</p>
+          {aviso && <p className="max-w-sm rounded-2xl bg-alerta/15 p-4 text-alerta">💳 {aviso}</p>}
           <Link href={`/${slug}/app`} className="btn-sec">Abrir o app</Link>
         </>
       )}

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -22,6 +22,13 @@ function Chamada() {
   const [alunos, setAlunos] = useState<any[]>([]);
   const [presentes, setPresentes] = useState<Map<string, any>>(new Map());
   const [obs, setObs] = useState("");
+  const [nomes, setNomes] = useState<Record<string, string[]>>({});
+  const [plano, setPlano] = useState<any>(null);
+  const [ouvindo, setOuvindo] = useState(false);
+  const [ouvido, setOuvido] = useState("");
+  const [porVoz, setPorVoz] = useState<string[]>([]);
+  const rec = useRef<any>(null);
+  const ouvindoRef = useRef(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -54,6 +61,14 @@ function Chamada() {
     (async () => {
       const { data: lista } = await sb.rpc("alertas_chamada", { p_turma: turmaId, p_data: data });
       setAlunos(lista || []);
+      // nomes e apelidos para a chamada por voz
+      const ids = (lista || []).map((x: any) => x.membro_id);
+      if (ids.length) {
+        const { data: pn } = await sb.from("painel_alunos").select("membro_id, nome, apelido").in("membro_id", ids);
+        setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
+      }
+      const { data: pl } = await sb.from("planos_aula").select("*").eq("turma_id", turmaId).eq("data", data).limit(1);
+      setPlano(pl?.[0] || null);
       if (!h) return;
       const { data: a } = await sb.from("aulas").select("*").eq("turma_id", turmaId).eq("data", data).eq("hora_inicio", h.hora_inicio).maybeSingle();
       if (a) {
@@ -90,6 +105,58 @@ function Chamada() {
       await sb.from("presencas").insert(p);
     }
   }
+
+  // ---------- Chamada por voz ----------
+  const norm = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\b0+(\d)/g, "$1").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const NUM: Record<string, string> = { um: "1", dois: "2", tres: "3", quatro: "4", cinco: "5", seis: "6", sete: "7", oito: "8", nove: "9", dez: "10", onze: "11", doze: "12", treze: "13", quatorze: "14", catorze: "14", quinze: "15", dezesseis: "16" };
+
+  function quemFoiDito(texto: string) {
+    const falado = " " + norm(texto).split(" ").map((w) => NUM[w] || w).join(" ") + " ";
+    const achados = new Set<string>();
+    // 1º nome completo e apelido; depois primeiro nome, só se for único na turma
+    const primeiros: Record<string, string[]> = {};
+    for (const a of alunos) {
+      const ns = (nomes[a.membro_id] || [a.nome]).map(norm);
+      if (ns.some((n) => n && falado.includes(" " + n + " "))) achados.add(a.membro_id);
+      const p = ns[0]?.split(" ")[0];
+      if (p) (primeiros[p] ||= []).push(a.membro_id);
+    }
+    for (const [p, ids] of Object.entries(primeiros)) {
+      if (ids.length === 1 && falado.includes(" " + p + " ")) achados.add(ids[0]);
+    }
+    return Array.from(achados);
+  }
+
+  async function marcarVarios(ids: string[]) {
+    const a = await garantirAula();
+    if (!a) return;
+    const novos = ids.filter((id) => !presentes.has(id));
+    if (!novos.length) return;
+    const linhas = novos.map((id) => ({ aula_id: a.id, membro_id: id, metodo: "manual", confirmado_por: ctx.membroId }));
+    await sb.from("presencas").upsert(linhas, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
+    setPresentes((atual) => new Map([...atual, ...linhas.map((l) => [l.membro_id, l] as [string, any])]));
+    setPorVoz((v) => [...v, ...novos]);
+  }
+
+  function alternarVoz() {
+    const R = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!R) return setMsg("Este navegador não tem reconhecimento de voz. Use o Chrome no Android.");
+    if (ouvindoRef.current) { ouvindoRef.current = false; setOuvindo(false); rec.current?.stop(); return; }
+    const r = new R();
+    r.lang = "pt-BR"; r.continuous = true; r.interimResults = false;
+    r.onresult = (e: any) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const texto = e.results[i][0].transcript;
+        setOuvido(texto);
+        const ids = quemFoiDito(texto);
+        if (ids.length) marcarVarios(ids);
+      }
+    };
+    r.onend = () => { if (ouvindoRef.current) r.start(); };
+    r.onerror = (e: any) => { if (e.error === "not-allowed") { ouvindoRef.current = false; setOuvindo(false); setMsg("Libere o microfone para usar a chamada por voz."); } };
+    rec.current = r; ouvindoRef.current = true; setOuvindo(true); setPorVoz([]); r.start();
+  }
+  useEffect(() => () => { ouvindoRef.current = false; rec.current?.stop(); }, []);
 
   async function todos() {
     const a = await garantirAula();
@@ -151,11 +218,29 @@ function Chamada() {
           <p className="numero text-3xl font-bold">
             {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes</span>
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
+              {ouvindo ? "⏹ Parar" : "🎤 Por voz"}
+            </button>
             <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>Todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
           </div>
         </div>
+      )}
+      {ouvindo && (
+        <div className="rounded-2xl border-2 border-erro bg-painel p-4">
+          <p className="font-semibold">🎤 Ouvindo… fale o nome ou apelido dos alunos</p>
+          <p className="text-sm text-suave">Ouvi: “{ouvido || "…"}”</p>
+          {porVoz.length > 0 && <p className="mt-1 text-sm text-ok">Marcados por voz: {porVoz.map((id) => alunos.find((a) => a.membro_id === id)?.nome).join(", ")}</p>}
+        </div>
+      )}
+      {plano && (
+        <details className="rounded-2xl bg-painel p-4" open>
+          <summary className="cursor-pointer font-semibold">📝 Plano de hoje: {plano.titulo}</summary>
+          <ol className="mt-2 space-y-1 text-sm">
+            {(plano.blocos || []).map((b: any, i: number) => <li key={i}><b className="numero">{b.minutos}′</b> {b.tipo}{b.texto ? <span className="text-suave"> — {b.texto}</span> : null}</li>)}
+          </ol>
+        </details>
       )}
       {cancelada && <p className="rounded-xl bg-alerta/15 p-3 text-alerta">Aula cancelada. Ela não conta na frequência.</p>}
       {msg && <p className="text-sm text-suave">{msg}</p>}

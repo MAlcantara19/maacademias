@@ -28,6 +28,7 @@ export default function Gestao() {
   const [vagas, setVagas] = useState<Record<string, any>>({});
   const [fila, setFila] = useState<any[]>([]);
   const [novoFila, setNovoFila] = useState<Record<string, any>>({});
+  const [regras, setRegras] = useState<Record<string, any>>({});
 
   async function carregar() {
     const [m, t, p, a] = await Promise.all([
@@ -43,6 +44,8 @@ export default function Gestao() {
     ]);
     setVagas(Object.fromEntries((v.data || []).map((x: any) => [x.turma_id, x])));
     setFila(f.data || []);
+    const { data: rg } = await sb.from("regras_graduacao").select("*").in("modalidade_id", (m.data || []).map((x: any) => x.id).concat(["00000000-0000-0000-0000-000000000000"]));
+    setRegras(Object.fromEntries((rg || []).map((r: any) => [r.modalidade_id + "|" + r.faixa, r])));
   }
   useEffect(() => { carregar(); }, []); // eslint-disable-line
 
@@ -88,6 +91,15 @@ export default function Gestao() {
   }
   async function alternarTurma(t: any) {
     await sb.from("turmas").update({ ativa: !t.ativa }).eq("id", t.id); carregar();
+  }
+
+  // ---------- Regras de graduação ----------
+  async function salvarRegra(modId: string, faixa: string, campo: string, valor: string) {
+    const atual = regras[modId + "|" + faixa] || { min_aulas: 40, min_meses: 6 };
+    const novo = { modalidade_id: modId, faixa, min_aulas: Number(atual.min_aulas), min_meses: Number(atual.min_meses), idade_minima: atual.idade_minima ?? null, [campo]: valor === "" ? null : Number(valor) };
+    const { error } = await sb.from("regras_graduacao").upsert(novo, { onConflict: "modalidade_id,faixa" });
+    if (error) return setMsg(error.message);
+    setRegras({ ...regras, [modId + "|" + faixa]: novo });
   }
 
   // ---------- Lista de espera ----------
@@ -265,9 +277,22 @@ export default function Gestao() {
                   {ctx.admin && <button className="btn-sec text-sm" onClick={() => editarModalidade(m)}>Editar</button>}
                 </div>
                 <div className="mt-3 space-y-1.5">
-                  {(m.graduacoes || []).map((g: string, i: number) => (
-                    <div key={g} className="flex items-center gap-3 text-sm"><span className="w-20">{g}</span><Faixa cor={m.cores_graduacoes?.[i]} graus={0} altura={8} /></div>
-                  ))}
+                  {(m.graduacoes || []).map((g: string, i: number) => {
+                    const r = regras[m.id + "|" + g];
+                    const ultima = i === (m.graduacoes || []).length - 1;
+                    return (
+                      <div key={g} className="grid grid-cols-[5rem_1fr] items-center gap-2 text-sm sm:grid-cols-[5rem_1fr_auto]">
+                        <span>{g}</span><Faixa cor={m.cores_graduacoes?.[i]} graus={0} altura={8} />
+                        {!ultima && ctx.admin && (
+                          <span className="col-span-2 flex items-center gap-1 text-xs text-suave sm:col-span-1">
+                            <input className="campo w-14 px-1 py-1 text-center" type="number" defaultValue={r?.min_aulas ?? ""} placeholder="—" onBlur={(e) => salvarRegra(m.id, g, "min_aulas", e.target.value)} aria-label={`Aulas mínimas na ${g}`} /> aulas
+                            <input className="campo w-12 px-1 py-1 text-center" type="number" defaultValue={r?.min_meses ?? ""} placeholder="—" onBlur={(e) => salvarRegra(m.id, g, "min_meses", e.target.value)} aria-label={`Meses mínimos na ${g}`} /> meses
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {ctx.admin && <p className="pt-1 text-xs text-suave">Aulas e meses mínimos em cada faixa: quando o aluno completa, o professor recebe “pronto para graduar”.</p>}
                 </div>
               </section>
             ))}

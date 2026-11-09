@@ -48,7 +48,7 @@ export default function Inicio() {
       const eventos = comuns[1].data || [];
 
       if (ctx.equipe) {
-        const [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist] = await Promise.all([
+        const [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist, graduar] = await Promise.all([
           sb.from("resumo_academia").select("*").eq("academia_id", acad).maybeSingle(),
           sb.from("horarios").select("*, turmas!inner(id, nome, academia_id, modalidades(nome, cor))").eq("turmas.academia_id", acad).eq("dia_semana", dow).order("hora_inicio"),
           sb.from("pendencias").select("id", { count: "exact", head: true }).eq("academia_id", acad).eq("status", "respondida"),
@@ -57,12 +57,14 @@ export default function Inicio() {
           sb.from("painel_alunos").select("membro_id, nome, apelido, foto_url, cor_faixa, grau, dias_sem_vir, whatsapp, afastado").eq("academia_id", acad).eq("ativo", true).gte("dias_sem_vir", ctx.academia.alerta_dias_sem_vir || 7).order("dias_sem_vir", { ascending: false }).limit(5),
           sb.from("proximos_aniversarios").select("*").eq("academia_id", acad).gte("proximo_aniversario", hoje).lte("proximo_aniversario", addDias(hoje, 7)).order("proximo_aniversario"),
           sb.from("checklist_campeonato").select("*").eq("academia_id", acad).gte("data_evento", new Date().toISOString()).order("data_evento").limit(1),
+          sb.from("sugestoes_graduacao").select("*").eq("academia_id", acad).order("aulas_na_faixa", { ascending: false }),
         ]);
         const anivUnicos = Array.from(new Map((aniversarios.data || []).map((a: any) => [a.membro_id, a])).values());
         setD({
           avisos, eventos, resumo: resumo.data, aulasHoje: aulasHoje.data || [],
           respondidas: respondidas.count || 0, ausencias: ausencias.count || 0, experimentais: experimentais.count || 0,
           sumidos: (painel.data || []).filter((p: any) => !p.afastado), aniversarios: anivUnicos, campeonato: checklist.data?.[0],
+          graduar: graduar.data || [],
         });
       } else {
         const ids = ctx.meusAlunos.map((a) => a.id);
@@ -171,6 +173,23 @@ export default function Inicio() {
                 ))}
               </ul>
             </Cartao>
+
+            {d.graduar.length > 0 && (
+              <Cartao titulo="Prontos para graduar 🥋">
+                <ul className="space-y-2">
+                  {d.graduar.map((g: any) => (
+                    <li key={g.membro_id + g.modalidade_id} className="flex items-center gap-3">
+                      <Avatar foto={g.foto_url} nome={g.nome} tamanho={36} mostrarFaixa={false} />
+                      <div className="flex-1">
+                        <p className="font-semibold">{g.apelido || g.nome}</p>
+                        <p className="text-xs text-suave">{g.modalidade}: {g.faixa} → {g.proxima_faixa} · {g.aulas_na_faixa} aulas, {g.meses_na_faixa} meses</p>
+                      </div>
+                      <Link href={`${base}/tecnicas/exame?aluno=${g.membro_id}`} className="btn-sec text-sm">Exame</Link>
+                    </li>
+                  ))}
+                </ul>
+              </Cartao>
+            )}
 
             {d.campeonato && (
               <Cartao titulo={d.campeonato.evento} href={`${base}/campeonatos/${d.campeonato.evento_id}`}>

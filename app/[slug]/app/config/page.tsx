@@ -45,6 +45,10 @@ export default function Config() {
       cores: { ...(a.cores || {}), primaria: a.cores?.primaria || "#7c3aed" },
       modulos: a.modulos, no_diretorio: a.no_diretorio,
       checkin_raio_m: Number(a.checkin_raio_m), tolerancia_atraso_min: Number(a.tolerancia_atraso_min),
+      gerar_mensalidades_auto: !!a.gerar_mensalidades_auto, multa_pct: Number(a.multa_pct || 0), juros_mes_pct: Number(a.juros_mes_pct || 0),
+      juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
+      pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
+      reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
       alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
@@ -121,6 +125,25 @@ export default function Config() {
             <div><label className="rotulo">Tolerância de atraso (min)</label><input type="number" className="campo" value={a.tolerancia_atraso_min} onChange={(e) => muda("tolerancia_atraso_min", e.target.value)} /></div>
             <div><label className="rotulo">Alerta de sumido (dias)</label><input type="number" className="campo" value={a.alerta_dias_sem_vir} onChange={(e) => muda("alerta_dias_sem_vir", e.target.value)} /></div>
             <div><label className="rotulo">Aviso de aniversário (dias antes)</label><input type="number" className="campo" value={a.aviso_aniversario_dias} onChange={(e) => muda("aviso_aniversario_dias", e.target.value)} /></div>
+          </div>
+
+          <h3 className="pt-2 text-xl font-bold">Mensalidades e cobrança</h3>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div><label className="rotulo">Multa por atraso (%)</label><input type="number" step="0.1" className="campo" value={a.multa_pct ?? 0} onChange={(e) => muda("multa_pct", e.target.value)} /></div>
+            <div><label className="rotulo">Juros ao mês (%)</label><input type="number" step="0.1" className="campo" value={a.juros_mes_pct ?? 0} onChange={(e) => muda("juros_mes_pct", e.target.value)} /></div>
+            <div><label className="rotulo">Lembrar antes (dias)</label><input type="number" className="campo" value={a.aviso_vencimento_dias} onChange={(e) => muda("aviso_vencimento_dias", e.target.value)} /></div>
+            <div><label className="rotulo">Cobrar depois (dias)</label><input type="number" className="campo" value={a.cobrar_apos_dias} onChange={(e) => muda("cobrar_apos_dias", e.target.value)} /></div>
+            <div><label className="rotulo">Virar pendência após (dias)</label><input type="number" className="campo" value={a.pendencia_apos_dias} onChange={(e) => muda("pendencia_apos_dias", e.target.value)} /></div>
+            <div><label className="rotulo">Aviso no check-in com (atrasadas)</label><input type="number" className="campo" value={a.alerta_mensalidades_atrasadas} onChange={(e) => muda("alerta_mensalidades_atrasadas", e.target.value)} /></div>
+            <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={!!a.juros_dias_uteis} onChange={(e) => muda("juros_dias_uteis", e.target.checked)} /> Contar só dias úteis no atraso (seg a sex)</label>
+            <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={!!a.gerar_mensalidades_auto} onChange={(e) => muda("gerar_mensalidades_auto", e.target.checked)} /> Gerar as mensalidades do mês sozinho (dia 1º)</label>
+            <p className="text-xs text-suave sm:col-span-4">Juros pro rata: {a.juros_mes_pct || 0}% ao mês ÷ 30 por dia de atraso{a.juros_dias_uteis ? " (só dias úteis)" : ""}. A multa entra uma vez, no primeiro dia de atraso. Coloque 0 para não cobrar.</p>
+          </div>
+
+          <h3 className="pt-2 text-xl font-bold">Automações</h3>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div><label className="rotulo">“Sentimos sua falta” após (dias)</label><input type="number" className="campo" value={a.reengajar_dias} onChange={(e) => muda("reengajar_dias", e.target.value)} /></div>
+            <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
 
           <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>

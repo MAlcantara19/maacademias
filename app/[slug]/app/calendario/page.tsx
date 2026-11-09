@@ -20,6 +20,7 @@ export default function Calendario() {
   const [mods, setMods] = useState<any[]>([]);
   const [modalidade, setModalidade] = useState("");
   const [novo, setNovo] = useState<any>(null);
+  const [planos, setPlanos] = useState<any[]>([]);
 
   async function carregarEventos() {
     const ini = new Date(ano, mes, 1).toISOString(), fim = new Date(ano, mes + 1, 1).toISOString();
@@ -29,6 +30,9 @@ export default function Calendario() {
       .eq("turmas.academia_id", ctx.academia.id).eq("status", "cancelada")
       .gte("data", `${ano}-${String(mes + 1).padStart(2, "0")}-01`).lt("data", new Date(ano, mes + 1, 1).toISOString().slice(0, 10));
     setCanceladas(c || []);
+    const { data: pl } = await sb.from("planos_aula").select("id, titulo, data, turma_id, blocos").eq("academia_id", ctx.academia.id)
+      .gte("data", `${ano}-${String(mes + 1).padStart(2, "0")}-01`).lt("data", new Date(ano, mes + 1, 1).toISOString().slice(0, 10));
+    setPlanos(pl || []);
   }
 
   useEffect(() => {
@@ -146,6 +150,9 @@ export default function Calendario() {
               <span className="numero text-lg font-bold">{hora(a.hora_inicio)}–{hora(a.hora_fim)}</span>
               <span className="flex-1">{a.turma}{a.tipo_treino ? <span className="text-suave"> · {a.tipo_treino}</span> : null}</span>
               {a.cancelada && <span className="text-sm">cancelada</span>}
+              {!a.cancelada && planos.find((p) => p.data === dia && p.turma_id === a.turma_id) && (
+                <span className="text-xs text-suave">📝 {planos.find((p) => p.data === dia && p.turma_id === a.turma_id).titulo}</span>
+              )}
             </li>
           ))}
           {!sel.evs.length && !sel.aulas.length && !sel.feriado && <p className="text-suave">Nada marcado neste dia.</p>}
