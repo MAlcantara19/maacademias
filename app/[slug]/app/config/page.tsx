@@ -71,7 +71,7 @@ export default function Config() {
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
-      tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas,
+      tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
@@ -228,6 +228,10 @@ export default function Config() {
             ))}
           </div>
           <p className="text-xs text-suave">Projeto social: sem mensalidades e com relatório e lista de presença para prestação de contas.</p>
+          <div className="flex items-center gap-2 text-sm">
+            <span>Meta de estudo por semana (quizzes/roletas):</span>
+            <input type="number" min={1} max={20} className="campo w-20" value={a.meta_estudo_semanal ?? 3} onChange={(e) => muda("meta_estudo_semanal", e.target.value)} />
+          </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tecnicas_progressivas} onChange={(e) => muda("tecnicas_progressivas", e.target.checked)} /> Técnicas progressivas: o aluno vê a matéria até a próxima faixa dele</label>
 
           <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>

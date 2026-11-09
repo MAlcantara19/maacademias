@@ -5,6 +5,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { CLASSIFICACOES, GRUPOS, corConjunto, nomeGrupo, ordemGrupo } from "@/lib/tecnicas";
 import { Faixa } from "@/components/Faixa";
+import { BotaoFalar } from "@/components/Falar";
 
 // Banco de técnicas por faixa: a "matéria" de cada exame
 export default function Tecnicas() {
@@ -52,7 +53,7 @@ export default function Tecnicas() {
     if (!form?.nome || !form?.grupo) return setMsg("Preencha o nome e o grupo.");
     const dados = { academia_id: ctx.academia.id, modalidade_id: modId, faixa: form.faixa || null, grupo: form.grupo, nome: form.nome,
       nome_original: form.nome_original || null, descricao: form.descricao || null, video_url: form.video_url || null, ordem: Number(form.ordem || 0),
-      imagem_url: form.imagem_url || null, classificacao: form.classificacao || null, conjunto: form.conjunto || null };
+      imagem_url: form.imagem_url || null, classificacao: form.classificacao || null, conjunto: form.conjunto || null, kana: form.kana || null };
     const { error } = form.id ? await sb.from("tecnicas").update(dados).eq("id", form.id) : await sb.from("tecnicas").insert(dados);
     setMsg(error ? error.message : "Técnica salva."); setForm(null); carregar();
   }
@@ -93,7 +94,7 @@ export default function Tecnicas() {
   const Item = ({ t }: { t: any }) => (
     <li className="rounded-xl bg-painel2" style={{ borderLeft: `5px solid ${corConjunto(t.conjunto)}` }}>
       <button className="flex w-full items-center justify-between gap-2 p-3 text-left" onClick={() => setAberta(aberta === t.id ? "" : t.id)}>
-        <span><b>{t.nome_original || t.nome}</b>{t.nome_original && <span className="text-sm text-suave"> · {t.nome}</span>}</span>
+        <span className="flex items-center gap-2"><b>{t.nome_original || t.nome}</b>{t.nome_original && <BotaoFalar texto={t.nome_original} kana={t.kana} />}{t.nome_original && <span className="text-sm text-suave">{t.nome}</span>}</span>
         {t.video_url && <span aria-hidden>▶️</span>}
       </button>
       {aberta === t.id && (
@@ -181,7 +182,8 @@ export default function Tecnicas() {
           </select>
           <input className="campo" list="conjuntos" placeholder="Grupo/cor (ex.: 1º grupo, 6º grupo, Shinmeisho)" value={form.conjunto || ""} onChange={(e) => setForm({ ...form, conjunto: e.target.value })} />
           <datalist id="conjuntos">{["1º grupo", "2º grupo", "3º grupo", "4º grupo", "5º grupo", "6º grupo", "Shinmeisho", "Extras", "Katame-waza", "Kata"].map((c) => <option key={c} value={c} />)}</datalist>
-          <input className="campo sm:col-span-2" placeholder="Link da imagem/ficha da técnica (opcional)" value={form.imagem_url || ""} onChange={(e) => setForm({ ...form, imagem_url: e.target.value })} />
+          <input className="campo" placeholder="Escrita em japonês para o áudio (opcional)" value={form.kana || ""} onChange={(e) => setForm({ ...form, kana: e.target.value })} />
+          <input className="campo" placeholder="Link da imagem/ficha da técnica (opcional)" value={form.imagem_url || ""} onChange={(e) => setForm({ ...form, imagem_url: e.target.value })} />
           <div className="flex gap-2 sm:col-span-2"><button className="btn" onClick={salvar}>Salvar</button><button className="btn-sec" onClick={() => setForm(null)}>Cancelar</button></div>
         </section>
       )}

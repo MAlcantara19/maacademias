@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { CORES_CATEGORIA, corCategoria } from "@/lib/tecnicas";
+import { BotaoFalar, EscolhaVoz } from "@/components/Falar";
 
 // Palavras em japonês: a "folha" do dojô, editável e importável
 export default function Vocabulario() {
@@ -24,7 +25,7 @@ export default function Vocabulario() {
 
   async function salvar() {
     if (!form?.termo || !form?.significado) return setMsg("Preencha a palavra e o significado.");
-    const dados = { academia_id: ctx.academia.id, termo: form.termo, grafia_antiga: form.grafia_antiga || null, significado: form.significado,
+    const dados = { academia_id: ctx.academia.id, termo: form.termo, grafia_antiga: form.grafia_antiga || null, significado: form.significado, kana: form.kana || null,
       categoria: form.categoria || null, lista: form.lista || "basica", ordem: Number(form.ordem || 0) };
     const { error } = form.id ? await sb.from("vocabulario").update(dados).eq("id", form.id) : await sb.from("vocabulario").insert(dados);
     setMsg(error ? error.message : "Salvo."); setForm(null); carregar();
@@ -75,6 +76,8 @@ export default function Vocabulario() {
           {ctx.admin && lista.length > 0 && <button className="btn-sec" onClick={abrirCopia}>Copiar para outra academia</button>}
         </div>
       </div>
+      <EscolhaVoz />
+      <p className="text-xs text-suave">Se o áudio de alguma palavra sair estranho, edite e preencha a escrita em japonês (kana).</p>
       {msg && <p className="text-sm text-suave">{msg}</p>}
 
       {csv !== null && (
@@ -98,6 +101,10 @@ export default function Vocabulario() {
           <input className="campo" placeholder="Palavra (grafia correta)" value={form.termo || ""} onChange={(e) => setForm({ ...form, termo: e.target.value })} />
           <input className="campo" placeholder="Grafia antiga (como estava na folha)" value={form.grafia_antiga || ""} onChange={(e) => setForm({ ...form, grafia_antiga: e.target.value })} />
           <input className="campo sm:col-span-2" placeholder="Significado" value={form.significado || ""} onChange={(e) => setForm({ ...form, significado: e.target.value })} />
+          <div className="flex gap-2 sm:col-span-2">
+            <input className="campo" placeholder="Escrita em japonês para o áudio (opcional, ex.: りょうて)" value={form.kana || ""} onChange={(e) => setForm({ ...form, kana: e.target.value })} />
+            {form.termo && <BotaoFalar texto={form.termo} kana={form.kana} />}
+          </div>
           <input className="campo" list="cats" placeholder="Categoria" value={form.categoria || ""} onChange={(e) => setForm({ ...form, categoria: e.target.value })} />
           <datalist id="cats">{Object.keys(CORES_CATEGORIA).map((c) => <option key={c} value={c} />)}</datalist>
           <select className="campo" value={form.lista} onChange={(e) => setForm({ ...form, lista: e.target.value })}><option value="basica">Lista básica (60)</option><option value="ampliada">Lista ampliada</option></select>
@@ -115,7 +122,7 @@ export default function Vocabulario() {
           <li key={p.id} className="rounded-xl bg-painel p-3" style={{ borderLeft: `5px solid ${corCategoria(p.categoria)}` }}>
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-lg font-bold">{p.termo} {p.grafia_antiga && <span className="text-xs font-normal text-suave">(antes: {p.grafia_antiga})</span>}</p>
+                <p className="flex items-center gap-2 text-lg font-bold">{p.termo} <BotaoFalar texto={p.termo} kana={p.kana} /> {p.grafia_antiga && <span className="text-xs font-normal text-suave">(antes: {p.grafia_antiga})</span>}</p>
                 <p className="text-sm">{p.significado}</p>
                 <p className="text-xs text-suave">{p.categoria}</p>
               </div>

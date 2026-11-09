@@ -70,3 +70,15 @@ Importe o repositório na Vercel e cadastre as variáveis:
 Ele APAGA todos os dados do app e recria do zero. Use enquanto for teste.
 Quando tiver alunos de verdade, as próximas atualizações virão como
 arquivos `ATUALIZAR-xx.sql`, que só acrescentam coisas sem apagar nada.
+
+## Como atualizar daqui pra frente (sem apagar nada)
+
+1. **Banco:** rode no SQL Editor só os `supabase/ATUALIZAR-xx.sql` que você ainda não rodou,
+   em ordem. Eles podem ser rodados duas vezes sem problema. Anote o último que rodou.
+2. **Código:** extraia o zip novo **por cima** da pasta (substituir tudo). Não precisa apagar
+   nada, só se a mensagem da versão pedir.
+3. `npm install` (só se o package.json mudou) e `npm run dev` para testar.
+4. `git add .` → `git commit -m "..."` → `git push`. A Vercel publica sozinha.
+
+Últimas atualizações do banco: 01 (vocabulário, quiz, Judô Clube Denis) e 02 (meta de estudo,
+placar, lembrete de sexta e pronúncia).

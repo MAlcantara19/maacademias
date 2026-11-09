@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 // Roleta genérica: recebe itens com rótulo e cor, gira e devolve o sorteado
-export function RodaSorteio({ itens, onSorteio }: { itens: { id: string; rotulo: string; cor: string }[]; onSorteio: (i: number) => void }) {
+export function RodaSorteio({ itens, onSorteio, grande = false }: { itens: { id: string; rotulo: string; cor: string }[]; onSorteio: (i: number) => void; grande?: boolean }) {
   const [giro, setGiro] = useState(0);
   const [girando, setGirando] = useState(false);
   const lista = itens.slice(0, 40);
@@ -21,7 +21,7 @@ export function RodaSorteio({ itens, onSorteio }: { itens: { id: string; rotulo:
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <div className="w-full max-w-[340px]">
+      <div className={grande ? "w-[min(70vh,92vw)]" : "w-full max-w-[340px]"}>
         <svg viewBox="0 0 320 320" className="w-full drop-shadow-2xl" role="img" aria-label="Roleta">
           <g style={{ transform: `rotate(${giro}deg)`, transformOrigin: "160px 160px", transition: girando ? "transform 4s cubic-bezier(.17,.67,.21,1)" : "none" }}>
             {lista.map((t, i) => {
@@ -44,7 +44,7 @@ export function RodaSorteio({ itens, onSorteio }: { itens: { id: string; rotulo:
           <polygon points={`${C - 12},4 ${C + 12},4 ${C},30`} fill="#fff" stroke="#0b0b12" strokeWidth="2" />
         </svg>
       </div>
-      <button className="btn px-10 py-4 text-xl" onClick={girar} disabled={girando || !lista.length}>{girando ? "Girando…" : "🎯 Girar"}</button>
+      <button className={`btn px-10 py-4 ${grande ? "text-3xl" : "text-xl"}`} onClick={girar} disabled={girando || !lista.length}>{girando ? "Girando…" : "🎯 Girar"}</button>
       {itens.length > 40 && <p className="text-xs text-suave">Mostrando 40 de {itens.length}. Use os filtros para escolher o grupo.</p>}
     </div>
   );
