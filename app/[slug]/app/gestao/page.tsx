@@ -124,8 +124,10 @@ export default function Gestao() {
       if (r.error) return setMsg(r.error.message);
     }
     const membroId = crypto.randomUUID();
-    const r2 = await sb.from("membros").insert({ id: membroId, academia_id: acad, perfil_id: perfilId, papel: form.papel || "professor" });
+    const papel = form.papel === "admin_professor" ? "professor" : form.papel || "professor";
+    const r2 = await sb.from("membros").insert({ id: membroId, academia_id: acad, perfil_id: perfilId, papel });
     if (r2.error) return setMsg(r2.error.message.includes("duplicate") ? "Essa pessoa já tem esse papel aqui." : r2.error.message);
+    if (form.papel === "admin_professor") await sb.from("membros").insert({ academia_id: acad, perfil_id: perfilId, papel: "admin" });
     if ((form.modalidades || []).length) {
       await sb.from("professores_modalidades").insert(form.modalidades.map((m: string) => ({ membro_id: membroId, modalidade_id: m, whatsapp_publico: form.whatsapp || null, bio: form.bio || null, graduacao: form.graduacao || null })));
     }
@@ -145,7 +147,8 @@ export default function Gestao() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-4xl font-extrabold">Turmas e equipe</h1>
+      <h1 className="text-4xl font-extrabold">{ctx.admin ? "Turmas e equipe" : "Minhas turmas"}</h1>
+      {!ctx.admin && <p className="text-sm text-suave">Você vê e organiza os horários das suas turmas. Criar turmas, modalidades e professores é com o admin.</p>}
       <div className="flex gap-1 rounded-2xl bg-painel p-1">
         {[["turmas", "Turmas e horários"], ["modalidades", "Modalidades"], ["equipe", "Professores"]].map(([k, v]) => (
           <button key={k} onClick={() => { setAba(k); setForm(null); }} className={`flex-1 rounded-xl py-2 text-sm font-semibold ${aba === k ? "bg-painel2" : "text-suave"}`}>{v}</button>
@@ -156,7 +159,7 @@ export default function Gestao() {
       {/* ===== Turmas ===== */}
       {aba === "turmas" && (
         <>
-          <button className="btn" onClick={() => setForm({ tipo: "turma", modalidade_id: mods[0]?.id })} disabled={!mods.length}>Nova turma</button>
+          {ctx.admin && <button className="btn" onClick={() => setForm({ tipo: "turma", modalidade_id: mods[0]?.id })} disabled={!mods.length}>Nova turma</button>}
           {!mods.length && <p className="text-suave">Cadastre uma modalidade primeiro.</p>}
           {form?.tipo === "turma" && (
             <div className="grid gap-2 rounded-2xl border border-linha bg-painel p-4 sm:grid-cols-2">
@@ -174,7 +177,7 @@ export default function Gestao() {
             </div>
           )}
           <div className="space-y-3">
-            {turmas.map((t) => {
+            {turmas.filter((t) => ctx.admin || t.professor_id === ctx.professorId).map((t) => {
               const m = mods.find((x) => x.id === t.modalidade_id);
               const h = hor[t.id] || {};
               return (
@@ -326,12 +329,14 @@ export default function Gestao() {
               <input className="campo" placeholder="Graduação (ex.: faixa preta 2º dan)" onChange={(e) => f("graduacao", e.target.value)} />
               <input className="campo sm:col-span-2" placeholder="Mini bio (aparece na página pública)" onChange={(e) => f("bio", e.target.value)} />
               <select className="campo" value={form.papel} onChange={(e) => f("papel", e.target.value)}>
-                <option value="professor">Professor</option><option value="admin">Admin (gerencia tudo)</option>
+                <option value="professor">Professor (só as turmas dele)</option>
+                <option value="admin_professor">Admin e professor</option>
+                <option value="admin">Só admin (gerencia, não dá aula)</option>
               </select>
               <div className="flex flex-wrap gap-2">
                 {mods.map((m) => {
                   const on = form.modalidades.includes(m.id);
-                  return <button key={m.id} type="button" className="chip" style={on ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+                  return <button key={m.id} type="button" className="chip" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                     onClick={() => f("modalidades", on ? form.modalidades.filter((x: string) => x !== m.id) : [...form.modalidades, m.id])}>{on ? "✓ " : ""}{m.nome}</button>;
                 })}
               </div>
@@ -354,6 +359,13 @@ export default function Gestao() {
                     </div>
                   )}
                 </div>
+                {ctx.admin && p.papel === "admin" && !profs.some((x) => x.papel === "professor" && x.perfis?.email === p.perfis?.email && x.perfis?.nome === p.perfis?.nome) && (
+                  <button className="btn-sec text-sm" onClick={async () => {
+                    const { data: m } = await sb.from("membros").select("perfil_id").eq("id", p.id).maybeSingle();
+                    if (m) await sb.from("membros").insert({ academia_id: acad, perfil_id: m.perfil_id, papel: "professor" });
+                    carregar();
+                  }}>Também dá aula</button>
+                )}
                 {ctx.admin && <button className="btn-sec text-sm" onClick={() => alternarAtivo(p)}>{p.ativo ? "Desativar" : "Ativar"}</button>}
               </li>
             ))}

@@ -176,7 +176,7 @@ export default function Tecnicas() {
 
       <div className="flex flex-wrap gap-2">
         {mods.map((m) => (
-          <button key={m.id} className="chip py-2" onClick={() => setModId(m.id)} style={m.id === modId ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{m.nome}</button>
+          <button key={m.id} className="chip py-2" onClick={() => setModId(m.id)} style={m.id === modId ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{m.nome}</button>
         ))}
       </div>
       {msg && <p className="text-sm text-suave">{msg}</p>}
@@ -230,7 +230,7 @@ export default function Tecnicas() {
       )}
 
       {!ctx.equipe && minhaAlvo && (
-        <p className="rounded-2xl p-4" style={{ background: "var(--cor)" }}>
+        <p className="rounded-2xl p-4 text-white" style={{ background: "var(--cor)" }}>
           Sua faixa em {mod?.nome}: <b>{minhaFaixa || "—"}</b>. Sua matéria é a da faixa <b>{minhaAlvo}</b> 👇
         </p>
       )}

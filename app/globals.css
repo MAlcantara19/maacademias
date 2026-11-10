@@ -83,3 +83,30 @@ h1, h2, h3, .titulo {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Temas por academia ----------
+   data-modo="claro"  → fundo claro, minimalista
+   data-fonte="simples" → títulos na mesma fonte do texto, sem caixa alta condensada */
+[data-modo="claro"] {
+  --color-fundo: #f5f6f8;
+  --color-painel: #ffffff;
+  --color-painel2: #eef0f4;
+  --color-linha: #dfe3ea;
+  --color-texto: #151a23;
+  --color-suave: #5d6677;
+  color-scheme: light;
+  background: var(--color-fundo);
+  color: var(--color-texto);
+}
+[data-modo="claro"] .campo { background: #fff; }
+[data-modo="claro"] .bg-painel { box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
+[data-modo="claro"] .btn-sec { background: #fff; }
+
+[data-fonte="simples"] h1, [data-fonte="simples"] h2, [data-fonte="simples"] h3, [data-fonte="simples"] .titulo {
+  font-family: var(--font-corpo);
+  letter-spacing: -0.015em;
+  font-weight: 700;
+}
+[data-fonte="simples"] h1 { font-size: 1.9rem; line-height: 1.15; }
+[data-fonte="simples"] h2 { font-size: 1.25rem; line-height: 1.25; }
+[data-fonte="simples"] .numero { font-family: var(--font-corpo); font-weight: 700; }

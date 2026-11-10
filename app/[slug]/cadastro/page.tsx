@@ -17,11 +17,13 @@ export default async function Cadastro({ params, searchParams }: { params: Promi
   ]);
   const lotadas = new Set((vagas || []).filter((v: any) => v.lotada).map((v: any) => v.turma_id));
   return (
+    <div className="min-h-dvh bg-fundo text-texto" data-modo={academia.tema?.modo || "escuro"} data-fonte={academia.tema?.fonte || "esportiva"}>
     <main style={{ ["--cor" as any]: corDa(academia) }} className="mx-auto max-w-lg px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <h1 className="text-5xl font-extrabold">Cadastro de aluno</h1>
       <p className="mt-1 text-lg text-suave">{academia.nome}</p>
       <Faixa graus={2} altura={10} className="my-5" />
       <FormCadastro academiaId={academia.id} slug={slug} indicadoPor={indicado && /^[0-9a-f-]{36}$/.test(indicado) ? indicado : null} modalidades={modalidades || []} turmas={(turmas || []).map((t: any) => ({ ...t, lotada: lotadas.has(t.id) }))} />
     </main>
+    </div>
   );
 }

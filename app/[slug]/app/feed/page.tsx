@@ -114,7 +114,7 @@ export default function Feed() {
           <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
             {alunos.map((a) => {
               const on = novo.marcados.includes(a.membro_id);
-              return <button key={a.membro_id} type="button" className="chip text-xs" style={on ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+              return <button key={a.membro_id} type="button" className="chip text-xs" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                 onClick={() => setNovo({ ...novo, marcados: on ? novo.marcados.filter((x: string) => x !== a.membro_id) : [...novo.marcados, a.membro_id] })}>{a.apelido || a.nome}</button>;
             })}
           </div>

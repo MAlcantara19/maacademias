@@ -74,6 +74,7 @@ export default async function LayoutApp({ children, params }: { children: React.
     <Casca
       ctx={{
         academia, perfil, papeis: vendoComo ? ["aluno"] : Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !!master, vendoComo: !!vendoComo,
+        professorId: (meus || []).find((m: any) => m.papel === "professor")?.id || null,
         membroId: vendoComo ? vendoComo.id : membroEquipe?.id || membroAluno?.id || null, meusAlunos,
       }}
       vendoComo={vendoComo}

@@ -56,7 +56,7 @@ export default function Experimentais() {
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {ETAPAS.map(([k, v]) => (
           <button key={k} onClick={() => setEtapa(k)} className="chip shrink-0 py-2"
-            style={etapa === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>
+            style={etapa === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>
             {v} <b className="numero">{total(k)}</b>
           </button>
         ))}

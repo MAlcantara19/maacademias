@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { MESES, hojeISO } from "@/lib/util";
+import { minhasTurmas } from "@/lib/turmas";
 
 // Lista de presença do mês (alunos × dias) para prestação de contas
 // ou para imprimir em branco e fazer a chamada no papel.
@@ -18,8 +19,8 @@ export default function ListaPresenca() {
   const [pres, setPres] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    sb.from("turmas").select("id, nome, horarios(dia_semana)").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome")
-      .then(({ data }) => { setTurmas(data || []); if (data?.[0]) setTurmaId(data[0].id); });
+    sb.from("turmas").select("id, nome, professor_id, horarios(dia_semana)").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome")
+      .then(({ data }) => { const l = minhasTurmas(ctx, data || []); setTurmas(l); if (l[0]) setTurmaId(l[0].id); });
   }, []); // eslint-disable-line
 
   useEffect(() => {

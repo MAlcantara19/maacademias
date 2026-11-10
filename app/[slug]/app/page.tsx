@@ -56,7 +56,7 @@ export default function Inicio() {
         ]);
         const [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist, graduar] = await Promise.all([
           sb.from("resumo_academia").select("*").eq("academia_id", acad).maybeSingle(),
-          sb.from("horarios").select("*, turmas!inner(id, nome, academia_id, modalidades(nome, cor))").eq("turmas.academia_id", acad).eq("dia_semana", dow).order("hora_inicio"),
+          sb.from("horarios").select("*, turmas!inner(id, nome, academia_id, professor_id, modalidades(nome, cor))").eq("turmas.academia_id", acad).eq("dia_semana", dow).order("hora_inicio"),
           sb.from("pendencias").select("id", { count: "exact", head: true }).eq("academia_id", acad).eq("status", "respondida"),
           sb.from("ausencias").select("id, membros!membro_id!inner(academia_id)", { count: "exact", head: true }).eq("membros.academia_id", acad).eq("status", "pendente"),
           sb.from("aulas_experimentais").select("id", { count: "exact", head: true }).eq("academia_id", acad).in("status", ["nova", "encaminhada"]),
@@ -67,7 +67,7 @@ export default function Inicio() {
         ]);
         const anivUnicos = Array.from(new Map((aniversarios.data || []).map((a: any) => [a.membro_id, a])).values());
         setD({
-          avisos, eventos, resumo: resumo.data, aulasHoje: aulasHoje.data || [],
+          avisos, eventos, resumo: resumo.data, aulasHoje: (aulasHoje.data || []).filter((h: any) => ctx.admin || h.turmas.professor_id === ctx.professorId),
           respondidas: respondidas.count || 0, ausencias: ausencias.count || 0, experimentais: experimentais.count || 0,
           sumidos: (painel.data || []).filter((p: any) => !p.afastado), aniversarios: anivUnicos, campeonato: checklist.data?.[0],
           graduar: graduar.data || [],
@@ -231,7 +231,7 @@ export default function Inicio() {
       ) : (
         <>
           {d.proxima && (
-            <section className="rounded-2xl p-5" style={{ background: "var(--cor)" }}>
+            <section className="rounded-2xl p-5 text-white" style={{ background: "var(--cor)" }}>
               <p className="text-sm opacity-90">Próxima aula</p>
               <p className="numero text-4xl font-bold">
                 {d.proxima.dia === hojeISO() ? "Hoje" : DIAS[d.proxima.dia_semana]} · {hora(d.proxima.hora_inicio)}

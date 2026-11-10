@@ -9,6 +9,7 @@ export type Ctx = {
   admin: boolean;
   master?: boolean;
   vendoComo?: boolean;
+  professorId?: string | null; // meu vínculo de professor (para filtrar minhas turmas)
   membroId: string | null;   // meu vínculo (professor/admin ou aluno)
   meusAlunos: any[];         // eu (se aluno) + meus dependentes
 };

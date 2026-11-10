@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
+import { minhasTurmas } from "@/lib/turmas";
 
 // Cadastro rápido: o aluno cria o login depois com o mesmo e-mail
 // (o sistema liga a conta ao cadastro sozinho).
@@ -14,11 +15,12 @@ export function NovoAluno({ onFechar }: { onFechar: () => void }) {
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
-    sb.from("turmas").select("id, nome").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmas(data || []));
+    sb.from("turmas").select("id, nome, professor_id").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmas(minhasTurmas(ctx, data || [])));
   }, []); // eslint-disable-line
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
+    if (!ctx.admin && !f.turmas.length) return setMsg("Escolha pelo menos uma turma sua.");
     setSalvando(true); setMsg("");
     const perfilId = crypto.randomUUID();
     const membroId = crypto.randomUUID();
@@ -54,7 +56,7 @@ export function NovoAluno({ onFechar }: { onFechar: () => void }) {
           {turmas.map((t) => {
             const on = f.turmas.includes(t.id);
             return (
-              <button type="button" key={t.id} className="chip" style={on ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+              <button type="button" key={t.id} className="chip" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                 onClick={() => muda("turmas", on ? f.turmas.filter((x: string) => x !== t.id) : [...f.turmas, t.id])}>
                 {on ? "✓ " : ""}{t.nome}
               </button>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataBR, hojeISO } from "@/lib/util";
+import { minhasTurmas } from "@/lib/turmas";
 
 const TIPOS = ["Aquecimento", "Taiso", "Técnica", "Uchikomi", "Nage-komi", "Drill", "Rola", "Randori", "Físico", "Volta à calma"];
 
@@ -22,7 +23,7 @@ export default function Planos() {
   }
   useEffect(() => {
     carregar();
-    sb.from("turmas").select("id, nome, modalidade_id").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmas(data || []));
+    sb.from("turmas").select("id, nome, modalidade_id, professor_id").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmas(minhasTurmas(ctx, data || [])));
     sb.from("tecnicas").select("id, nome, nome_original, modalidade_id, faixa").eq("academia_id", ctx.academia.id).order("ordem").then(({ data }) => setTecnicas(data || []));
   }, []); // eslint-disable-line
 
@@ -93,7 +94,7 @@ export default function Planos() {
               <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
                 {tecDisp.map((t) => {
                   const on = (form.tecnicas || []).includes(t.id);
-                  return <button key={t.id} className="chip text-xs" style={on ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+                  return <button key={t.id} className="chip text-xs" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                     onClick={() => setForm({ ...form, tecnicas: on ? form.tecnicas.filter((x: string) => x !== t.id) : [...(form.tecnicas || []), t.id] })}>{t.nome_original || t.nome}</button>;
                 })}
               </div>

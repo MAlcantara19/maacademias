@@ -7,6 +7,8 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, hora, hojeISO } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Tour } from "@/components/Tour";
+import { minhasTurmas } from "@/lib/turmas";
+import { reconhecer, rostosDaFoto } from "@/lib/rosto";
 
 function Chamada() {
   const ctx = useCtx();
@@ -23,6 +25,8 @@ function Chamada() {
   const [presentes, setPresentes] = useState<Map<string, any>>(new Map());
   const [obs, setObs] = useState("");
   const [nomes, setNomes] = useState<Record<string, string[]>>({});
+  const [perfisDe, setPerfisDe] = useState<Record<string, string>>({});
+  const [facial, setFacial] = useState<any>(null);
   const [plano, setPlano] = useState<any>(null);
   const [ouvindo, setOuvindo] = useState(false);
   const [ouvido, setOuvido] = useState("");
@@ -35,7 +39,7 @@ function Chamada() {
     sb.from("turmas").select("id, nome, professor_id, modalidades(nome, cor), horarios(*)")
       .eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome")
       .then(({ data }) => {
-        const l = (data || []).sort((a: any, b: any) => Number(b.professor_id === ctx.membroId) - Number(a.professor_id === ctx.membroId));
+        const l = minhasTurmas(ctx, data || []).sort((a: any, b: any) => Number(b.professor_id === ctx.professorId) - Number(a.professor_id === ctx.professorId));
         setTurmas(l);
         if (!turmaId && l[0]) setTurmaId(l[0].id);
       });
@@ -64,8 +68,9 @@ function Chamada() {
       // nomes e apelidos para a chamada por voz
       const ids = (lista || []).map((x: any) => x.membro_id);
       if (ids.length) {
-        const { data: pn } = await sb.from("painel_alunos").select("membro_id, nome, apelido").in("membro_id", ids);
+        const { data: pn } = await sb.from("painel_alunos").select("membro_id, perfil_id, nome, apelido").in("membro_id", ids);
         setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
+        setPerfisDe(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.perfil_id])));
       }
       const { data: pl } = await sb.from("planos_aula").select("*").eq("turma_id", turmaId).eq("data", data).limit(1);
       setPlano(pl?.[0] || null);
@@ -167,6 +172,44 @@ function Chamada() {
     setPresentes(new Map([...presentes, ...faltam.map((f) => [f.membro_id, f] as [string, any])]));
   }
 
+  // ---------- Chamada por reconhecimento facial ----------
+  async function chamadaPorFoto(arquivo?: File) {
+    if (!arquivo) return;
+    setFacial({ carregando: true, arquivo });
+    try {
+      const perfis = Object.values(perfisDe);
+      const { data: cad } = perfis.length ? await sb.from("rostos").select("perfil_id, descritor").in("perfil_id", perfis) : { data: [] as any[] };
+      const porPerfil = new Map<string, number[]>((cad || []).map((c: any) => [c.perfil_id, c.descritor as number[]]));
+      const cadastrados = alunos.filter((a) => porPerfil.has(perfisDe[a.membro_id])).map((a) => ({ id: a.membro_id, descritor: porPerfil.get(perfisDe[a.membro_id]) }));
+      const rostos = await rostosDaFoto(arquivo, true);
+      const { achados, semNome } = reconhecer(rostos, cadastrados);
+      setFacial({
+        arquivo, rostos: rostos.length, semNome, semCadastro: alunos.length - cadastrados.length,
+        marcados: new Set(achados.map((x) => x.id)), achados,
+      });
+    } catch (e: any) {
+      setFacial(null);
+      setMsg("Não foi possível analisar a foto neste aparelho: " + (e?.message || e));
+    }
+  }
+  async function confirmarFacial(postar: boolean) {
+    const ids = Array.from(facial.marcados as Set<string>);
+    const a = await garantirAula();
+    if (!a) return;
+    const novos = ids.filter((id) => !presentes.has(id));
+    if (novos.length) {
+      const linhas = novos.map((id) => ({ aula_id: a.id, membro_id: id, metodo: "facial", confirmado_por: ctx.membroId }));
+      await sb.from("presencas").upsert(linhas, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
+      setPresentes((atual) => new Map([...atual, ...linhas.map((l) => [l.membro_id, l] as [string, any])]));
+    }
+    if (postar) {
+      const dt = new DataTransfer(); dt.items.add(facial.arquivo);
+      await fotoDoTreino(dt.files);
+    }
+    setMsg(`🤳 ${novos.length} presença(s) marcada(s) pela foto.`);
+    setFacial(null);
+  }
+
   // Foto do treino → vai para o feed da academia, marcando quem estava presente
   async function fotoDoTreino(arquivos: FileList | null) {
     if (!arquivos?.length) return;
@@ -241,12 +284,45 @@ function Chamada() {
             {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes</span>
           </p>
           <div className="flex flex-wrap justify-end gap-2">
+            {(ctx.academia.modos_chamada || []).includes("facial") && !cancelada && (
+              <label className="btn-sec cursor-pointer text-sm">🤳 Pela foto
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => chamadaPorFoto(e.target.files?.[0])} />
+              </label>
+            )}
             <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
               {ouvindo ? "⏹ Parar" : "🎤 Por voz"}
             </button>
             <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>Todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
           </div>
+        </div>
+      )}
+      {facial && (
+        <div className="rounded-2xl border-2 bg-painel p-4" style={{ borderColor: "var(--cor)" }}>
+          {facial.carregando ? <p>🤳 Analisando a foto… (na primeira vez demora uns segundos)</p> : (
+            <>
+              <p className="font-semibold">Encontrei {facial.rostos} rosto(s): {facial.achados.length} reconhecido(s){facial.semNome ? `, ${facial.semNome} sem nome` : ""}.</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {alunos.filter((a) => facial.achados.some((x: any) => x.id === a.membro_id)).map((a) => {
+                  const on = facial.marcados.has(a.membro_id);
+                  return (
+                    <li key={a.membro_id}>
+                      <button className="chip py-2" style={on ? { background: "var(--color-ok)", borderColor: "var(--color-ok)", color: "#fff" } : {}}
+                        onClick={() => { const s = new Set(facial.marcados); on ? s.delete(a.membro_id) : s.add(a.membro_id); setFacial({ ...facial, marcados: s }); }}>
+                        {on ? "✓ " : ""}{a.nome}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {facial.semCadastro > 0 && <p className="mt-2 text-xs text-suave">{facial.semCadastro} aluno(s) desta turma ainda não cadastraram o rosto (na ficha do aluno → Chamada por foto). Marque esses tocando no nome.</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="btn" onClick={() => confirmarFacial(false)}>Confirmar presenças</button>
+                {ctx.academia.modulos?.feed !== false && <button className="btn-sec" onClick={() => confirmarFacial(true)}>Confirmar e postar no feed</button>}
+                <button className="btn-sec" onClick={() => setFacial(null)}>Cancelar</button>
+              </div>
+            </>
+          )}
         </div>
       )}
       {ouvindo && (

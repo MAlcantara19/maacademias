@@ -39,7 +39,9 @@ export default function Estudar() {
   const [tatame, setTatame] = useState(false);
   const [giros, setGiros] = useState(0);
   const [placar, setPlacar] = useState<any[]>([]);
-  const [semana, setSemana] = useState(0);
+  const [semanaAtual, setSemanaAtual] = useState<any[]>([]);
+  const [semana, setSemana] = useState(0); // 0 = esta semana (para a meta)
+  const [periodo, setPeriodo] = useState("semana");
   const [desafio, setDesafio] = useState<any>(null);
   const [respDesafio, setRespDesafio] = useState<string | null>(null);
   const [cartas, setCartas] = useState<any>(null);
@@ -140,11 +142,28 @@ export default function Estudar() {
     setQuiz({ perguntas: embaralhar(perguntas), i: 0, acertos: 0, escolha: null, fim: false, alvo });
   }
 
-  async function carregarPlacar(sem: number) {
-    setSemana(sem);
-    const de = addDias(segunda, -7 * sem), ate = addDias(de, 6);
+  // Períodos do placar: semana, mês e temporada (trimestre)
+  function intervalo(p: string): [string, string] {
+    const h = hojeISO(), ano = Number(h.slice(0, 4)), mes = Number(h.slice(5, 7)) - 1;
+    const tri = Math.floor(mes / 3) * 3;
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    if (p === "semana-passada") return [addDias(segunda, -7), addDias(segunda, -1)];
+    if (p === "mes") return [h.slice(0, 8) + "01", h];
+    if (p === "temporada") return [iso(new Date(Date.UTC(ano, tri, 1))), h];
+    if (p === "temporada-passada") return [iso(new Date(Date.UTC(ano, tri - 3, 1))), iso(new Date(Date.UTC(ano, tri, 0)))];
+    return [segunda, addDias(segunda, 6)];
+  }
+  const nomeTemporada = (() => { const h = hojeISO(); return `${Math.floor((Number(h.slice(5, 7)) - 1) / 3) + 1}º tri/${h.slice(2, 4)}`; })();
+  const fimTemporada = (() => { const h = hojeISO(); const ano = Number(h.slice(0, 4)), tri = Math.floor((Number(h.slice(5, 7)) - 1) / 3) * 3; return new Date(Date.UTC(ano, tri + 3, 0)).toISOString().slice(0, 10); })();
+
+  async function carregarPlacar(sem: number, p?: string) {
+    const per = p || (sem ? "semana-passada" : periodo);
+    setSemana(per === "semana" ? 0 : 1);
+    setPeriodo(per);
+    const [de, ate] = intervalo(per);
     const { data } = await sb.rpc("placar_estudo", { p_acad: ctx.academia.id, p_de: de, p_ate: ate });
     setPlacar(data || []);
+    if (per === "semana") setSemanaAtual(data || []);
   }
 
   // Roleta conta como 1 atividade a cada 5 giros
@@ -221,11 +240,11 @@ export default function Estudar() {
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
         {([["basica", "60 palavras"], ["ampliada", "Ampliada"], ["todas", "Todas"]] as const).map(([k, v]) => (
-          <button key={k} className="chip text-xs" onClick={() => setLista(k)} style={lista === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{v}</button>
+          <button key={k} className="chip text-xs" onClick={() => setLista(k)} style={lista === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{v}</button>
         ))}
       </div>
       <div className="flex flex-wrap gap-1.5">
-        <button className="chip text-xs" onClick={() => setCategoria("")} style={!categoria ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>Todas</button>
+        <button className="chip text-xs" onClick={() => setCategoria("")} style={!categoria ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>Todas</button>
         {categorias.map((c) => <button key={c} className="chip text-xs" onClick={() => setCategoria(c)} style={categoria === c ? { background: corCategoria(c), borderColor: corCategoria(c) } : { borderColor: corCategoria(c) }}>{c}</button>)}
       </div>
     </div>
@@ -261,10 +280,10 @@ export default function Estudar() {
             {respDesafio && <p className="mt-2 text-sm">{respDesafio === desafio.resposta ? "Acertou! +3 pontos 🎉" : `A resposta era: ${desafio.resposta}. Amanhã tem outro!`}</p>}
           </section>
         )}
-        {membro && semana === 0 && (() => {
-          const feitas = placar.find((p) => p.membro_id === membro)?.atividades || 0;
+        {membro && (() => {
+          const feitas = semanaAtual.find((p) => p.membro_id === membro)?.atividades || 0;
           return (
-            <section className="rounded-2xl p-4" style={{ background: "var(--cor)" }}>
+            <section className="rounded-2xl p-4 text-white" style={{ background: "var(--cor)" }}>
               <p className="text-sm opacity-90">Meta da semana</p>
               <p className="numero text-3xl font-bold">{Math.min(feitas, meta)} de {meta} atividades {feitas >= meta ? "✅" : ""}</p>
               <div className="mt-2 flex gap-1.5">{Array.from({ length: meta }).map((_, i) => <span key={i} className="h-3 flex-1 rounded-full" style={{ background: i < feitas ? "#fff" : "rgba(255,255,255,.3)" }} />)}</div>
@@ -287,9 +306,13 @@ export default function Estudar() {
         <section className="rounded-2xl bg-painel p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-2xl font-bold">🏆 Placar de estudo</h2>
-            <div className="flex gap-1">
-              {[0, 1].map((w) => <button key={w} className="chip text-xs" onClick={() => carregarPlacar(w)} style={semana === w ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{w ? "Semana passada" : "Esta semana"}</button>)}
-            </div>
+            <select className="campo w-auto py-1.5 text-sm" value={periodo} onChange={(e) => carregarPlacar(0, e.target.value)} aria-label="Período do placar">
+              <option value="semana">Esta semana</option>
+              <option value="semana-passada">Semana passada</option>
+              <option value="mes">Este mês</option>
+              <option value="temporada">Temporada {nomeTemporada}</option>
+              <option value="temporada-passada">Temporada passada</option>
+            </select>
           </div>
           <ol className="space-y-1.5">
             {placar.map((p) => (
@@ -301,9 +324,11 @@ export default function Estudar() {
                 <span className="numero w-12 text-right text-lg font-bold">{p.pontos}</span>
               </li>
             ))}
-            {!placar.length && <p className="text-sm text-suave">Ninguém estudou {semana ? "na semana passada" : "esta semana"} ainda. Seja o primeiro!</p>}
+            {!placar.length && <p className="text-sm text-suave">Ninguém estudou neste período ainda. Seja o primeiro!</p>}
           </ol>
-          <p className="mt-2 text-xs text-suave">✅ = bateu a meta de {meta} atividades na semana.</p>
+          <p className="mt-2 text-xs text-suave">
+            ✅ = bateu a meta de {meta} atividades na semana. {periodo === "temporada" && <>A temporada {nomeTemporada} termina em {fimTemporada.split("-").reverse().join("/")}: os 3 primeiros ganham título de campeão! 🏆</>}
+          </p>
         </section>
 
         {historico.length > 0 && (

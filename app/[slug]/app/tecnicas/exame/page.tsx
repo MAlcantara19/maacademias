@@ -167,7 +167,7 @@ function Exame() {
       <section className="imprimir-claro space-y-3 rounded-2xl bg-painel p-4">
         <div className="flex flex-wrap gap-2">
           {[["aprovado", "✅ Aprovado"], ["reprovado", "❌ Refazer"], ["pendente", "⏳ Pendente"]].map(([k, v]) => (
-            <button key={k} className="chip py-2" onClick={() => setExame({ ...exame, resultado: k })} style={exame.resultado === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{v}</button>
+            <button key={k} className="chip py-2" onClick={() => setExame({ ...exame, resultado: k })} style={exame.resultado === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{v}</button>
           ))}
         </div>
         <textarea className="campo min-h-20" placeholder="Observações do avaliador" value={exame.observacao || ""} onChange={(e) => setExame({ ...exame, observacao: e.target.value })} />

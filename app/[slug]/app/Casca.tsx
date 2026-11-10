@@ -56,6 +56,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
   ).filter((i: any) => !i.m || mod(i.m) || (i.m === "feed" && ctx.academia.modulos?.galeria === true))
    .filter((i: any) => !(i.href.endsWith("/tecnicas") || i.href.endsWith("/estudar")) || ctx.academia.modulos?.tecnicas === true)
    .filter((i: any) => !i.href.endsWith("/relatorio") || ctx.admin)
+   .filter((i: any) => !(ctx.equipe && !ctx.admin && i.href.endsWith("/mensalidades")))
+   .map((i: any) => (ctx.equipe && !ctx.admin && i.href.endsWith("/gestao") ? { ...i, rotulo: "Minhas turmas" } : i))
    .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));
 
   function verComo(valor: string) {
@@ -74,7 +76,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
 
   return (
     <ProvedorCtx value={ctx}>
-      <div style={{ ["--cor" as any]: cor }} className="min-h-dvh lg:flex">
+      <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto lg:flex"
+        data-modo={ctx.academia.tema?.modo || "escuro"} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
         {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
         <Contrato ctx={ctx} />
         {/* Lateral (computador) */}

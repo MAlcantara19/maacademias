@@ -47,7 +47,8 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
   const zap = whatsapp(academia.whatsapp, `Olá! Vi o site da ${academia.nome} e quero saber mais.`);
 
   return (
-    <div style={{ ["--cor" as any]: cor }} className="pb-28">
+    <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo pb-28 text-texto"
+      data-modo={academia.tema?.modo || "escuro"} data-fonte={academia.tema?.fonte || "esportiva"}>
       {/* Topo */}
       <header className="relative overflow-hidden">
         {academia.capa_url && (

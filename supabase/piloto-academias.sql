@@ -1,6 +1,7 @@
 -- =====================================================================
 -- MA ACADEMIAS — ACADEMIA PILOTO (dados de demonstração)
--- Rode DEPOIS do banco-academias.sql.
+-- Rode DEPOIS do banco-academias.sql. Rodar de novo recria SÓ a Academia
+-- Piloto (as outras academias não são tocadas).
 -- Pode rodar de novo quando quiser: ele apaga o piloto antigo e recria,
 -- com as datas sempre atualizadas em relação a hoje.
 --
@@ -28,13 +29,18 @@
 --   prof.piloto@prof.com         → professor de jiu-jitsu
 --   aluno.piloto@aluno.com        → Aluno 01
 --   responsavel.piloto@resp.com  → responsável pela Criança 01 e 02
+--   prof.judo.piloto@prof.com     → professor de judô (só vê os alunos dele)
+--   judo.piloto@aluno.com         → aluno de judô (Aluno 14)
+--   muaythai.piloto@aluno.com     → aluno de muay thai (Aluno 12)
+--   tkd.piloto@aluno.com          → aluno de taekwondo e muay thai (Aluno 15)
 -- O login se liga ao perfil sozinho pelo e-mail.
 -- =====================================================================
 
 -- ---------- Limpa o piloto anterior ----------
 delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo');
 delete from perfis where email like '%.piloto@example.com'
-   or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com');
+   or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
+                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com');
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -149,7 +155,7 @@ begin
   -- =================================================================
   adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@admin.com',        'M', '1985-05-10', 'admin');
   pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@prof.com',    'M', '1990-03-15', 'professor');
-  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@example.com',    'M', '1992-08-20', 'professor');
+  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@prof.com',    'M', '1992-08-20', 'professor');
   pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@example.com','F', '1994-11-02', 'professor');
   pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@example.com',     'M', '1988-01-25', 'professor');
   -- O admin também dá aula de jiu-jitsu (mostra que dá pra ter os dois papéis)
@@ -204,8 +210,9 @@ begin
   for i in 1..16 loop
     m := pil_pessoa(ac,
       'Aluno ' || lpad(i::text, 2, '0'),
-      case when i = 1 then 'aluno.piloto@aluno.com'
-           else 'aluno' || lpad(i::text, 2, '0') || '.piloto@example.com' end,
+      case i when 1 then 'aluno.piloto@aluno.com' when 12 then 'muaythai.piloto@aluno.com'
+             when 14 then 'judo.piloto@aluno.com' when 15 then 'tkd.piloto@aluno.com'
+             else 'aluno' || lpad(i::text, 2, '0') || '.piloto@example.com' end,
       case when i % 4 = 0 then 'F' else 'M' end,
       make_date(1990 + (i * 7) % 20, 1 + (i * 5) % 12, 1 + (i * 3) % 28),
       'aluno');
@@ -284,6 +291,20 @@ begin
 
   -- Exemplo de matrícula trancada
   update matriculas set status = 'trancada' where membro_id = alunos[16] and turma_id = t_tkd;
+
+  -- Mais 8 alunos espalhados pelas modalidades (judô, muay thai, taekwondo)
+  for i in 17..24 loop
+    m := pil_pessoa(ac, 'Aluno ' || i, 'aluno' || i || '.piloto@example.com',
+                    case when i % 3 = 0 then 'F' else 'M' end,
+                    make_date(case when i in (19, 20) then 2014 + (i % 3) else 1985 + (i * 3) % 25 end, 1 + i % 12, 1 + i % 27), 'aluno');
+    alunos := alunos || m;
+    update membros set entrou_em = hoje - (30 + i * 9) where id = m;
+    update perfis set telefone = '5500000000' || (300 + i),
+                      foto_url = case when i % 2 = 0 then 'https://api.dicebear.com/9.x/adventurer/svg?seed=Aluno' || i end
+     where id = (select perfil_id from membros where id = m);
+    insert into matriculas (turma_id, membro_id, desde)
+    values ((array[t_judo, t_judo, t_judok, t_judok, t_mt, t_mt, t_tkd, t_tkd])[i - 16], m, hoje - 150);
+  end loop;
 
   -- =================================================================
   -- CHAMADAS DAS ÚLTIMAS 8 SEMANAS
@@ -375,6 +396,17 @@ begin
     from unnest(criancas) c
     join matriculas mt on mt.membro_id = c
     join turmas t on t.id = mt.turma_id;
+  -- Faixas e peso dos alunos 17 a 24
+  insert into graduacoes (membro_id, modalidade_id, faixa, grau, data, registrado_por)
+  select alunos[x], t.modalidade_id, mo.graduacoes[1 + x % 3], x % 3, hoje - (40 + x * 5), t.professor_id
+    from generate_series(17, 24) g(x)
+    join matriculas mt on mt.membro_id = alunos[x]
+    join turmas t on t.id = mt.turma_id
+    join modalidades mo on mo.id = t.modalidade_id;
+  insert into medidas (perfil_id, data, peso_kg, altura_cm)
+  select (select perfil_id from membros where id = alunos[x]), hoje - mm.n * 30, 62 + x * 1.5 - mm.n * 0.4, 168 + x % 12
+    from generate_series(17, 24) g(x), generate_series(0, 3) mm(n);
+
   -- Histórico: Aluno 01 trocou de faixa no jiu-jitsu
   insert into graduacoes (membro_id, modalidade_id, faixa, grau, data, registrado_por, observacao)
   values (alunos[1], mo_jj, 'Branca', 4, hoje - 400, pr_jj, 'Primeira faixa'),
@@ -824,3 +856,17 @@ select
   (select count(*) from presencas p join aulas au on au.id = p.aula_id
      join turmas t on t.id = au.turma_id join academias a on a.id = t.academia_id
     where a.slug = 'academia-piloto') as presencas;
+
+-- Conteúdo de estudo e tema da Academia Piloto (quando as atualizações já existem)
+do $$
+declare v_ac uuid := (select id from academias where slug = 'academia-piloto');
+begin
+  update academias set tema = '{"modo":"escuro","fonte":"esportiva"}'::jsonb where id = v_ac;
+  if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
+  if exists (select 1 from pg_proc where proname = 'gerar_desafios') then perform gerar_desafios(); end if;
+  if exists (select 1 from pg_proc where proname = 'avaliar_conquistas') then perform avaliar_conquistas(); end if;
+  -- liga os logins de teste que já existirem
+  update perfis p set user_id = u.id from auth.users u
+   where p.user_id is null and lower(p.email) = lower(u.email)
+     and not exists (select 1 from perfis x where x.user_id = u.id);
+end $$;

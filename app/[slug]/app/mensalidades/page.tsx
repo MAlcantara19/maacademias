@@ -199,7 +199,7 @@ export default function Mensalidades() {
 
       <div className="flex flex-wrap gap-2">
         {[["todas", "Todas"], ["atrasada", "Atrasadas"], ["aberta", "A vencer"], ["paga", "Pagas"], ["isenta", "Isentas"]].map(([k, v]) => (
-          <button key={k} className="chip" onClick={() => setFiltro(k)} style={filtro === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{v}</button>
+          <button key={k} className="chip" onClick={() => setFiltro(k)} style={filtro === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{v}</button>
         ))}
       </div>
 

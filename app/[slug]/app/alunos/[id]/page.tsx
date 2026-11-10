@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { Faixa } from "@/components/Faixa";
 import { Barra } from "@/components/Grafico";
 import { ComparaPeso } from "@/components/ComparaPeso";
+import { CadastroRosto } from "@/components/CadastroRosto";
 
 function Bloco({ titulo, children, acao }: { titulo: string; children: React.ReactNode; acao?: React.ReactNode }) {
   return (
@@ -302,6 +303,12 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           </ul>
         </Bloco>
 
+        {(ctx.academia.modos_chamada || []).includes("facial") && (
+          <Bloco titulo="Chamada por foto">
+            <CadastroRosto perfilId={a.perfil_id} academiaId={ctx.academia.id} nome={a.nome} podeEditar={ctx.equipe || meu} />
+          </Bloco>
+        )}
+
         {/* Títulos */}
         <Bloco titulo="Títulos">
           {x.conquistas?.length ? (
@@ -311,7 +318,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
                   const principal = x.perfil?.titulo_escolhido === c.codigo;
                   return (
                     <button key={c.codigo} disabled={!meu} onClick={async () => { await sb.from("perfis").update({ titulo_escolhido: c.codigo }).eq("id", a.perfil_id); carregar(); }}
-                      className="chip py-2" style={principal ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{c.icone} {c.titulo}</button>
+                      className="chip py-2" style={principal ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{c.icone} {c.titulo}</button>
                   );
                 })}
               </div>

@@ -13,6 +13,10 @@ const PERIODOS: Record<string, () => [string, string]> = {
     const ini = d.toISOString().slice(0, 10); d.setMonth(d.getMonth() + 1); d.setDate(0);
     return [ini, d.toISOString().slice(0, 10)];
   },
+  "Esta temporada (trimestre)": () => {
+    const h = hojeISO(); const ano = Number(h.slice(0, 4)), tri = Math.floor((Number(h.slice(5, 7)) - 1) / 3) * 3;
+    return [new Date(Date.UTC(ano, tri, 1)).toISOString().slice(0, 10), h];
+  },
   "Últimos 90 dias": () => [addDias(hojeISO(), -90), hojeISO()],
   "Este ano": () => [hojeISO().slice(0, 4) + "-01-01", hojeISO()],
 };
@@ -122,7 +126,7 @@ export default function Ranking() {
           <div className="space-y-3">
             <p className="text-sm text-suave">Ordem: faixa mais alta → maior grau → mais aulas na carreira. Graduar sobe você de vez; aulas desempatam.</p>
             {eu >= 0 && (
-              <div className="rounded-2xl p-4" style={{ background: "var(--cor)" }}>
+              <div className="rounded-2xl p-4 text-white" style={{ background: "var(--cor)" }}>
                 <p className="numero text-3xl font-bold">Você está em {eu + 1}º</p>
                 {frente && (mesmo(frente, hier[eu])
                   ? <p>Faltam <b>{frente.total_aulas - hier[eu].total_aulas + 1}</b> aulas para passar {frente.apelido || frente.nome.split(" ")[0]} 🔥</p>

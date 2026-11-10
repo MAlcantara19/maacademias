@@ -78,7 +78,7 @@ export default function Config() {
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
-      tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
+      tema: a.tema || {}, modos_chamada: a.modos_chamada || ["manual"], tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
       contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
       alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
@@ -215,6 +215,26 @@ export default function Config() {
           <input className="campo" placeholder="Recompensa (ex.: 10% de desconto na próxima mensalidade, kimono, selo…)" value={a.recompensa_indicacao || ""} onChange={(e) => muda("recompensa_indicacao", e.target.value)} />
           <p className="text-xs text-suave">O aluno compartilha o link dele. Quando o amigo se cadastra e você aprova, a indicação aparece em Alunos e ele ganha o título 🤝 Embaixador.</p>
 
+          <h3 className="pt-2 text-xl font-bold">Visual</h3>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              { id: "claro-simples", t: "Minimalista claro", d: "Fundo branco, limpo e simples", modo: "claro", fonte: "simples" },
+              { id: "escuro-simples", t: "Minimalista escuro", d: "Fundo escuro, letras simples", modo: "escuro", fonte: "simples" },
+              { id: "escuro-esportiva", t: "Esportivo", d: "Escuro, títulos grandes e fortes", modo: "escuro", fonte: "esportiva" },
+            ].map((v) => {
+              const on = (a.tema?.modo || "escuro") === v.modo && (a.tema?.fonte || "esportiva") === v.fonte;
+              return (
+                <button key={v.id} onClick={() => muda("tema", { ...(a.tema || {}), modo: v.modo, fonte: v.fonte })}
+                  className="rounded-xl border-2 p-3 text-left" style={{ borderColor: on ? "var(--cor)" : "var(--color-linha)", background: v.modo === "claro" ? "#f5f6f8" : "#121a36", color: v.modo === "claro" ? "#151a23" : "#eef1fa" }}>
+                  <span className="block font-bold">{on ? "✓ " : ""}{v.t}</span>
+                  <span className="text-xs opacity-75">{v.d}</span>
+                  <span className="mt-2 block h-2 rounded-full" style={{ background: "var(--cor)" }} />
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-suave">Vale para o app e para a página pública. A cor da academia continua a mesma.</p>
+
           <h3 className="pt-2 text-xl font-bold">Banners da página pública</h3>
           <p className="text-xs text-suave">Aparecem no topo da página quando a função “Propagandas” está ligada (lá embaixo).</p>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -243,7 +263,7 @@ export default function Config() {
           <h3 className="pt-2 text-xl font-bold">Tipo</h3>
           <div className="flex flex-wrap gap-2">
             {[["academia", "🥋 Academia"], ["projeto_social", "🤝 Projeto social"]].map(([k, v]) => (
-              <button key={k} className="chip py-2" style={(a.tipo || "academia") === k ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+              <button key={k} className="chip py-2" style={(a.tipo || "academia") === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                 onClick={() => setA((x: any) => ({ ...x, tipo: k, modulos: k === "projeto_social" ? { ...(x.modulos || {}), mensalidades: false } : x.modulos }))}>{v}</button>
             ))}
           </div>
@@ -254,12 +274,19 @@ export default function Config() {
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tecnicas_progressivas} onChange={(e) => muda("tecnicas_progressivas", e.target.checked)} /> Técnicas progressivas: o aluno vê a matéria até a próxima faixa dele</label>
 
+          <h3 className="pt-2 text-xl font-bold">Chamada</h3>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={(a.modos_chamada || []).includes("facial")}
+              onChange={(e) => muda("modos_chamada", e.target.checked ? Array.from(new Set([...(a.modos_chamada || ["manual"]), "facial"])) : (a.modos_chamada || []).filter((x: string) => x !== "facial"))} />
+            <span>Chamada por reconhecimento facial (foto da turma). Cada aluno cadastra o rosto na própria ficha, com autorização. A foto é analisada no celular; só um código numérico fica guardado.</span>
+          </label>
+
           <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>
           <div className="flex flex-wrap gap-2">
             {MODULOS.map(([k, v]) => {
               const on = a.modulos?.[k] !== false;
               return (
-                <button key={k} className="chip py-2" style={on ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}
+                <button key={k} className="chip py-2" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
                   onClick={() => muda("modulos", { ...(a.modulos || {}), [k]: !on })}>{on ? "✓ " : ""}{v}</button>
               );
             })}

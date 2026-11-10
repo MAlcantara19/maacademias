@@ -2862,7 +2862,8 @@ create policy "privado: equipe apaga" on storage.objects for delete to authentic
 
 -- =====================================================================
 -- MA ACADEMIAS — ACADEMIA PILOTO (dados de demonstração)
--- Rode DEPOIS do banco-academias.sql.
+-- Rode DEPOIS do banco-academias.sql. Rodar de novo recria SÓ a Academia
+-- Piloto (as outras academias não são tocadas).
 -- Pode rodar de novo quando quiser: ele apaga o piloto antigo e recria,
 -- com as datas sempre atualizadas em relação a hoje.
 --
@@ -2890,13 +2891,18 @@ create policy "privado: equipe apaga" on storage.objects for delete to authentic
 --   prof.piloto@prof.com         → professor de jiu-jitsu
 --   aluno.piloto@aluno.com        → Aluno 01
 --   responsavel.piloto@resp.com  → responsável pela Criança 01 e 02
+--   prof.judo.piloto@prof.com     → professor de judô (só vê os alunos dele)
+--   judo.piloto@aluno.com         → aluno de judô (Aluno 14)
+--   muaythai.piloto@aluno.com     → aluno de muay thai (Aluno 12)
+--   tkd.piloto@aluno.com          → aluno de taekwondo e muay thai (Aluno 15)
 -- O login se liga ao perfil sozinho pelo e-mail.
 -- =====================================================================
 
 -- ---------- Limpa o piloto anterior ----------
 delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo');
 delete from perfis where email like '%.piloto@example.com'
-   or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com');
+   or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
+                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com');
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -3011,7 +3017,7 @@ begin
   -- =================================================================
   adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@admin.com',        'M', '1985-05-10', 'admin');
   pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@prof.com',    'M', '1990-03-15', 'professor');
-  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@example.com',    'M', '1992-08-20', 'professor');
+  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@prof.com',    'M', '1992-08-20', 'professor');
   pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@example.com','F', '1994-11-02', 'professor');
   pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@example.com',     'M', '1988-01-25', 'professor');
   -- O admin também dá aula de jiu-jitsu (mostra que dá pra ter os dois papéis)
@@ -3066,8 +3072,9 @@ begin
   for i in 1..16 loop
     m := pil_pessoa(ac,
       'Aluno ' || lpad(i::text, 2, '0'),
-      case when i = 1 then 'aluno.piloto@aluno.com'
-           else 'aluno' || lpad(i::text, 2, '0') || '.piloto@example.com' end,
+      case i when 1 then 'aluno.piloto@aluno.com' when 12 then 'muaythai.piloto@aluno.com'
+             when 14 then 'judo.piloto@aluno.com' when 15 then 'tkd.piloto@aluno.com'
+             else 'aluno' || lpad(i::text, 2, '0') || '.piloto@example.com' end,
       case when i % 4 = 0 then 'F' else 'M' end,
       make_date(1990 + (i * 7) % 20, 1 + (i * 5) % 12, 1 + (i * 3) % 28),
       'aluno');
@@ -3146,6 +3153,20 @@ begin
 
   -- Exemplo de matrícula trancada
   update matriculas set status = 'trancada' where membro_id = alunos[16] and turma_id = t_tkd;
+
+  -- Mais 8 alunos espalhados pelas modalidades (judô, muay thai, taekwondo)
+  for i in 17..24 loop
+    m := pil_pessoa(ac, 'Aluno ' || i, 'aluno' || i || '.piloto@example.com',
+                    case when i % 3 = 0 then 'F' else 'M' end,
+                    make_date(case when i in (19, 20) then 2014 + (i % 3) else 1985 + (i * 3) % 25 end, 1 + i % 12, 1 + i % 27), 'aluno');
+    alunos := alunos || m;
+    update membros set entrou_em = hoje - (30 + i * 9) where id = m;
+    update perfis set telefone = '5500000000' || (300 + i),
+                      foto_url = case when i % 2 = 0 then 'https://api.dicebear.com/9.x/adventurer/svg?seed=Aluno' || i end
+     where id = (select perfil_id from membros where id = m);
+    insert into matriculas (turma_id, membro_id, desde)
+    values ((array[t_judo, t_judo, t_judok, t_judok, t_mt, t_mt, t_tkd, t_tkd])[i - 16], m, hoje - 150);
+  end loop;
 
   -- =================================================================
   -- CHAMADAS DAS ÚLTIMAS 8 SEMANAS
@@ -3237,6 +3258,17 @@ begin
     from unnest(criancas) c
     join matriculas mt on mt.membro_id = c
     join turmas t on t.id = mt.turma_id;
+  -- Faixas e peso dos alunos 17 a 24
+  insert into graduacoes (membro_id, modalidade_id, faixa, grau, data, registrado_por)
+  select alunos[x], t.modalidade_id, mo.graduacoes[1 + x % 3], x % 3, hoje - (40 + x * 5), t.professor_id
+    from generate_series(17, 24) g(x)
+    join matriculas mt on mt.membro_id = alunos[x]
+    join turmas t on t.id = mt.turma_id
+    join modalidades mo on mo.id = t.modalidade_id;
+  insert into medidas (perfil_id, data, peso_kg, altura_cm)
+  select (select perfil_id from membros where id = alunos[x]), hoje - mm.n * 30, 62 + x * 1.5 - mm.n * 0.4, 168 + x % 12
+    from generate_series(17, 24) g(x), generate_series(0, 3) mm(n);
+
   -- Histórico: Aluno 01 trocou de faixa no jiu-jitsu
   insert into graduacoes (membro_id, modalidade_id, faixa, grau, data, registrado_por, observacao)
   values (alunos[1], mo_jj, 'Branca', 4, hoje - 400, pr_jj, 'Primeira faixa'),
@@ -3686,6 +3718,20 @@ select
   (select count(*) from presencas p join aulas au on au.id = p.aula_id
      join turmas t on t.id = au.turma_id join academias a on a.id = t.academia_id
     where a.slug = 'academia-piloto') as presencas;
+
+-- Conteúdo de estudo e tema da Academia Piloto (quando as atualizações já existem)
+do $$
+declare v_ac uuid := (select id from academias where slug = 'academia-piloto');
+begin
+  update academias set tema = '{"modo":"escuro","fonte":"esportiva"}'::jsonb where id = v_ac;
+  if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
+  if exists (select 1 from pg_proc where proname = 'gerar_desafios') then perform gerar_desafios(); end if;
+  if exists (select 1 from pg_proc where proname = 'avaliar_conquistas') then perform avaliar_conquistas(); end if;
+  -- liga os logins de teste que já existirem
+  update perfis p set user_id = u.id from auth.users u
+   where p.user_id is null and lower(p.email) = lower(u.email)
+     and not exists (select 1 from perfis x where x.user_id = u.id);
+end $$;
 
 
 -- #####################################################################
@@ -4503,7 +4549,238 @@ $$;
 
 
 -- #####################################################################
--- PARTE 8 — LIGAR LOGINS E MASTERS
+-- PARTE 8 — ATUALIZAÇÃO 04
+-- #####################################################################
+
+-- =====================================================================
+-- MA ACADEMIAS — ATUALIZAÇÃO 04
+-- Rode no SQL Editor. NÃO apaga dados.
+-- 1) Permissões por papel: o PROFESSOR só vê e mexe nos alunos das turmas
+--    dele; o ADMIN vê tudo da academia (e pode também ser professor).
+--    Mensalidades e despesas: só o admin.
+-- 2) Temporadas (trimestres) com títulos de campeão.
+-- 3) Tema minimalista (claro) como padrão das academias novas.
+-- =====================================================================
+
+-- ---------- Funções de permissão ----------
+create or replace function turma_da_aula(a uuid) returns uuid
+language sql stable security definer set search_path = public as $$
+  select turma_id from aulas where id = a;
+$$;
+
+-- Sou professor de alguma turma em que este aluno está?
+create or replace function sou_professor_do_membro(m uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from matriculas mt join turmas t on t.id = mt.turma_id
+     where mt.membro_id = m and mt.status <> 'encerrada'
+       and t.professor_id in (select meus_membros())
+  );
+$$;
+
+-- Posso ver este aluno? (eu mesmo, admin da academia ou professor dele)
+create or replace function vejo_aluno(m uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select sou_master() or m in (select meus_membros())
+      or sou_admin(acad_membro(m)) or sou_professor_do_membro(m);
+$$;
+
+-- Posso cuidar desta turma? (admin ou o professor dela)
+create or replace function cuido_da_turma(t uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select sou_admin(acad_turma(t))
+      or exists (select 1 from turmas where id = t and professor_id in (select meus_membros()));
+$$;
+
+-- Equipe que pode ver os dados desta pessoa
+create or replace function sou_equipe_do_perfil(pf uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select sou_master() or exists (
+    select 1 from membros m
+     where m.perfil_id = pf
+       and (sou_admin(m.academia_id)
+            or sou_professor_do_membro(m.id)
+            or (m.papel <> 'aluno' and sou_equipe(m.academia_id)))
+  );
+$$;
+
+-- ---------- Regras de acesso refeitas ----------
+-- membros
+drop policy if exists ver on membros;
+drop policy if exists editar on membros;
+create policy ver on membros for select
+  using (id in (select meus_membros()) or sou_admin(academia_id)
+         or (papel <> 'aluno' and sou_equipe(academia_id)) or sou_professor_do_membro(id));
+create policy editar on membros for update
+  using (sou_admin(academia_id) or (papel = 'aluno' and sou_professor_do_membro(id)));
+
+-- turmas e horários
+drop policy if exists gerir on turmas;
+create policy gerir on turmas for all using (sou_admin(academia_id)) with check (sou_admin(academia_id));
+drop policy if exists gerir on horarios;
+create policy gerir on horarios for all using (cuido_da_turma(turma_id)) with check (cuido_da_turma(turma_id));
+
+-- matrículas, aulas e presenças
+drop policy if exists ver on matriculas;
+drop policy if exists gerir on matriculas;
+create policy ver on matriculas for select using (membro_id in (select meus_membros()) or cuido_da_turma(turma_id));
+create policy gerir on matriculas for all using (cuido_da_turma(turma_id)) with check (cuido_da_turma(turma_id));
+
+drop policy if exists gerir on aulas;
+create policy gerir on aulas for all using (cuido_da_turma(turma_id)) with check (cuido_da_turma(turma_id));
+
+drop policy if exists ver on presencas;
+drop policy if exists gerir on presencas;
+create policy ver on presencas for select using (membro_id in (select meus_membros()) or cuido_da_turma(turma_da_aula(aula_id)));
+create policy gerir on presencas for all using (cuido_da_turma(turma_da_aula(aula_id))) with check (cuido_da_turma(turma_da_aula(aula_id)));
+
+-- graduações, exames, carteirinhas
+drop policy if exists ver on graduacoes;
+drop policy if exists gerir on graduacoes;
+create policy ver on graduacoes for select using (vejo_aluno(membro_id));
+create policy gerir on graduacoes for all
+  using (sou_admin(acad_membro(membro_id)) or sou_professor_do_membro(membro_id))
+  with check (sou_admin(acad_membro(membro_id)) or sou_professor_do_membro(membro_id));
+
+drop policy if exists ver on exames_faixa;
+drop policy if exists gerir on exames_faixa;
+create policy ver on exames_faixa for select using (vejo_aluno(membro_id));
+create policy gerir on exames_faixa for all
+  using (sou_admin(academia_id) or sou_professor_do_membro(membro_id))
+  with check (sou_admin(academia_id) or sou_professor_do_membro(membro_id));
+
+drop policy if exists ver on carteirinhas;
+drop policy if exists gerir on carteirinhas;
+create policy ver on carteirinhas for select using (vejo_aluno(membro_id));
+create policy gerir on carteirinhas for all
+  using (sou_admin(academia_id) or sou_professor_do_membro(membro_id))
+  with check (sou_admin(academia_id) or sou_professor_do_membro(membro_id));
+
+-- ausências e pendências
+drop policy if exists ver on ausencias;
+drop policy if exists avaliar on ausencias;
+drop policy if exists apagar on ausencias;
+create policy ver on ausencias for select using (vejo_aluno(membro_id));
+create policy avaliar on ausencias for update using (sou_admin(acad_membro(membro_id)) or sou_professor_do_membro(membro_id));
+create policy apagar on ausencias for delete
+  using (sou_admin(acad_membro(membro_id)) or sou_professor_do_membro(membro_id)
+         or (membro_id in (select meus_membros()) and status = 'pendente'));
+drop policy if exists avisar on ausencias;
+create policy avisar on ausencias for insert
+  with check ((membro_id in (select meus_membros()) and status = 'pendente')
+              or sou_admin(acad_membro(membro_id)) or sou_professor_do_membro(membro_id));
+
+drop policy if exists ver on pendencias;
+drop policy if exists gerir on pendencias;
+create policy ver on pendencias for select
+  using (sou_admin(academia_id) or sou_professor_do_membro(membro_id)
+         or (visivel_aluno and membro_id in (select meus_membros())));
+create policy gerir on pendencias for all
+  using (sou_admin(academia_id) or sou_professor_do_membro(membro_id))
+  with check (sou_admin(academia_id) or sou_professor_do_membro(membro_id));
+
+-- dinheiro: só o admin (e o próprio aluno vê o dele)
+drop policy if exists ver on cobrancas;
+drop policy if exists gerir on cobrancas;
+create policy ver on cobrancas for select using (membro_id in (select meus_membros()) or sou_admin(academia_id));
+create policy gerir on cobrancas for all using (sou_admin(academia_id)) with check (sou_admin(academia_id));
+drop policy if exists ver on assinaturas;
+drop policy if exists gerir on assinaturas;
+create policy ver on assinaturas for select using (membro_id in (select meus_membros()) or sou_admin(acad_membro(membro_id)));
+create policy gerir on assinaturas for all using (sou_admin(acad_membro(membro_id))) with check (sou_admin(acad_membro(membro_id)));
+
+-- estudo
+drop policy if exists ver on quiz_resultados;
+create policy ver on quiz_resultados for select using (vejo_aluno(membro_id));
+
+-- ---------- Temporadas (trimestres) ----------
+-- No 1º dia de cada trimestre: os 3 primeiros do placar de estudo e os 3
+-- mais assíduos do trimestre anterior ganham um título.
+create or replace function fechar_temporada(p_ini date default null) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  v_ini date := coalesce(p_ini, (date_trunc('quarter', (now() at time zone 'America/Sao_Paulo')::date) - interval '3 months')::date);
+  v_fim date := (v_ini + interval '3 months - 1 day')::date;
+  v_nome text := extract(quarter from v_ini) || 'º tri/' || to_char(v_ini, 'YY');
+  v_n int := 0; r record;
+begin
+  -- Estudo: pontos no trimestre
+  for r in
+    select * from (
+      select q.academia_id, q.membro_id,
+             sum(case when q.modo like 'quiz%' or q.modo in ('simulado','flashcards') then q.acertos
+                      when q.modo = 'desafio' then 3 * q.acertos
+                      when q.modo like 'roleta%' then 2 else 0 end) as pontos,
+             dense_rank() over (partition by q.academia_id order by
+               sum(case when q.modo like 'quiz%' or q.modo in ('simulado','flashcards') then q.acertos
+                        when q.modo = 'desafio' then 3 * q.acertos
+                        when q.modo like 'roleta%' then 2 else 0 end) desc) as pos
+        from quiz_resultados q
+        join membros m on m.id = q.membro_id and m.ativo
+       where (q.criado_em at time zone 'America/Sao_Paulo')::date between v_ini and v_fim
+       group by q.academia_id, q.membro_id
+    ) s where pos <= 3 and pontos > 0
+  loop
+    insert into conquistas (membro_id, academia_id, codigo, titulo, icone)
+    values (r.membro_id, r.academia_id, 'estudo-' || to_char(v_ini, 'YYYY-Q'),
+            case r.pos when 1 then 'Campeão de estudo ' when 2 then 'Vice de estudo ' else '3º no estudo ' end || v_nome,
+            case r.pos when 1 then '🏆' when 2 then '🥈' else '🥉' end)
+    on conflict do nothing;
+    if found then v_n := v_n + 1; end if;
+  end loop;
+
+  -- Presença: % no trimestre (mínimo 8 aulas)
+  for r in
+    select * from (
+      select f.academia_id, f.membro_id,
+             round(100.0 * count(*) filter (where f.presente) / nullif(count(*) filter (where f.presente or not f.justificada), 0), 1) as pct,
+             dense_rank() over (partition by f.academia_id order by
+               round(100.0 * count(*) filter (where f.presente) / nullif(count(*) filter (where f.presente or not f.justificada), 0), 1) desc nulls last) as pos
+        from frequencia_aulas f
+        join membros m on m.id = f.membro_id and m.ativo
+       where f.data between v_ini and v_fim
+       group by f.academia_id, f.membro_id
+      having count(*) filter (where f.presente or not f.justificada) >= 8
+    ) s where pos <= 3
+  loop
+    insert into conquistas (membro_id, academia_id, codigo, titulo, icone)
+    values (r.membro_id, r.academia_id, 'presenca-' || to_char(v_ini, 'YYYY-Q'),
+            case r.pos when 1 then 'Mais assíduo ' when 2 then '2º mais assíduo ' else '3º mais assíduo ' end || v_nome,
+            case r.pos when 1 then '👑' when 2 then '⭐' else '✨' end)
+    on conflict do nothing;
+    if found then v_n := v_n + 1; end if;
+  end loop;
+  return v_n;
+end $$;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.schedule('fechar-temporada', '0 10 1 1,4,7,10 *', 'select fechar_temporada()');
+  end if;
+exception when others then
+  raise notice 'Temporada não agendada: %', sqlerrm;
+end $$;
+
+-- ---------- Tema padrão das academias novas: minimalista claro ----------
+alter table academias alter column tema set default '{"modo":"claro","fonte":"simples"}'::jsonb;
+update academias set tema = '{"modo":"claro","fonte":"simples"}'::jsonb
+ where (tema is null or tema = '{}'::jsonb) and slug not in ('academia-piloto', 'dojo-alcantara');
+update academias set tema = '{"modo":"escuro","fonte":"esportiva"}'::jsonb
+ where (tema is null or tema = '{}'::jsonb) and slug in ('academia-piloto', 'dojo-alcantara');
+
+-- ---------- Logins de teste por modalidade (Academia Piloto) ----------
+update perfis set email = 'judo.piloto@aluno.com'     where email = 'aluno14.piloto@example.com';
+update perfis set email = 'muaythai.piloto@aluno.com' where email = 'aluno12.piloto@example.com';
+update perfis set email = 'tkd.piloto@aluno.com'      where email = 'aluno15.piloto@example.com';
+update perfis set email = 'prof.judo.piloto@prof.com' where email = 'prof.judo.piloto@example.com';
+update perfis p set user_id = u.id from auth.users u
+ where p.user_id is null and lower(p.email) = lower(u.email)
+   and not exists (select 1 from perfis x where x.user_id = u.id);
+
+
+-- #####################################################################
+-- PARTE 9 — LIGAR LOGINS E MASTERS
 -- #####################################################################
 
 -- =====================================================================

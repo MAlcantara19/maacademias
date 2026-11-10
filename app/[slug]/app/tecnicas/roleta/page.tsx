@@ -69,7 +69,7 @@ export default function Roleta() {
       </div>
       {mods.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {mods.map((m) => <button key={m.id} className="chip py-2" onClick={() => setModId(m.id)} style={m.id === modId ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{m.nome}</button>)}
+          {mods.map((m) => <button key={m.id} className="chip py-2" onClick={() => setModId(m.id)} style={m.id === modId ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{m.nome}</button>)}
         </div>
       )}
       <div className="space-y-2">
