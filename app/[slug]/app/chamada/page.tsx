@@ -167,6 +167,28 @@ function Chamada() {
     setPresentes(new Map([...presentes, ...faltam.map((f) => [f.membro_id, f] as [string, any])]));
   }
 
+  // Foto do treino → vai para o feed da academia, marcando quem estava presente
+  async function fotoDoTreino(arquivos: FileList | null) {
+    if (!arquivos?.length) return;
+    const a = await garantirAula();
+    if (!a) return;
+    setMsg("Enviando a foto para o feed…");
+    const postId = crypto.randomUUID();
+    const { error } = await sb.from("posts").insert({
+      id: postId, academia_id: ctx.academia.id, autor_id: ctx.membroId, aula_id: a.id,
+      legenda: `Treino de hoje · ${turma?.nome}${obs ? ` — ${obs}` : ""} 🥋`,
+    });
+    if (error) return setMsg("Não foi possível postar: " + error.message);
+    let ordem = 0;
+    for (const arq of Array.from(arquivos)) {
+      const caminho = `${ctx.academia.id}/feed/${postId}-${ordem}.${arq.name.split(".").pop()}`;
+      const up = await sb.storage.from("privado").upload(caminho, arq);
+      if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, ordem: ordem++ });
+    }
+    if (presentes.size) await sb.from("post_marcacoes").insert(Array.from(presentes.keys()).map((m) => ({ post_id: postId, membro_id: m })));
+    setMsg(`📸 Foto postada no feed com ${presentes.size} aluno(s) marcados.`);
+  }
+
   async function salvarObs() {
     const a = await garantirAula();
     if (!a) return;
@@ -281,7 +303,15 @@ function Chamada() {
         <section className="rounded-2xl bg-painel p-4">
           <label className="rotulo" htmlFor="obs">Anotação da aula</label>
           <textarea id="obs" className="campo min-h-20" placeholder="Ex.: treino de passagem de guarda, 6 rounds" value={obs} onChange={(e) => setObs(e.target.value)} />
-          <button className="btn-sec mt-2 text-sm" onClick={salvarObs}>Salvar anotação</button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button className="btn-sec text-sm" onClick={salvarObs}>Salvar anotação</button>
+            {ctx.academia.modulos?.feed !== false && (
+              <label className="btn-sec cursor-pointer text-sm">📷 Foto do treino → feed
+                <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => fotoDoTreino(e.target.files)} />
+              </label>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-suave">A foto vai para o feed já marcando quem está presente. Faça a chamada antes de postar.</p>
         </section>
       )}
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { QR } from "@/components/QR";
+import { Backup } from "@/components/Backup";
 
 const MODULOS: [string, string][] = [
   ["sobre", "Sobre nós"], ["propaganda", "Propagandas"], ["calendario", "Calendário"], ["avisos", "Avisos"],
@@ -23,6 +24,12 @@ export default function Config() {
   const [logo, setLogo] = useState<File | null>(null);
   const [capa, setCapa] = useState<File | null>(null);
   const [banners, setBanners] = useState<any[]>([]);
+  const [aceites, setAceites] = useState<number | null>(null);
+  useEffect(() => {
+    if (!a.contrato_versao) return;
+    sb.from("consentimentos").select("id", { count: "exact", head: true }).eq("academia_id", a.id).eq("tipo", "contrato").eq("versao_termo", a.contrato_versao)
+      .then(({ count }) => setAceites(count || 0));
+  }, []); // eslint-disable-line
   const [novoBanner, setNovoBanner] = useState<any>(null);
 
   async function carregarBanners() {
@@ -72,6 +79,8 @@ export default function Config() {
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
       tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
+      contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
+      contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
       alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
@@ -194,6 +203,17 @@ export default function Config() {
             <div><label className="rotulo">“Sentimos sua falta” após (dias)</label><input type="number" className="campo" value={a.reengajar_dias} onChange={(e) => muda("reengajar_dias", e.target.value)} /></div>
             <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
+
+          <h3 className="pt-2 text-xl font-bold">Backup</h3>
+          <Backup academia={a} />
+
+          <h3 className="pt-2 text-xl font-bold">Contrato e termos</h3>
+          <p className="text-xs text-suave">Os alunos (ou responsáveis) aceitam no app. Se você mudar o texto, todos aceitam de novo. {aceites !== null && `Versão atual: ${aceites} aceite(s).`}</p>
+          <textarea className="campo min-h-40 text-sm" placeholder={"Ex.: 1. A mensalidade vence todo dia 10...\n2. O aluno declara estar apto à prática de atividade física...\n3. Autorizo o uso de imagem..."} value={a.contrato_texto || ""} onChange={(e) => muda("contrato_texto", e.target.value)} />
+
+          <h3 className="pt-2 text-xl font-bold">Indique um amigo</h3>
+          <input className="campo" placeholder="Recompensa (ex.: 10% de desconto na próxima mensalidade, kimono, selo…)" value={a.recompensa_indicacao || ""} onChange={(e) => muda("recompensa_indicacao", e.target.value)} />
+          <p className="text-xs text-suave">O aluno compartilha o link dele. Quando o amigo se cadastra e você aprova, a indicação aparece em Alunos e ele ganha o título 🤝 Embaixador.</p>
 
           <h3 className="pt-2 text-xl font-bold">Banners da página pública</h3>
           <p className="text-xs text-suave">Aparecem no topo da página quando a função “Propagandas” está ligada (lá embaixo).</p>

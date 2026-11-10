@@ -80,5 +80,6 @@ arquivos `ATUALIZAR-xx.sql`, que só acrescentam coisas sem apagar nada.
 3. `npm install` (só se o package.json mudou) e `npm run dev` para testar.
 4. `git add .` → `git commit -m "..."` → `git push`. A Vercel publica sozinha.
 
-Últimas atualizações do banco: 01 (vocabulário, quiz, Judô Clube Denis) e 02 (meta de estudo,
-placar, lembrete de sexta e pronúncia).
+Atualizações do banco: 01 (vocabulário, quiz, Judô Clube Denis), 02 (meta de estudo,
+placar, lembrete de sexta e pronúncia) e 03 (desafio do dia, flashcards, simulado, títulos,
+combinações/contragolpes, contrato, despesas, indicações, painel master e backup).

@@ -4,8 +4,9 @@ import { buscarAcademia, corDa } from "@/lib/academia";
 import { Faixa } from "@/components/Faixa";
 import { FormCadastro } from "./FormCadastro";
 
-export default async function Cadastro({ params }: { params: Promise<{ slug: string }> }) {
+export default async function Cadastro({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ indicado?: string }> }) {
   const { slug } = await params;
+  const { indicado } = await searchParams;
   const academia = await buscarAcademia(slug);
   if (!academia) notFound();
   const sb = await supabaseServidor();
@@ -20,7 +21,7 @@ export default async function Cadastro({ params }: { params: Promise<{ slug: str
       <h1 className="text-5xl font-extrabold">Cadastro de aluno</h1>
       <p className="mt-1 text-lg text-suave">{academia.nome}</p>
       <Faixa graus={2} altura={10} className="my-5" />
-      <FormCadastro academiaId={academia.id} slug={slug} modalidades={modalidades || []} turmas={(turmas || []).map((t: any) => ({ ...t, lotada: lotadas.has(t.id) }))} />
+      <FormCadastro academiaId={academia.id} slug={slug} indicadoPor={indicado && /^[0-9a-f-]{36}$/.test(indicado) ? indicado : null} modalidades={modalidades || []} turmas={(turmas || []).map((t: any) => ({ ...t, lotada: lotadas.has(t.id) }))} />
     </main>
   );
 }

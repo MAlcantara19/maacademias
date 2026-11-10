@@ -25,6 +25,11 @@ export default function Ranking() {
   const [turma, setTurma] = useState("");
   const [modo, setModo] = useState<"percentual" | "quantidade" | "faixa" | "hierarquia">("percentual");
   const [hier, setHier] = useState<any[]>([]);
+  const [titulos, setTitulos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    sb.from("titulos_alunos").select("membro_id, titulo_principal").eq("academia_id", ctx.academia.id)
+      .then(({ data }) => setTitulos(Object.fromEntries((data || []).filter((t: any) => t.titulo_principal).map((t: any) => [t.membro_id, t.titulo_principal]))));
+  }, []); // eslint-disable-line
   const [faixaEtaria, setFaixaEtaria] = useState("Adultos (18–29)");
   const [minimo, setMinimo] = useState(4);
   const [mods, setMods] = useState<any[]>([]);
@@ -132,7 +137,7 @@ export default function Ranking() {
                   <Avatar foto={r.foto_url} nome={r.nome} cor={r.cor_faixa} grau={r.grau} tamanho={40} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{r.apelido || r.nome}</p>
-                    <p className="text-xs text-suave">{r.faixa ? `Faixa ${r.faixa.toLowerCase()}${r.grau ? ` · ${r.grau}º grau` : ""}` : "Sem graduação"}</p>
+                    <p className="text-xs text-suave">{r.faixa ? `Faixa ${r.faixa.toLowerCase()}${r.grau ? ` · ${r.grau}º grau` : ""}` : "Sem graduação"}{titulos[r.membro_id] ? ` · ${titulos[r.membro_id]}` : ""}</p>
                   </div>
                   <span className="text-right">
                     <span className="numero block text-xl font-bold">{r.total_aulas}</span>
@@ -175,7 +180,7 @@ export default function Ranking() {
             <Avatar foto={r.foto_url} nome={r.nome} cor={r.cor_faixa} grau={r.grau} tamanho={40} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{r.apelido || r.nome}</p>
-              <p className="text-xs text-suave">{r.presencas} de {r.aulas_possiveis} aulas{r.faltas_justificadas ? ` · ${r.faltas_justificadas} justificada(s)` : ""} · {r.faixa_etaria}</p>
+              <p className="text-xs text-suave">{r.presencas} de {r.aulas_possiveis} aulas{r.faltas_justificadas ? ` · ${r.faltas_justificadas} justificada(s)` : ""} · {r.faixa_etaria}{titulos[r.membro_id] ? ` · ${titulos[r.membro_id]}` : ""}</p>
               <div className="mt-1"><Barra pct={r.pct} /></div>
             </div>
             <span className="numero text-xl font-bold">{valor(r)}</span>

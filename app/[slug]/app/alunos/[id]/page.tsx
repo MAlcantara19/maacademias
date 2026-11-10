@@ -35,7 +35,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
     const { data: p } = await sb.from("painel_alunos").select("*").eq("membro_id", id).maybeSingle();
     if (!p) return setA(false);
     setA(p);
-    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames] = await Promise.all([
+    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames, conq, simul] = await Promise.all([
       sb.from("medidas").select("*").eq("perfil_id", p.perfil_id).order("data"),
       sb.from("graduacoes").select("*, modalidades(nome, graduacoes, cores_graduacoes)").eq("membro_id", id).order("data", { ascending: false }),
       sb.from("historico_ausencias").select("*").eq("membro_id", id).order("ano", { ascending: false }),
@@ -48,11 +48,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       sb.from("perfis").select("*").eq("id", p.perfil_id).maybeSingle(),
       ctx.equipe ? sb.from("membros").select("apelido_interno, observacoes").eq("id", id).maybeSingle() : Promise.resolve({ data: null }),
       sb.from("exames_faixa").select("*, modalidades(nome)").eq("membro_id", id).order("data", { ascending: false }),
+      sb.from("conquistas").select("*").eq("membro_id", id).order("conquistada_em"),
+      sb.from("quiz_resultados").select("acertos, total, criado_em").eq("membro_id", id).eq("modo", "simulado").order("criado_em", { ascending: false }).limit(3),
     ]);
     setX({
       medidas: med.data || [], graduacoes: grad.data || [], historico: hist.data || [], ausencias: aus.data || [],
       pendencias: pend.data || [], matriculas: mats.data || [], modalidades: mods.data || [], turmas: turmas.data || [],
       carteirinhas: cart.data || [], perfil: perfil.data, membro: membro.data, exames: exames.data || [],
+      conquistas: conq.data || [], simulados: simul.data || [],
     });
   }
   useEffect(() => { carregar(); }, [id]); // eslint-disable-line
@@ -184,6 +187,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           </p>
           {ctx.equipe && x.membro?.apelido_interno && <p className="mt-1 text-sm text-alerta">🔒 {x.membro.apelido_interno}</p>}
           <div className="mt-2 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+            {(() => { const t = x.conquistas?.find((c: any) => c.codigo === x.perfil?.titulo_escolhido); return t ? <span className="chip" style={{ borderColor: "var(--cor)" }}>{t.icone} {t.titulo}</span> : null; })()}
             {a.ativo && meses >= 1 && <span className="chip">🏠 {tempo} de academia</span>}
             {ctx.equipe && a.debito_atualizado > 0 && <span className="chip border-erro text-erro">💳 deve {dinheiro(a.debito_atualizado)}</span>}
             {ctx.equipe && !a.tem_login && <span className="chip">🔑 sem login</span>}
@@ -298,6 +302,25 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           </ul>
         </Bloco>
 
+        {/* Títulos */}
+        <Bloco titulo="Títulos">
+          {x.conquistas?.length ? (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {x.conquistas.map((c: any) => {
+                  const principal = x.perfil?.titulo_escolhido === c.codigo;
+                  return (
+                    <button key={c.codigo} disabled={!meu} onClick={async () => { await sb.from("perfis").update({ titulo_escolhido: c.codigo }).eq("id", a.perfil_id); carregar(); }}
+                      className="chip py-2" style={principal ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{c.icone} {c.titulo}</button>
+                  );
+                })}
+              </div>
+              {meu && <p className="mt-2 text-xs text-suave">Toque num título para mostrar ele no seu perfil e nos rankings.</p>}
+            </>
+          ) : <p className="text-suave">Nenhum título ainda. Estude, treine e participe de campeonatos para ganhar!</p>}
+          <p className="mt-3 text-xs text-suave">Títulos: 🎓 Primeiros passos · 💯 Gabaritou · 📚 Estudioso · 🈴 Mestre das palavras · 🔥 Disciplina · ⚡ Desafiante · 🥋 Pronto pro exame · 💪 50 · 🏅 100 · 🏆 250 treinos · 🤝 Embaixador · 🥇 Medalhista</p>
+        </Bloco>
+
         {/* Exames de faixa */}
         <Bloco titulo="Exames de faixa" acao={<Link href={`${base}/tecnicas${ctx.equipe ? `/exame?aluno=${id}` : ""}`} className="btn-sec text-sm">{ctx.equipe ? "Novo exame" : "Ver matéria"}</Link>}>
           <ul className="space-y-2">
@@ -311,6 +334,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
               </li>
             ))}
             {!x.exames?.length && <p className="text-suave">Nenhum exame registrado.</p>}
+            {x.simulados?.length > 0 && <p className="text-sm text-suave">📝 Simulados recentes: {x.simulados.map((q: any) => `${q.acertos}/${q.total} (${dataBR(q.criado_em).slice(0, 5)})`).join(" · ")}</p>}
           </ul>
         </Bloco>
 

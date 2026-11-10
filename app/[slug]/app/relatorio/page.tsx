@@ -30,6 +30,8 @@ export default function Relatorio() {
         sb.from("turmas").select("id, nome").eq("academia_id", acad),
         sb.from("ausencias").select("status, membros!membro_id!inner(academia_id)").eq("membros.academia_id", acad).gte("de", ini).lte("de", fim),
       ]);
+      const { data: desp } = await sb.from("despesas").select("valor").eq("academia_id", acad).gte("data", ini).lte("data", fim);
+      const despesasTotal = (desp || []).reduce((s: number, x: any) => s + Number(x.valor), 0);
       const ms = membros.data || [];
       const novos = ms.filter((x: any) => x.entrou_em >= ini && x.entrou_em <= fim);
       const saidas = ms.filter((x: any) => x.saiu_em && x.saiu_em >= ini && x.saiu_em <= fim);
@@ -46,6 +48,7 @@ export default function Relatorio() {
       const hoje = hojeISO();
       const fin = {
         previsto: c.filter((x: any) => x.status !== "isenta" && x.status !== "cancelada").reduce((s: number, x: any) => s + Number(x.valor), 0),
+        despesas: despesasTotal,
         recebido: c.filter((x: any) => x.status === "paga").reduce((s: number, x: any) => s + Number(x.valor_pago || x.valor), 0),
         atrasado: c.filter((x: any) => x.status === "aberta" && x.vencimento < hoje).reduce((s: number, x: any) => s + Number(x.valor), 0),
         porForma: ["pix", "cartao", "dinheiro", "outro"].map((f) => ({ f, v: c.filter((x: any) => x.status === "paga" && x.forma === f).reduce((s: number, x: any) => s + Number(x.valor_pago || x.valor), 0) })),
@@ -97,6 +100,7 @@ export default function Relatorio() {
             </div>
             <div className="mt-3"><Barra pct={d.fin.previsto ? (100 * d.fin.recebido) / d.fin.previsto : 0} cor="var(--color-ok)" /></div>
             <p className="mt-2 text-sm text-suave">{d.fin.porForma.filter((x: any) => x.v).map((x: any) => `${formaNome[x.f]}: ${dinheiro(x.v)}`).join(" · ") || "Nenhum pagamento registrado."}</p>
+            <p className="mt-2 text-sm">Despesas: <b className="text-erro">{dinheiro(d.fin.despesas)}</b> · Lucro: <b className={d.fin.recebido - d.fin.despesas >= 0 ? "text-ok" : "text-erro"}>{dinheiro(d.fin.recebido - d.fin.despesas)}</b></p>
           </section>
           )}
 

@@ -11,7 +11,8 @@ import { Avatar } from "@/components/Avatar";
 import { falar } from "@/lib/fala";
 import { dataBR, hojeISO, addDias } from "@/lib/util";
 
-type Modo = "roleta-palavra" | "roleta-significado" | "quiz-palavra" | "quiz-significado" | "quiz-tipo" | "quiz-traducao";
+type Modo = "roleta-palavra" | "roleta-significado" | "quiz-palavra" | "quiz-significado" | "quiz-tipo" | "quiz-traducao" | "flashcards" | "simulado";
+const DIAS_CAIXA = [0, 1, 2, 4, 8, 16];
 const MODOS: { id: Modo; titulo: string; texto: string; icone: string }[] = [
   { id: "roleta-palavra", titulo: "Roleta: palavra", texto: "Sai a palavra em japonês. Você fala o significado e confere.", icone: "🎯" },
   { id: "roleta-significado", titulo: "Roleta: significado", texto: "Sai o significado. Você diz a palavra em japonês.", icone: "🔄" },
@@ -19,6 +20,8 @@ const MODOS: { id: Modo; titulo: string; texto: string; icone: string }[] = [
   { id: "quiz-significado", titulo: "Quiz A, B, C: ao contrário", texto: "Qual palavra tem este significado?", icone: "🅱️" },
   { id: "quiz-tipo", titulo: "Quiz: tipo da técnica", texto: "Te-waza, koshi-waza, ashi-waza ou sutemi?", icone: "🥋" },
   { id: "quiz-traducao", titulo: "Quiz: tradução da técnica", texto: "O que quer dizer o nome da técnica?", icone: "📖" },
+  { id: "flashcards", titulo: "Flashcards inteligentes", texto: "O app repete mais o que você erra. Poucos minutos por dia.", icone: "🃏" },
+  { id: "simulado", titulo: "Simulado da prova de faixa", texto: "10 perguntas da matéria da sua próxima faixa.", icone: "📝" },
 ];
 
 export default function Estudar() {
@@ -37,6 +40,10 @@ export default function Estudar() {
   const [giros, setGiros] = useState(0);
   const [placar, setPlacar] = useState<any[]>([]);
   const [semana, setSemana] = useState(0);
+  const [desafio, setDesafio] = useState<any>(null);
+  const [respDesafio, setRespDesafio] = useState<string | null>(null);
+  const [cartas, setCartas] = useState<any>(null);
+  const [titulos, setTitulos] = useState<Record<string, string>>({});
   const meta = ctx.academia.meta_estudo_semanal || 3;
   const segunda = (() => { const h = hojeISO(); const d = new Date(h + "T12:00:00").getDay(); return addDias(h, -((d + 6) % 7)); })();
   const membro = ctx.equipe ? null : ctx.meusAlunos[0]?.id;
@@ -47,7 +54,91 @@ export default function Estudar() {
       .not("nome_original", "is", null).not("grupo", "in", "(taiso,ukemi,kata)").then(({ data }) => setTecnicas(data || []));
     if (membro) sb.from("quiz_resultados").select("*").eq("membro_id", membro).order("criado_em", { ascending: false }).limit(10).then(({ data }) => setHistorico(data || []));
     carregarPlacar(0);
+    carregarDesafio();
+    sb.from("titulos_alunos").select("membro_id, titulo_principal").eq("academia_id", ctx.academia.id)
+      .then(({ data }) => setTitulos(Object.fromEntries((data || []).filter((t: any) => t.titulo_principal).map((t: any) => [t.membro_id, t.titulo_principal]))));
   }, []); // eslint-disable-line
+
+  // ---------- Desafio do dia ----------
+  async function carregarDesafio() {
+    const { data } = await sb.from("desafios_dia").select("*").eq("academia_id", ctx.academia.id).eq("data", hojeISO()).maybeSingle();
+    setDesafio(data);
+    if (data && membro) {
+      const { data: feito } = await sb.from("quiz_resultados").select("acertos").eq("membro_id", membro).eq("modo", "desafio")
+        .gte("criado_em", hojeISO() + "T00:00:00-03:00").limit(1);
+      if (feito?.length) setRespDesafio(feito[0].acertos ? data.resposta : "__errou__");
+    }
+  }
+  async function responderDesafio(op: string) {
+    if (respDesafio) return;
+    setRespDesafio(op);
+    if (membro) {
+      await sb.from("quiz_resultados").insert({ academia_id: ctx.academia.id, membro_id: membro, modo: "desafio", acertos: op === desafio.resposta ? 1 : 0, total: 1 });
+      carregarPlacar(0);
+    }
+  }
+
+  // ---------- Flashcards (método Leitner) ----------
+  async function montarCartas() {
+    const base = filtradas.length ? filtradas : palavras;
+    let progresso: any[] = [];
+    if (membro) {
+      const { data } = await sb.from("flashcards").select("*").eq("membro_id", membro).eq("tipo", "palavra");
+      progresso = data || [];
+    }
+    const mapa = new Map(progresso.map((p) => [p.item_id, p]));
+    const hoje = hojeISO();
+    const vencidas = base.filter((p) => mapa.has(p.id) && mapa.get(p.id).proxima <= hoje);
+    const novas = embaralhar(base.filter((p) => !mapa.has(p.id))).slice(0, Math.max(0, 15 - vencidas.length));
+    const fila = embaralhar([...vencidas, ...novas]).slice(0, 15);
+    setCartas({ fila, i: 0, virada: false, acertos: 0, mapa, fim: !fila.length });
+  }
+  async function marcarCarta(acertou: boolean) {
+    const c = cartas.fila[cartas.i];
+    const atual = cartas.mapa.get(c.id)?.caixa || 0;
+    const caixa = acertou ? Math.min(5, atual + 1) : 1;
+    if (membro) {
+      await sb.from("flashcards").upsert({ membro_id: membro, tipo: "palavra", item_id: c.id, caixa, proxima: addDias(hojeISO(), DIAS_CAIXA[caixa]), atualizado: new Date().toISOString() });
+    }
+    const acertos = cartas.acertos + (acertou ? 1 : 0);
+    if (cartas.i + 1 >= cartas.fila.length) {
+      setCartas({ ...cartas, acertos, fim: true });
+      if (membro) { await sb.from("quiz_resultados").insert({ academia_id: ctx.academia.id, membro_id: membro, modo: "flashcards", acertos, total: cartas.fila.length }); carregarPlacar(0); }
+      return;
+    }
+    setCartas({ ...cartas, i: cartas.i + 1, virada: false, acertos });
+  }
+
+  // ---------- Simulado da prova de faixa ----------
+  async function montarSimulado() {
+    let alvo = "";
+    const { data: mods } = await sb.from("modalidades").select("id, graduacoes").eq("academia_id", ctx.academia.id).order("ordem").limit(1);
+    const mod = mods?.[0];
+    if (mod && membro) {
+      const { data: g } = await sb.from("graduacoes").select("faixa").eq("membro_id", membro).eq("modalidade_id", mod.id).order("data", { ascending: false }).limit(1);
+      const atual = g?.[0]?.faixa || mod.graduacoes?.[0];
+      alvo = mod.graduacoes?.[(mod.graduacoes.indexOf(atual)) + 1] || "";
+    }
+    const { data: tec } = await sb.from("tecnicas").select("id, nome, nome_original, kana, classificacao, faixa").eq("academia_id", ctx.academia.id).not("nome_original", "is", null)
+      .not("grupo", "in", "(taiso,ukemi,kata)");
+    const todasT: any[] = tec || [];
+    const daFaixa = alvo ? todasT.filter((t) => t.faixa === alvo) : todasT;
+    const perguntas: any[] = embaralhar(daFaixa).slice(0, 10).map((t: any, k: number) => {
+      if (k % 2 === 0 || !t.classificacao) {
+        const erradas = embaralhar(todasT.filter((x) => x.id !== t.id && x.nome !== t.nome)).slice(0, 2);
+        return { pergunta: t.nome_original, kana: t.kana, certo: t.nome, opcoes: embaralhar([t.nome, ...erradas.map((e) => e.nome)]), extra: "O que quer dizer?" };
+      }
+      const tipos = Object.keys(CLASSIFICACOES).filter((x) => x !== t.classificacao);
+      const erradas = embaralhar(tipos).slice(0, 2);
+      return { pergunta: t.nome_original, kana: t.kana, certo: CLASSIFICACOES[t.classificacao], opcoes: embaralhar([t.classificacao, ...erradas]).map((x) => CLASSIFICACOES[x]), extra: "Qual é o tipo?" };
+    });
+    // completa com palavras se a faixa tiver poucas técnicas
+    embaralhar(palavras.filter((p) => p.lista === "basica")).slice(0, 10 - perguntas.length).forEach((p) => {
+      const erradas = embaralhar(palavras.filter((x) => x.id !== p.id)).slice(0, 2);
+      perguntas.push({ pergunta: p.termo, kana: p.kana, certo: p.significado, opcoes: embaralhar([p.significado, ...erradas.map((e) => e.significado)]), extra: "O que significa?" });
+    });
+    setQuiz({ perguntas: embaralhar(perguntas), i: 0, acertos: 0, escolha: null, fim: false, alvo });
+  }
 
   async function carregarPlacar(sem: number) {
     setSemana(sem);
@@ -120,8 +211,10 @@ export default function Estudar() {
   }, [lista, categoria, palavras]); // eslint-disable-line
 
   function escolherModo(m: Modo) {
-    setModo(m); setSorteada(null); setRevelado(false);
-    if (m.startsWith("quiz")) montarQuiz(m); else setQuiz(null);
+    setModo(m); setSorteada(null); setRevelado(false); setCartas(null);
+    if (m.startsWith("quiz")) montarQuiz(m);
+    else if (m === "simulado") montarSimulado();
+    else { setQuiz(null); if (m === "flashcards") montarCartas(); }
   }
 
   const Filtros = () => (
@@ -146,6 +239,28 @@ export default function Estudar() {
           {ctx.equipe && <Link href={`/${ctx.academia.slug}/app/tecnicas/vocabulario`} className="btn-sec text-sm">Editar palavras</Link>}
         </div>
         <p className="text-suave">Treine em casa as palavras e as técnicas para chegar tranquilo nas aulas e nos exames.</p>
+        {desafio && (
+          <section className="rounded-2xl border-2 bg-painel p-4" style={{ borderColor: "var(--color-alerta)" }}>
+            <p className="text-sm font-semibold" style={{ color: "var(--color-alerta)" }}>⚡ Desafio do dia · vale 3 pontos</p>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-2xl font-bold">{desafio.pergunta}</p>
+              {desafio.falar && <BotaoFalar texto={desafio.falar} />}
+            </div>
+            <div className="mt-3 grid gap-2">
+              {desafio.opcoes.map((op: string, k: number) => {
+                const respondeu = !!respDesafio;
+                const certa = respondeu && op === desafio.resposta, marcada = respDesafio === op;
+                return (
+                  <button key={op} disabled={respondeu} onClick={() => responderDesafio(op)}
+                    className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left ${certa ? "border-ok bg-ok/15" : marcada ? "border-erro bg-erro/15" : "border-linha"}`}>
+                    <span className="numero flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-painel2 font-bold">{"ABC"[k]}</span>{op}
+                  </button>
+                );
+              })}
+            </div>
+            {respDesafio && <p className="mt-2 text-sm">{respDesafio === desafio.resposta ? "Acertou! +3 pontos 🎉" : `A resposta era: ${desafio.resposta}. Amanhã tem outro!`}</p>}
+          </section>
+        )}
         {membro && semana === 0 && (() => {
           const feitas = placar.find((p) => p.membro_id === membro)?.atividades || 0;
           return (
@@ -181,7 +296,7 @@ export default function Estudar() {
               <li key={p.membro_id} className={`flex items-center gap-3 rounded-xl p-2 ${p.membro_id === membro ? "bg-painel2 ring-2 ring-[var(--cor)]" : ""}`}>
                 <span className="numero w-7 text-center text-xl font-bold">{p.posicao}º</span>
                 <Avatar foto={p.foto_url} nome={p.nome} tamanho={32} mostrarFaixa={false} />
-                <span className="flex-1 truncate">{p.apelido || p.nome} {p.meta_ok && "✅"}</span>
+                <span className="min-w-0 flex-1 truncate">{p.apelido || p.nome} {p.meta_ok && "✅"}{titulos[p.membro_id] && <span className="block truncate text-xs text-suave">{titulos[p.membro_id]}</span>}</span>
                 <span className="text-xs text-suave">{p.atividades} ativ.</span>
                 <span className="numero w-12 text-right text-lg font-bold">{p.pontos}</span>
               </li>
@@ -243,6 +358,52 @@ export default function Estudar() {
         </>
       )}
 
+      {modo === "flashcards" && cartas && (
+        <>
+          {cartas.i === 0 && !cartas.virada && <Filtros />}
+          {cartas.i === 0 && !cartas.virada && <button className="btn-sec text-sm" onClick={montarCartas}>Montar com esses filtros</button>}
+          {cartas.fim ? (
+            <div className="rounded-3xl bg-painel p-6 text-center">
+              {cartas.fila.length ? (
+                <>
+                  <p className="numero text-6xl font-extrabold">{cartas.acertos}/{cartas.fila.length}</p>
+                  <p className="mt-2">Revisão feita! As que você errou voltam amanhã; as que acertou demoram mais para voltar.</p>
+                </>
+              ) : <p className="text-xl">Nada para revisar hoje. Volte amanhã! ✅</p>}
+              <button className="btn mt-4" onClick={montarCartas}>Revisar de novo</button>
+            </div>
+          ) : (() => {
+            const c = cartas.fila[cartas.i];
+            const caixa = cartas.mapa.get(c.id)?.caixa || 0;
+            return (
+              <div className="space-y-4">
+                <div className="flex justify-between text-sm text-suave"><span>Carta {cartas.i + 1} de {cartas.fila.length}</span><span>{caixa ? `nível ${caixa} de 5` : "nova"}</span></div>
+                <button onClick={() => setCartas({ ...cartas, virada: !cartas.virada })}
+                  className="flex min-h-56 w-full flex-col items-center justify-center gap-2 rounded-3xl bg-painel p-6 text-center shadow-2xl" style={{ borderTop: `8px solid ${corCategoria(c.categoria)}` }}>
+                  {!cartas.virada ? (
+                    <>
+                      <span className="flex items-center gap-2 text-4xl font-extrabold">{c.termo} <BotaoFalar texto={c.termo} kana={c.kana} /></span>
+                      <span className="text-sm text-suave">Toque para virar</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm text-suave">{c.termo}</span>
+                      <span className="text-3xl font-bold" style={{ color: "var(--color-ok)" }}>{c.significado}</span>
+                    </>
+                  )}
+                </button>
+                {cartas.virada && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="btn-sec py-4 text-lg" onClick={() => marcarCarta(false)}>😅 Errei</button>
+                    <button className="btn py-4 text-lg" onClick={() => marcarCarta(true)}>💪 Acertei</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </>
+      )}
+
       {quiz && (
         <>
           {(modo === "quiz-palavra" || modo === "quiz-significado") && !quiz.i && !quiz.escolha && <Filtros />}
@@ -252,13 +413,18 @@ export default function Estudar() {
             <div className="rounded-3xl bg-painel p-6 text-center">
               <p className="numero text-6xl font-extrabold">{quiz.acertos}/{quiz.perguntas.length}</p>
               <p className="mt-2 text-xl">{quiz.acertos === quiz.perguntas.length ? "Perfeito! Ippon! 🥇" : quiz.acertos >= quiz.perguntas.length * 0.7 ? "Muito bom! Waza-ari! 💪" : "Bora treinar mais um pouco! 🥋"}</p>
-              <button className="btn mt-4" onClick={() => montarQuiz(modo)}>Jogar de novo</button>
+              {modo === "simulado" && (
+                <p className="mt-2 text-sm text-suave">
+                  {quiz.acertos >= 7 ? `Você está pronto na teoria para a faixa ${quiz.alvo || "seguinte"}! O professor vê seu resultado.` : "No simulado, 7 acertos é o objetivo. Estude a matéria e tente de novo."}
+                </p>
+              )}
+              <button className="btn mt-4" onClick={() => (modo === "simulado" ? montarSimulado() : montarQuiz(modo))}>Jogar de novo</button>
             </div>
           ) : (() => {
             const p = quiz.perguntas[quiz.i];
             return (
               <div className="space-y-4">
-                <div className="flex justify-between text-sm text-suave"><span>Pergunta {quiz.i + 1} de {quiz.perguntas.length}</span><span>✓ {quiz.acertos}</span></div>
+                <div className="flex justify-between text-sm text-suave"><span>{modo === "simulado" && quiz.alvo ? `Simulado faixa ${quiz.alvo} · ` : ""}Pergunta {quiz.i + 1} de {quiz.perguntas.length}</span><span>✓ {quiz.acertos}</span></div>
                 <div className="rounded-3xl bg-painel p-6 text-center">
                   <div className="flex items-center justify-center gap-3">
                     <p className="text-3xl font-extrabold">{p.pergunta}</p>

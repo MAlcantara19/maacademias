@@ -6,6 +6,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { MESES, NENHUM, abrirAnexo, dataBR, dinheiro, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { gerarPix } from "@/lib/pix";
 import { QR } from "@/components/QR";
+import { Despesas } from "./Despesas";
 
 const FORMAS: Record<string, string> = { pix: "Pix", cartao: "Cartão", dinheiro: "Dinheiro", outro: "Outro" };
 
@@ -253,6 +254,8 @@ export default function Mensalidades() {
         })}
         {!lista.length && <p className="text-suave">Nenhuma mensalidade neste mês. Toque em “Gerar do mês”.</p>}
       </ul>
+
+      {ctx.admin && <Despesas mes={mes} recebido={totais.recebido} />}
 
       {/* Devedores (todos os meses) */}
       {devedores.length > 0 && (

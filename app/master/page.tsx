@@ -4,25 +4,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
+import { dataHoraBR, dinheiro } from "@/lib/util";
 
-// Painel do master: todas as academias, criar academia nova e definir o admin
+// Painel do dono da plataforma: todas as academias, números, calendário geral
+// e o que cada academia paga para você.
 export default function Master() {
   const sb = supabaseNavegador();
   const router = useRouter();
   const [ok, setOk] = useState<boolean | null>(null);
   const [lista, setLista] = useState<any[]>([]);
-  const [resumos, setResumos] = useState<Record<string, any>>({});
+  const [extra, setExtra] = useState<Record<string, any>>({});
+  const [agenda, setAgenda] = useState<any[]>([]);
   const [nova, setNova] = useState<any>(null);
+  const [editar, setEditar] = useState<any>(null);
   const [msg, setMsg] = useState("");
 
   async function carregar() {
     const { data: m } = await sb.rpc("sou_master");
     setOk(!!m);
     if (!m) return;
-    const { data } = await sb.from("academias").select("id, slug, nome, cidade, cores, ativa, no_diretorio, dominio").order("nome");
-    setLista(data || []);
-    const { data: r } = await sb.from("resumo_academia").select("*");
-    setResumos(Object.fromEntries((r || []).map((x: any) => [x.academia_id, x])));
+    const [{ data: r }, { data: ac }, { data: cal }] = await Promise.all([
+      sb.rpc("resumo_master"),
+      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio"),
+      sb.rpc("calendario_master", { p_dias: 45 }),
+    ]);
+    setLista(r || []);
+    setExtra(Object.fromEntries((ac || []).map((a: any) => [a.id, a])));
+    setAgenda(cal || []);
   }
   useEffect(() => { carregar(); }, []); // eslint-disable-line
 
@@ -30,90 +38,143 @@ export default function Master() {
 
   async function criar() {
     if (!nova?.nome) return setMsg("Dê um nome para a academia.");
-    setMsg("");
     const id = crypto.randomUUID();
     const { error } = await sb.from("academias").insert({
-      id, nome: nova.nome, slug: nova.slug || slugDe(nova.nome), cidade: nova.cidade || null,
+      id, nome: nova.nome, slug: nova.slug || slugDe(nova.nome), cidade: nova.cidade || null, tipo: nova.tipo || "academia",
       whatsapp: nova.whatsapp || null, cores: { primaria: nova.cor || "#7c3aed" }, no_diretorio: true,
     });
-    if (error) return setMsg(error.message.includes("duplicate") ? "Já existe uma academia com esse endereço (slug)." : error.message);
+    if (error) return setMsg(error.message.includes("duplicate") ? "Já existe uma academia com esse endereço." : error.message);
     if (nova.admin_email) {
       const email = nova.admin_email.trim().toLowerCase();
       const { data: existente } = await sb.from("perfis").select("id").ilike("email", email).limit(1);
       let perfilId = existente?.[0]?.id;
-      if (!perfilId) {
-        perfilId = crypto.randomUUID();
-        await sb.from("perfis").insert({ id: perfilId, nome: nova.admin_nome || email, email });
-      }
+      if (!perfilId) { perfilId = crypto.randomUUID(); await sb.from("perfis").insert({ id: perfilId, nome: nova.admin_nome || email, email }); }
       await sb.from("membros").insert({ academia_id: id, perfil_id: perfilId, papel: "admin" });
     }
-    setNova(null); setMsg("Academia criada! O admin entra com o e-mail informado (em “Primeiro acesso” se ainda não tiver senha).");
-    carregar();
+    if (nova.valor) await sb.from("plataforma_contratos").insert({ academia_id: id, valor_mensal: Number(nova.valor), dia_vencimento: Number(nova.dia || 10) });
+    setNova(null); setMsg("Academia criada!"); carregar();
   }
-
-  async function alternar(a: any, campo: string) {
-    await sb.from("academias").update({ [campo]: !a[campo] }).eq("id", a.id);
-    carregar();
+  async function salvarContrato() {
+    await sb.from("plataforma_contratos").upsert({ academia_id: editar.id, valor_mensal: Number(editar.valor || 0), dia_vencimento: Number(editar.dia || 10), ativo: true });
+    setEditar(null); carregar();
   }
+  async function registrarPagamento(a: any) {
+    const comp = new Date(); comp.setDate(1);
+    const { error } = await sb.from("plataforma_pagamentos").upsert({ academia_id: a.academia_id, competencia: comp.toISOString().slice(0, 10), valor: a.plataforma_valor || 0, pago_em: new Date().toISOString().slice(0, 10) }, { onConflict: "academia_id,competencia" });
+    setMsg(error ? error.message : `Pagamento de ${a.nome} registrado.`); carregar();
+  }
+  async function alternar(id: string, campo: string, valor: boolean) { await sb.from("academias").update({ [campo]: !valor }).eq("id", id); carregar(); }
 
   if (ok === null) return <main className="p-6 text-suave">Carregando…</main>;
   if (!ok) return (
     <main className="mx-auto max-w-md space-y-4 p-6">
       <h1 className="text-4xl font-extrabold">Área do master</h1>
-      <p className="text-suave">Sua conta não é master. Veja como resolver em Minha conta.</p>
+      <p className="text-suave">Sua conta não é master.</p>
       <Link href="/minha-conta" className="btn">Minha conta</Link>
     </main>
   );
 
+  const pagantes = lista.filter((a) => Number(a.plataforma_valor) > 0);
+  const previsto = pagantes.reduce((s, a) => s + Number(a.plataforma_valor), 0);
+  const recebido = pagantes.filter((a) => a.plataforma_pago_mes).reduce((s, a) => s + Number(a.plataforma_valor), 0);
+  const totalAlunos = lista.reduce((s, a) => s + (a.alunos_ativos || 0), 0);
+
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
+    <main className="mx-auto max-w-6xl space-y-6 px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-5xl font-extrabold">Painel master</h1>
         <div className="flex gap-2">
-          <button className="btn" onClick={() => setNova({ cor: "#7c3aed" })}>Nova academia</button>
+          <button className="btn" onClick={() => setNova({ cor: "#7c3aed", tipo: "academia" })}>Nova academia</button>
           <button className="btn-sec" onClick={async () => { await sb.auth.signOut(); router.replace("/login"); }}>Sair</button>
         </div>
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
 
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[[lista.length, "academias"], [totalAlunos, "alunos ativos"], [dinheiro(recebido), "você recebeu este mês"], [dinheiro(previsto - recebido), "falta receber"]].map(([v, r]) => (
+          <div key={r as string} className="rounded-2xl bg-painel p-4"><p className="numero text-3xl font-bold">{v}</p><p className="text-sm text-suave">{r}</p></div>
+        ))}
+      </section>
+
       {nova && (
         <section className="grid gap-3 rounded-2xl border border-linha bg-painel p-4 sm:grid-cols-2">
           <h2 className="text-2xl font-bold sm:col-span-2">Nova academia</h2>
-          <div><label className="rotulo">Nome</label><input className="campo" onChange={(e) => setNova({ ...nova, nome: e.target.value, slug: slugDe(e.target.value) })} /></div>
-          <div><label className="rotulo">Endereço no site</label><input className="campo" value={nova.slug || ""} onChange={(e) => setNova({ ...nova, slug: slugDe(e.target.value) })} /><p className="mt-1 text-xs text-suave">/{nova.slug || "nome-da-academia"}</p></div>
-          <div><label className="rotulo">Cidade</label><input className="campo" onChange={(e) => setNova({ ...nova, cidade: e.target.value })} /></div>
-          <div><label className="rotulo">WhatsApp</label><input className="campo" placeholder="5524999999999" onChange={(e) => setNova({ ...nova, whatsapp: e.target.value })} /></div>
-          <div><label className="rotulo">Cor</label><input type="color" className="h-12 w-full rounded-xl" value={nova.cor} onChange={(e) => setNova({ ...nova, cor: e.target.value })} /></div>
-          <div />
-          <div><label className="rotulo">Nome do admin (dono)</label><input className="campo" onChange={(e) => setNova({ ...nova, admin_nome: e.target.value })} /></div>
-          <div><label className="rotulo">E-mail do admin</label><input type="email" className="campo" onChange={(e) => setNova({ ...nova, admin_email: e.target.value })} /></div>
-          <div className="flex gap-2 sm:col-span-2"><button className="btn" onClick={criar}>Criar academia</button><button className="btn-sec" onClick={() => setNova(null)}>Cancelar</button></div>
+          <input className="campo" placeholder="Nome" onChange={(e) => setNova({ ...nova, nome: e.target.value, slug: slugDe(e.target.value) })} />
+          <input className="campo" placeholder="endereço no site" value={nova.slug || ""} onChange={(e) => setNova({ ...nova, slug: slugDe(e.target.value) })} />
+          <input className="campo" placeholder="Cidade" onChange={(e) => setNova({ ...nova, cidade: e.target.value })} />
+          <select className="campo" value={nova.tipo} onChange={(e) => setNova({ ...nova, tipo: e.target.value })}><option value="academia">Academia</option><option value="projeto_social">Projeto social</option></select>
+          <input className="campo" placeholder="Nome do admin (dono)" onChange={(e) => setNova({ ...nova, admin_nome: e.target.value })} />
+          <input className="campo" type="email" placeholder="E-mail do admin" onChange={(e) => setNova({ ...nova, admin_email: e.target.value })} />
+          <input className="campo" inputMode="decimal" placeholder="Quanto paga por mês para você (opcional)" onChange={(e) => setNova({ ...nova, valor: e.target.value })} />
+          <input className="campo" type="number" placeholder="Dia do vencimento" onChange={(e) => setNova({ ...nova, dia: e.target.value })} />
+          <input type="color" className="h-12 w-full rounded-xl" value={nova.cor} onChange={(e) => setNova({ ...nova, cor: e.target.value })} />
+          <div className="flex gap-2"><button className="btn" onClick={criar}>Criar</button><button className="btn-sec" onClick={() => setNova(null)}>Cancelar</button></div>
         </section>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {lista.map((a) => {
-          const r = resumos[a.id] || {};
-          const cor = a.cores?.primaria || "#7c3aed";
-          return (
-            <article key={a.id} className={`overflow-hidden rounded-2xl bg-painel ${a.ativa ? "" : "opacity-60"}`}>
-              <Faixa cor={cor} altura={8} className="rounded-none" />
-              <div className="space-y-3 p-4">
-                <div>
-                  <h2 className="text-2xl font-bold">{a.nome}</h2>
-                  <p className="text-sm text-suave">/{a.slug}{a.dominio ? ` · ${a.dominio}` : ""}{a.cidade ? ` · ${a.cidade}` : ""}</p>
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {lista.map((a) => {
+            const x = extra[a.academia_id] || {};
+            const cor = x.cores?.primaria || "#7c3aed";
+            return (
+              <article key={a.academia_id} className={`overflow-hidden rounded-2xl bg-painel ${a.ativa ? "" : "opacity-60"}`}>
+                <Faixa cor={cor} altura={8} className="rounded-none" />
+                <div className="space-y-3 p-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">{a.nome} {a.tipo === "projeto_social" && <span className="chip text-xs">projeto social</span>}</h2>
+                    <p className="text-sm text-suave">/{a.slug}{x.dominio ? ` · ${x.dominio}` : ""}{x.cidade ? ` · ${x.cidade}` : ""}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-xl bg-painel2 p-2"><p className="numero text-xl font-bold">{a.alunos_ativos}</p><p className="text-[11px] text-suave">alunos{a.novos_mes ? ` (+${a.novos_mes})` : ""}</p></div>
+                    <div className="rounded-xl bg-painel2 p-2"><p className="numero text-xl font-bold">{a.presenca_30d ?? "—"}%</p><p className="text-[11px] text-suave">presença 30d</p></div>
+                    <div className="rounded-xl bg-painel2 p-2"><p className="numero text-xl font-bold">{dinheiro(a.recebido_mes).replace(",00", "")}</p><p className="text-[11px] text-suave">recebeu no mês</p></div>
+                  </div>
+                  {Number(a.atrasado) > 0 && <p className="text-sm text-erro">Alunos devendo: {dinheiro(a.atrasado)}</p>}
+                  {a.proximo_evento && <p className="text-sm">📅 {a.proximo_evento} · {dataHoraBR(a.proximo_evento_data)}</p>}
+                  <div className="rounded-xl border border-linha p-2 text-sm">
+                    {editar?.id === a.academia_id ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input className="campo w-28" inputMode="decimal" placeholder="R$/mês" defaultValue={a.plataforma_valor || ""} onChange={(e) => setEditar({ ...editar, valor: e.target.value })} />
+                        <input className="campo w-20" type="number" placeholder="dia" defaultValue={a.plataforma_dia || 10} onChange={(e) => setEditar({ ...editar, dia: e.target.value })} />
+                        <button className="btn-sec text-xs" onClick={salvarContrato}>Salvar</button>
+                      </div>
+                    ) : Number(a.plataforma_valor) > 0 ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span>💼 Paga {dinheiro(a.plataforma_valor)} todo dia {a.plataforma_dia} · {a.plataforma_pago_mes ? <b className="text-ok">pago este mês</b> : <b className="text-alerta">em aberto</b>}</span>
+                        <span className="flex gap-2">
+                          {!a.plataforma_pago_mes && <button className="btn-sec px-2 py-1 text-xs" onClick={() => registrarPagamento(a)}>Recebi</button>}
+                          <button className="text-xs underline" onClick={() => setEditar({ id: a.academia_id, valor: a.plataforma_valor, dia: a.plataforma_dia })}>editar</button>
+                        </span>
+                      </div>
+                    ) : (
+                      <button className="text-xs underline" onClick={() => setEditar({ id: a.academia_id })}>💼 Definir quanto esta academia paga para você</button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/${a.slug}/app`} className="btn text-sm">Abrir app</Link>
+                    <Link href={`/${a.slug}`} className="btn-sec text-sm">Página</Link>
+                    <button className="btn-sec text-sm" onClick={() => alternar(a.academia_id, "no_diretorio", x.no_diretorio)}>{x.no_diretorio ? "No diretório ✓" : "Fora do diretório"}</button>
+                    <button className="btn-sec text-sm" onClick={() => alternar(a.academia_id, "ativa", a.ativa)}>{a.ativa ? "Desativar" : "Ativar"}</button>
+                  </div>
                 </div>
-                <p className="numero text-lg">{r.alunos_ativos ?? 0} alunos ativos · {r.novos_no_mes ?? 0} novos no mês</p>
-                <div className="flex flex-wrap gap-2">
-                  <Link href={`/${a.slug}/app`} className="btn text-sm">Abrir app</Link>
-                  <Link href={`/${a.slug}`} className="btn-sec text-sm">Página pública</Link>
-                  <button className="btn-sec text-sm" onClick={() => alternar(a, "no_diretorio")}>{a.no_diretorio ? "No diretório ✓" : "Fora do diretório"}</button>
-                  <button className="btn-sec text-sm" onClick={() => alternar(a, "ativa")}>{a.ativa ? "Desativar" : "Ativar"}</button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+              </article>
+            );
+          })}
+        </div>
+
+        <aside className="h-fit rounded-2xl bg-painel p-4">
+          <h2 className="mb-3 text-2xl font-bold">📅 Próximos 45 dias</h2>
+          <ul className="space-y-2">
+            {agenda.map((e, i) => (
+              <li key={i} className="border-l-4 pl-3" style={{ borderColor: extra[lista.find((a) => a.slug === e.slug)?.academia_id]?.cores?.primaria || "var(--cor)" }}>
+                <p className="text-sm font-semibold">{e.tipo === "campeonato" ? "🥇" : e.tipo === "prova" ? "🎓" : "📅"} {e.titulo}</p>
+                <p className="text-xs text-suave">{e.academia} · {dataHoraBR(e.inicio)}{e.local ? ` · ${e.local}` : ""}</p>
+              </li>
+            ))}
+            {!agenda.length && <p className="text-sm text-suave">Nenhum evento marcado.</p>}
+          </ul>
+        </aside>
       </div>
     </main>
   );

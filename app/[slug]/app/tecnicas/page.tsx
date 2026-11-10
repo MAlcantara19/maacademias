@@ -19,6 +19,8 @@ export default function Tecnicas() {
   const [form, setForm] = useState<any>(null);
   const [csv, setCsv] = useState<string | null>(null);
   const [aberta, setAberta] = useState<string>("");
+  const [relacoes, setRelacoes] = useState<any[]>([]);
+  const [novaRel, setNovaRel] = useState<any>({ tipo: "combinacao", alvo: "" });
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -34,7 +36,16 @@ export default function Tecnicas() {
     if (!modId) return;
     const { data } = await sb.from("tecnicas").select("*").eq("modalidade_id", modId).order("ordem");
     setLista(data || []);
+    const { data: rel } = await sb.from("tecnica_relacoes").select("*").eq("academia_id", ctx.academia.id);
+    setRelacoes(rel || []);
   }
+  async function addRelacao(t: any) {
+    if (!novaRel.alvo) return;
+    const { error } = await sb.from("tecnica_relacoes").insert({ academia_id: ctx.academia.id, tecnica_id: t.id, relacionada_id: novaRel.alvo, tipo: novaRel.tipo, observacao: novaRel.obs || null });
+    setMsg(error ? error.message : ""); setNovaRel({ tipo: novaRel.tipo, alvo: "" }); carregar();
+  }
+  async function apagarRelacao(id: string) { await sb.from("tecnica_relacoes").delete().eq("id", id); carregar(); }
+  const nomeTec = (id: string) => { const x = lista.find((t) => t.id === id); return x ? x.nome_original || x.nome : "(técnica bloqueada)"; };
   useEffect(() => { carregar(); }, [modId]); // eslint-disable-line
 
   const mod = mods.find((m) => m.id === modId);
@@ -106,6 +117,36 @@ export default function Tecnicas() {
           {(t.conjunto || t.classificacao) && <p className="text-xs text-suave">{[t.conjunto, CLASSIFICACOES[t.classificacao]].filter(Boolean).join(" · ")}</p>}
           {t.descricao && <p className="text-suave">{t.descricao}</p>}
           {t.video_url && <a href={t.video_url} target="_blank" className="btn-sec text-sm">Ver vídeo</a>}
+          {["combinacao", "contragolpe"].map((tp) => {
+            const rs = relacoes.filter((r) => r.tecnica_id === t.id && r.tipo === tp);
+            if (!rs.length) return null;
+            return (
+              <div key={tp}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-suave">{tp === "combinacao" ? "🔗 Combina com" : "↩️ Contragolpes"}</p>
+                <ul className="mt-1 space-y-1">
+                  {rs.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2">
+                      <span>{nomeTec(r.relacionada_id)}{r.observacao ? <span className="text-suave"> — {r.observacao}</span> : null}</span>
+                      {ctx.equipe && <button className="text-xs text-suave underline" onClick={() => apagarRelacao(r.id)}>tirar</button>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {ctx.equipe && (
+            <div className="grid gap-1.5 rounded-lg border border-linha p-2 sm:grid-cols-[auto_1fr_1fr_auto]">
+              <select className="campo py-1.5 text-xs" value={novaRel.tipo} onChange={(e) => setNovaRel({ ...novaRel, tipo: e.target.value })}>
+                <option value="combinacao">Combina com</option><option value="contragolpe">Contragolpe</option>
+              </select>
+              <select className="campo py-1.5 text-xs" value={novaRel.alvo} onChange={(e) => setNovaRel({ ...novaRel, alvo: e.target.value })}>
+                <option value="">Escolha a técnica…</option>
+                {lista.filter((x) => x.id !== t.id && !["taiso", "ukemi"].includes(x.grupo)).map((x) => <option key={x.id} value={x.id}>{x.nome_original || x.nome}</option>)}
+              </select>
+              <input className="campo py-1.5 text-xs" placeholder="Observação (opcional)" value={novaRel.obs || ""} onChange={(e) => setNovaRel({ ...novaRel, obs: e.target.value })} />
+              <button className="btn-sec px-3 py-1.5 text-xs" onClick={() => addRelacao(t)}>+ Ligar</button>
+            </div>
+          )}
           {ctx.equipe && (
             <div className="flex gap-3">
               <button className="underline" onClick={() => setForm({ ...t })}>editar</button>

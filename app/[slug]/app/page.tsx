@@ -101,7 +101,8 @@ export default function Inicio() {
         const proximas = lista
           .filter((a) => a.dia > hoje || a.hora_fim > agora)
           .sort((a, b) => (a.dia + a.hora_inicio).localeCompare(b.dia + b.hora_inicio));
-        setD({ avisos, eventos, painel: painel.data || [], proxima: proximas[0], pendencias: pendencias.data || [] });
+        const { count: indicados } = await sb.from("indicacoes").select("id", { count: "exact", head: true }).in("indicador_id", ids.length ? ids : [NENHUM]);
+        setD({ avisos, eventos, painel: painel.data || [], proxima: proximas[0], pendencias: pendencias.data || [], indicados: indicados || 0 });
       }
     })();
   }, [ctx.academia.id]); // eslint-disable-line
@@ -250,6 +251,22 @@ export default function Inicio() {
               </Link>
             ))}
           </div>
+          {ctx.meusAlunos[0] && (() => {
+            const link = typeof window !== "undefined" ? `${window.location.origin}/${ctx.academia.slug}/cadastro?indicado=${ctx.meusAlunos[0].id}` : "";
+            const texto = `Bora treinar comigo na ${ctx.academia.nome}? 🥋 Faz o cadastro por aqui: ${link}`;
+            return (
+              <Cartao titulo="🤝 Indique um amigo">
+                <p className="text-sm text-suave">
+                  Mande seu link para um amigo. Quando ele se cadastrar{ctx.academia.recompensa_indicacao ? <>, você ganha: <b className="text-texto">{ctx.academia.recompensa_indicacao}</b></> : ", você ganha o título 🤝 Embaixador"}.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <a className="btn text-sm" target="_blank" href={`https://wa.me/?text=${encodeURIComponent(texto)}`}>Mandar no WhatsApp</a>
+                  <button className="btn-sec text-sm" onClick={() => navigator.clipboard.writeText(link)}>Copiar link</button>
+                </div>
+                {d.indicados > 0 && <p className="mt-2 text-sm">Você já trouxe <b>{d.indicados}</b> amigo(s). Valeu! 🙌</p>}
+              </Cartao>
+            );
+          })()}
           {d.pendencias.length > 0 && (
             <Cartao titulo="Pendências" href={`${base}/pendencias`}>
               <ul className="space-y-2">

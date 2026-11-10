@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { supabaseNavegador } from "@/lib/supabase/client";
 
-export function FormCadastro({ academiaId, slug, modalidades, turmas }: { academiaId: string; slug: string; modalidades: any[]; turmas: any[] }) {
+export function FormCadastro({ academiaId, slug, modalidades, turmas, indicadoPor }: { academiaId: string; slug: string; modalidades: any[]; turmas: any[]; indicadoPor?: string | null }) {
   const [f, setF] = useState<any>({ sexo: "M", aceite_imagem: false });
   const [enviado, setEnviado] = useState<boolean | string>(false);
   const [erro, setErro] = useState("");
@@ -20,6 +20,7 @@ export function FormCadastro({ academiaId, slug, modalidades, turmas }: { academ
       nascimento: f.nascimento || null, sexo: f.sexo, modalidade_id: f.modalidade_id || null, turma_id: f.turma_id || null,
       responsavel_nome: menor ? f.responsavel_nome : null, responsavel_email: menor ? f.responsavel_email?.trim().toLowerCase() || null : null,
       responsavel_tel: menor ? f.responsavel_tel : null, aceite_imagem: !!f.aceite_imagem, mensagem: f.mensagem || null,
+      indicado_por: indicadoPor || null,
     });
     if (error) return setErro("Não foi possível enviar. Confira os dados e tente de novo.");
     const turma = turmas.find((t) => t.id === f.turma_id);

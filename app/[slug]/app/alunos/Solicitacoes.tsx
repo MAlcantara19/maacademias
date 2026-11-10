@@ -55,6 +55,10 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
         aceito_por: menor ? s.responsavel_nome : s.nome, e_responsavel: menor,
       });
     }
+    if (s.indicado_por) {
+      await sb.from("indicacoes").insert({ academia_id: ctx.academia.id, indicador_id: s.indicado_por, indicado_nome: s.nome, indicado_membro: membroId });
+      await sb.rpc("avaliar_conquistas", { p_membro: s.indicado_por });
+    }
     await sb.from("solicitacoes_cadastro").update({ status: "aprovada", avaliada_por: ctx.membroId }).eq("id", s.id);
     setMsg(`${s.nome} aprovado(a)! Avise para entrar em “Primeiro acesso” com o e-mail ${menor ? "do responsável" : "cadastrado"}.`);
     carregar(); onAprovar();
@@ -83,6 +87,7 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
               {s.modalidades?.nome ? ` · ${s.modalidades.nome}` : ""}{s.aceite_imagem ? " · ✅ autoriza imagem" : " · ❌ não autoriza imagem"}
             </p>
             {s.mensagem && <p className="text-sm">💬 {s.mensagem}</p>}
+            {s.indicado_por && <p className="text-sm">🤝 Veio por indicação{ctx.academia.recompensa_indicacao ? ` (recompensa: ${ctx.academia.recompensa_indicacao})` : ""}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
               <select className="campo w-auto text-sm" value={escolha[s.id] ?? s.turma_id ?? ""} onChange={(e) => setEscolha({ ...escolha, [s.id]: e.target.value })}>
                 <option value="">Sem turma por enquanto</option>
