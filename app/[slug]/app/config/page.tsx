@@ -5,12 +5,13 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { QR } from "@/components/QR";
 import { Backup } from "@/components/Backup";
+import { ROTULO_PLANO, liberado, planoMinimoNome } from "@/lib/planos";
 
 const MODULOS: [string, string][] = [
   ["sobre", "Sobre nós"], ["propaganda", "Propagandas"], ["calendario", "Calendário"], ["avisos", "Avisos"],
   ["ranking", "Ranking"], ["feed", "Feed"], ["materiais", "Material de apoio"], ["mensalidades", "Mensalidades"],
   ["carteirinha", "Carteirinha"], ["campeonatos", "Campeonatos"], ["aula_experimental", "Aula experimental"], ["feedback", "Sugestões"],
-  ["tecnicas", "Técnicas, roleta e exames"], ["galeria", "Galeria (Google Drive)"],
+  ["galeria", "Galeria (Google Drive)"],
 ];
 
 export default function Config() {
@@ -204,16 +205,25 @@ export default function Config() {
             <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
 
+          <p className="rounded-xl bg-painel2 p-3 text-sm">Plano atual: <b>{ROTULO_PLANO[a.plano] || "Essencial"}</b>. Para mudar de plano, fale com o suporte do MA Academias.</p>
+
+          {liberado(a.plano, "backup") && (<>
           <h3 className="pt-2 text-xl font-bold">Backup</h3>
           <Backup academia={a} />
+          </>)}
 
+          {liberado(a.plano, "contrato") && (<>
           <h3 className="pt-2 text-xl font-bold">Contrato e termos</h3>
           <p className="text-xs text-suave">Os alunos (ou responsáveis) aceitam no app. Se você mudar o texto, todos aceitam de novo. {aceites !== null && `Versão atual: ${aceites} aceite(s).`}</p>
           <textarea className="campo min-h-40 text-sm" placeholder={"Ex.: 1. A mensalidade vence todo dia 10...\n2. O aluno declara estar apto à prática de atividade física...\n3. Autorizo o uso de imagem..."} value={a.contrato_texto || ""} onChange={(e) => muda("contrato_texto", e.target.value)} />
 
+          </>)}
+
+          {liberado(a.plano, "indicacoes") && (<>
           <h3 className="pt-2 text-xl font-bold">Indique um amigo</h3>
           <input className="campo" placeholder="Recompensa (ex.: 10% de desconto na próxima mensalidade, kimono, selo…)" value={a.recompensa_indicacao || ""} onChange={(e) => muda("recompensa_indicacao", e.target.value)} />
           <p className="text-xs text-suave">O aluno compartilha o link dele. Quando o amigo se cadastra e você aprova, a indicação aparece em Alunos e ele ganha o título 🤝 Embaixador.</p>
+          </>)}
 
           <h3 className="pt-2 text-xl font-bold">Visual</h3>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -274,22 +284,30 @@ export default function Config() {
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tecnicas_progressivas} onChange={(e) => muda("tecnicas_progressivas", e.target.checked)} /> Técnicas progressivas: o aluno vê a matéria até a próxima faixa dele</label>
 
+          {liberado(a.plano, "chamada_facial") && (<>
           <h3 className="pt-2 text-xl font-bold">Chamada</h3>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={(a.modos_chamada || []).includes("facial")}
               onChange={(e) => muda("modos_chamada", e.target.checked ? Array.from(new Set([...(a.modos_chamada || ["manual"]), "facial"])) : (a.modos_chamada || []).filter((x: string) => x !== "facial"))} />
             <span>Chamada por reconhecimento facial (foto da turma). Cada aluno cadastra o rosto na própria ficha, com autorização. A foto é analisada no celular; só um código numérico fica guardado.</span>
           </label>
+          </>)}
 
           <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>
           <div className="flex flex-wrap gap-2">
             {MODULOS.map(([k, v]) => {
-              const on = a.modulos?.[k] !== false;
+              const pode = liberado(a.plano, k);
+              const on = pode && a.modulos?.[k] !== false;
               return (
-                <button key={k} className="chip py-2" style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
-                  onClick={() => muda("modulos", { ...(a.modulos || {}), [k]: !on })}>{on ? "✓ " : ""}{v}</button>
+                <button key={k} className="chip py-2" disabled={!pode} title={pode ? "" : `Disponível no plano ${planoMinimoNome(k)}`}
+                  style={on ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : !pode ? { opacity: 0.5 } : {}}
+                  onClick={() => muda("modulos", { ...(a.modulos || {}), [k]: !on })}>{!pode ? "🔒 " : on ? "✓ " : ""}{v}{!pode ? ` · ${planoMinimoNome(k)}` : ""}</button>
               );
             })}
+            {ctx.master && (
+              <button className="chip py-2" style={a.modulos?.tecnicas ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}
+                onClick={() => muda("modulos", { ...(a.modulos || {}), tecnicas: !a.modulos?.tecnicas })}>{a.modulos?.tecnicas ? "✓ " : ""}Técnicas e estudo (só master)</button>
+            )}
           </div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={!!a.no_diretorio} onChange={(e) => muda("no_diretorio", e.target.checked)} /> Aparecer na página geral de academias</label>
 

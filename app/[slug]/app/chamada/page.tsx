@@ -8,6 +8,7 @@ import { DIAS, hora, hojeISO } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Tour } from "@/components/Tour";
 import { minhasTurmas } from "@/lib/turmas";
+import { liberado } from "@/lib/planos";
 import { reconhecer, rostosDaFoto } from "@/lib/rosto";
 
 function Chamada() {
@@ -284,7 +285,7 @@ function Chamada() {
             {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes</span>
           </p>
           <div className="flex flex-wrap justify-end gap-2">
-            {(ctx.academia.modos_chamada || []).includes("facial") && !cancelada && (
+            {(ctx.academia.modos_chamada || []).includes("facial") && liberado(ctx.academia.plano, "chamada_facial") && !cancelada && (
               <label className="btn-sec cursor-pointer text-sm">🤳 Pela foto
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => chamadaPorFoto(e.target.files?.[0])} />
               </label>

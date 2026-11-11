@@ -7,6 +7,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
 import { BoasVindas } from "@/components/BoasVindas";
 import { Contrato } from "@/components/Contrato";
+import { liberado } from "@/lib/planos";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
@@ -16,7 +17,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
   const [mais, setMais] = useState(false);
   const base = `/${ctx.academia.slug}/app`;
 
-  const mod = (n: string) => ctx.academia.modulos?.[n] !== false;
+  const plano = ctx.academia.plano;
+  const mod = (n: string) => ctx.academia.modulos?.[n] !== false && liberado(plano, n);
   const itens: Item[] = (ctx.equipe
     ? [
         { href: base, rotulo: "Início", icone: "🏠" },
@@ -55,7 +57,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
       ]
   ).filter((i: any) => !i.m || mod(i.m) || (i.m === "feed" && ctx.academia.modulos?.galeria === true))
    .filter((i: any) => !(i.href.endsWith("/tecnicas") || i.href.endsWith("/estudar")) || ctx.academia.modulos?.tecnicas === true)
-   .filter((i: any) => !i.href.endsWith("/relatorio") || ctx.admin)
+   .filter((i: any) => !i.href.endsWith("/feed") || liberado(plano, "feed") || liberado(plano, "galeria"))
+   .filter((i: any) => !i.href.endsWith("/relatorio") || (ctx.admin && liberado(plano, "relatorio")))
    .filter((i: any) => !(ctx.equipe && !ctx.admin && i.href.endsWith("/mensalidades")))
    .map((i: any) => (ctx.equipe && !ctx.admin && i.href.endsWith("/gestao") ? { ...i, rotulo: "Minhas turmas" } : i))
    .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));

@@ -191,11 +191,36 @@ export default function Mensalidades() {
       </div>
       {msg && <p className="text-sm text-suave">{msg}</p>}
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-painel p-4"><p className="numero text-2xl font-bold text-ok sm:text-3xl">{dinheiro(totais.recebido)}</p><p className="text-sm text-suave">recebido</p></div>
-        <div className="rounded-2xl bg-painel p-4"><p className="numero text-2xl font-bold sm:text-3xl">{dinheiro(totais.aberto)}</p><p className="text-sm text-suave">a vencer</p></div>
-        <div className="rounded-2xl bg-painel p-4"><p className="numero text-2xl font-bold text-erro sm:text-3xl">{dinheiro(totais.atrasado)}</p><p className="text-sm text-suave">atrasado</p></div>
-      </div>
+      {/* Resumo do mês: quanto entrou, quanto falta e o que vence logo */}
+      {(() => {
+        const previsto = totais.recebido + totais.aberto + totais.atrasado;
+        const pct = previsto ? Math.round((100 * totais.recebido) / previsto) : 0;
+        const proximos = cobrancas.filter((c) => c.status === "aberta" && c.vencimento >= hoje && c.vencimento <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+        return (
+          <section className="space-y-4 rounded-2xl bg-painel p-5">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-sm text-suave">Recebido em {MESES[Number(mes.slice(5, 7)) - 1]}</p>
+                <p className="numero text-4xl font-bold">{dinheiro(totais.recebido)} <span className="text-lg font-normal text-suave">de {dinheiro(previsto)}</span></p>
+              </div>
+              <p className="numero text-3xl font-bold" style={{ color: "var(--color-ok)" }}>{pct}%</p>
+            </div>
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-fundo">
+              <div style={{ width: `${previsto ? (100 * totais.recebido) / previsto : 0}%`, background: "var(--color-ok)" }} />
+              <div style={{ width: `${previsto ? (100 * totais.aberto) / previsto : 0}%`, background: "var(--color-alerta)" }} />
+              <div style={{ width: `${previsto ? (100 * totais.atrasado) / previsto : 0}%`, background: "var(--color-erro)" }} />
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-ok)" }} />Pago {dinheiro(totais.recebido)}</span>
+              <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-alerta)" }} />A vencer {dinheiro(totais.aberto)}</span>
+              <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-erro)" }} />Atrasado {dinheiro(totais.atrasado)}</span>
+            </div>
+            {proximos.length > 0 && (
+              <p className="text-sm text-suave">📅 Vencem nos próximos 7 dias: {proximos.slice(0, 6).map((c) => `${c.membros?.perfis?.apelido || c.membros?.perfis?.nome?.split(" ")[0]} (${dataBR(c.vencimento).slice(0, 5)})`).join(", ")}{proximos.length > 6 ? ` e mais ${proximos.length - 6}` : ""}</p>
+            )}
+          </section>
+        );
+      })()}
 
       <div className="flex flex-wrap gap-2">
         {[["todas", "Todas"], ["atrasada", "Atrasadas"], ["aberta", "A vencer"], ["paga", "Pagas"], ["isenta", "Isentas"]].map(([k, v]) => (

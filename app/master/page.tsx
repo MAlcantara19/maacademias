@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
 import { dataHoraBR, dinheiro } from "@/lib/util";
+import { PRECO_PLANO, ROTULO_PLANO } from "@/lib/planos";
 
 // Painel do dono da plataforma: todas as academias, números, calendário geral
 // e o que cada academia paga para você.
@@ -25,7 +26,7 @@ export default function Master() {
     if (!m) return;
     const [{ data: r }, { data: ac }, { data: cal }] = await Promise.all([
       sb.rpc("resumo_master"),
-      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio"),
+      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio, plano"),
       sb.rpc("calendario_master", { p_dias: 45 }),
     ]);
     setLista(r || []);
@@ -41,6 +42,7 @@ export default function Master() {
     const id = crypto.randomUUID();
     const { error } = await sb.from("academias").insert({
       id, nome: nova.nome, slug: nova.slug || slugDe(nova.nome), cidade: nova.cidade || null, tipo: nova.tipo || "academia",
+      plano: nova.tipo === "projeto_social" ? "social" : nova.plano || "essencial",
       whatsapp: nova.whatsapp || null, cores: { primaria: nova.cor || "#7c3aed" }, no_diretorio: true,
     });
     if (error) return setMsg(error.message.includes("duplicate") ? "Já existe uma academia com esse endereço." : error.message);
@@ -62,6 +64,12 @@ export default function Master() {
     const comp = new Date(); comp.setDate(1);
     const { error } = await sb.from("plataforma_pagamentos").upsert({ academia_id: a.academia_id, competencia: comp.toISOString().slice(0, 10), valor: a.plataforma_valor || 0, pago_em: new Date().toISOString().slice(0, 10) }, { onConflict: "academia_id,competencia" });
     setMsg(error ? error.message : `Pagamento de ${a.nome} registrado.`); carregar();
+  }
+  async function mudarPlano(a: any, plano: string) {
+    await sb.from("academias").update({ plano }).eq("id", a.academia_id);
+    const preco = PRECO_PLANO[plano] ?? 0;
+    if (preco > 0) await sb.from("plataforma_contratos").upsert({ academia_id: a.academia_id, valor_mensal: preco, dia_vencimento: a.plataforma_dia || 10, ativo: true });
+    setMsg(`${a.nome} agora está no plano ${ROTULO_PLANO[plano]}.`); carregar();
   }
   async function alternar(id: string, campo: string, valor: boolean) { await sb.from("academias").update({ [campo]: !valor }).eq("id", id); carregar(); }
 
@@ -103,6 +111,10 @@ export default function Master() {
           <input className="campo" placeholder="endereço no site" value={nova.slug || ""} onChange={(e) => setNova({ ...nova, slug: slugDe(e.target.value) })} />
           <input className="campo" placeholder="Cidade" onChange={(e) => setNova({ ...nova, cidade: e.target.value })} />
           <select className="campo" value={nova.tipo} onChange={(e) => setNova({ ...nova, tipo: e.target.value })}><option value="academia">Academia</option><option value="projeto_social">Projeto social</option></select>
+          <select className="campo" value={nova.plano || "essencial"} onChange={(e) => setNova({ ...nova, plano: e.target.value, valor: PRECO_PLANO[e.target.value] || "" })}>
+            {Object.entries(ROTULO_PLANO).map(([k, v]) => <option key={k} value={k}>Plano {v}{PRECO_PLANO[k] ? ` — R$ ${PRECO_PLANO[k]}/mês` : ""}</option>)}
+          </select>
+          <span />
           <input className="campo" placeholder="Nome do admin (dono)" onChange={(e) => setNova({ ...nova, admin_nome: e.target.value })} />
           <input className="campo" type="email" placeholder="E-mail do admin" onChange={(e) => setNova({ ...nova, admin_email: e.target.value })} />
           <input className="campo" inputMode="decimal" placeholder="Quanto paga por mês para você (opcional)" onChange={(e) => setNova({ ...nova, valor: e.target.value })} />
@@ -124,6 +136,12 @@ export default function Master() {
                   <div>
                     <h2 className="text-2xl font-bold">{a.nome} {a.tipo === "projeto_social" && <span className="chip text-xs">projeto social</span>}</h2>
                     <p className="text-sm text-suave">/{a.slug}{x.dominio ? ` · ${x.dominio}` : ""}{x.cidade ? ` · ${x.cidade}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-suave">Plano:</span>
+                    <select className="campo w-auto py-1.5 text-sm" value={x.plano || "essencial"} onChange={(e) => mudarPlano(a, e.target.value)}>
+                      {Object.entries(ROTULO_PLANO).map(([k, v]) => <option key={k} value={k}>{v}{PRECO_PLANO[k] ? ` — R$ ${PRECO_PLANO[k]}` : ""}</option>)}
+                    </select>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-xl bg-painel2 p-2"><p className="numero text-xl font-bold">{a.alunos_ativos}</p><p className="text-[11px] text-suave">alunos{a.novos_mes ? ` (+${a.novos_mes})` : ""}</p></div>

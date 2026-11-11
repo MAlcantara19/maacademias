@@ -13,7 +13,7 @@ export default async function Inicio() {
       <header className="flex items-center justify-between py-3">
         <span className="titulo text-xl font-bold">MA Academias</span>
         <div className="flex gap-2">
-          <Link href="/conheca" className="btn-sec text-sm">Para academias</Link>
+          <Link href="/planos" className="btn-sec text-sm">Para academias</Link>
           <Link href="/login" className="btn-sec text-sm">Entrar</Link>
         </div>
       </header>

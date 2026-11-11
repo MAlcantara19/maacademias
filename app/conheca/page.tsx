@@ -36,7 +36,7 @@ export default function Conheca() {
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link href="/demo" className="btn text-lg">Ver a demonstração</Link>
-          <a href={link} target="_blank" className="btn-sec text-lg">Quero para a minha academia</a>
+          <Link href="/planos" className="btn-sec text-lg">Ver planos e preços</Link>
         </div>
         <Faixa graus={4} altura={14} className="mt-12" />
       </section>

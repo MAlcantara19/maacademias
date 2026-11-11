@@ -82,6 +82,7 @@ arquivos `ATUALIZAR-xx.sql`, que só acrescentam coisas sem apagar nada.
 
 Atualizações do banco: 01 (vocabulário, quiz, Judô Clube Denis), 02 (meta de estudo,
 placar, lembrete de sexta e pronúncia) e 03 (desafio do dia, flashcards, simulado, títulos,
-combinações/contragolpes, contrato, despesas, indicações, painel master e backup) e 04 (permissões
-por papel, temporadas, tema minimalista e logins de teste por modalidade).
+combinações/contragolpes, contrato, despesas, indicações, painel master e backup) 04 (permissões
+por papel, temporadas, tema minimalista e logins de teste por modalidade) e 05 (planos comerciais:
+Essencial, Profissional, Completo, Fundador, Social e Exclusivo). Preços e o que cada plano inclui: `lib/planos.ts`.
 O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria só a Academia Piloto.
