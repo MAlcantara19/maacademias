@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import type { Ctx } from "@/lib/contexto";
+import { liberado } from "@/lib/planos";
 
 // Contrato/termos da academia: o aluno (ou o responsável) aceita no app.
 // Se a academia mudar o texto, pede o aceite de novo.
@@ -12,7 +13,7 @@ export function Contrato({ ctx }: { ctx: Ctx }) {
   const a = ctx.academia;
 
   useEffect(() => {
-    if (ctx.equipe || ctx.vendoComo || !a.contrato_texto || !a.contrato_versao || !ctx.perfil?.boas_vindas_em || !ctx.meusAlunos.length) return;
+    if (!liberado(a.plano, "contrato") || ctx.equipe || ctx.vendoComo || !a.contrato_texto || !a.contrato_versao || !ctx.perfil?.boas_vindas_em || !ctx.meusAlunos.length) return;
     (async () => {
       const { data: ms } = await sb.from("membros").select("id, perfil_id, perfis(nome)").in("id", ctx.meusAlunos.map((m) => m.id));
       const { data: aceites } = await sb.from("consentimentos").select("perfil_id").eq("academia_id", a.id).eq("tipo", "contrato")

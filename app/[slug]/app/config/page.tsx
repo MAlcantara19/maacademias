@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
@@ -11,7 +12,7 @@ const MODULOS: [string, string][] = [
   ["sobre", "Sobre nós"], ["propaganda", "Propagandas"], ["calendario", "Calendário"], ["avisos", "Avisos"],
   ["ranking", "Ranking"], ["feed", "Feed"], ["materiais", "Material de apoio"], ["mensalidades", "Mensalidades"],
   ["carteirinha", "Carteirinha"], ["campeonatos", "Campeonatos"], ["aula_experimental", "Aula experimental"], ["feedback", "Sugestões"],
-  ["galeria", "Galeria (Google Drive)"],
+  ["galeria", "Galeria (Google Drive)"], ["cadastro_online", "Cadastro online pelo aluno"], ["pre_checkin", "Pré-check-in (vou na aula)"],
 ];
 
 export default function Config() {
@@ -41,7 +42,7 @@ export default function Config() {
 
   async function enviar(arq: File, nome: string) {
     const caminho = `${a.id}/${nome}-${Date.now()}.${arq.name.split(".").pop()}`;
-    const up = await sb.storage.from("publico").upload(caminho, arq);
+    const up = await sb.storage.from("publico").upload(caminho, await comprimir(arq));
     if (up.error) { setMsg("Não foi possível enviar a imagem: " + up.error.message); return null; }
     return sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl;
   }
@@ -79,6 +80,7 @@ export default function Config() {
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
+      professor_ve_mensalidades: !!a.professor_ve_mensalidades,
       tema: a.tema || {}, modos_chamada: a.modos_chamada || ["manual"], tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
       contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
@@ -106,7 +108,7 @@ export default function Config() {
         Horários, turmas e professores ficam em <b>Turmas e equipe</b>.
       </p>
 
-      <section className="imprimir-claro flex flex-col items-center gap-4 rounded-3xl bg-painel p-6 text-center">
+      {liberado(a.plano, "chamada_qr") && <section className="imprimir-claro flex flex-col items-center gap-4 rounded-3xl bg-painel p-6 text-center">
         <h2 className="text-3xl font-bold">Check-in da {a.nome}</h2>
         <QR texto={link} tamanho={260} />
         <p className="max-w-sm text-suave">Aponte a câmera do celular, entre com seu login e sua presença é marcada.</p>
@@ -116,9 +118,9 @@ export default function Config() {
           {ctx.admin && <button className="btn-sec" onClick={novoQR}>Gerar QR novo</button>}
         </div>
         <p className="nao-imprimir text-xs text-suave">O check-in só vale para quem está a até {a.checkin_raio_m} m da academia e no horário da aula.</p>
-      </section>
+      </section>}
 
-      <section className="nao-imprimir flex flex-col items-center gap-3 rounded-3xl bg-painel p-6 text-center">
+      {a.modulos?.cadastro_online !== false && <section className="nao-imprimir flex flex-col items-center gap-3 rounded-3xl bg-painel p-6 text-center">
         <h2 className="text-3xl font-bold">Link de cadastro de alunos</h2>
         <p className="max-w-sm text-suave">Mande no grupo da turma ou cole na recepção. O aluno preenche e você aprova em “Alunos”.</p>
         <QR texto={linkCadastro} tamanho={180} />
@@ -126,7 +128,7 @@ export default function Config() {
           <button className="btn-sec" onClick={() => navigator.clipboard.writeText(linkCadastro).then(() => setMsg("Link de cadastro copiado."))}>Copiar link</button>
           <a className="btn-sec" target="_blank" href={`https://wa.me/?text=${encodeURIComponent(`Faça seu cadastro na ${a.nome}: ${linkCadastro}`)}`}>Mandar no WhatsApp</a>
         </div>
-      </section>
+      </section>}
 
       {ctx.admin ? (
         <section className="nao-imprimir space-y-4 rounded-2xl bg-painel p-4">
@@ -166,7 +168,17 @@ export default function Config() {
             <div><label className="rotulo">Latitude</label><input className="campo" value={a.latitude ?? ""} onChange={(e) => muda("latitude", e.target.value)} /></div>
             <div><label className="rotulo">Longitude</label><input className="campo" value={a.longitude ?? ""} onChange={(e) => muda("longitude", e.target.value)} /></div>
             <div className="sm:col-span-2"><label className="rotulo">Link do Google Maps</label><input className="campo" value={a.maps_url || ""} onChange={(e) => muda("maps_url", e.target.value)} /></div>
-            <p className="text-xs text-suave sm:col-span-2">Dica: no Google Maps, segure o dedo em cima da academia para ver a latitude e a longitude.</p>
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <button className="btn-sec text-sm" onClick={() => navigator.geolocation?.getCurrentPosition(
+                (p) => { muda("latitude", p.coords.latitude.toFixed(6)); muda("longitude", p.coords.longitude.toFixed(6)); setMsg("Localização preenchida. Clique em Salvar."); },
+                () => setMsg("Não consegui pegar a localização. Libere o acesso no navegador."), { timeout: 12000 })}>📍 Estou na academia: usar minha localização</button>
+              <button className="btn-sec text-sm" onClick={() => {
+                const m = (a.maps_url || "").match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || (a.maps_url || "").match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/) || (a.maps_url || "").match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                if (m) { muda("latitude", m[1]); muda("longitude", m[2]); setMsg("Coordenadas tiradas do link. Clique em Salvar."); }
+                else setMsg("Não achei as coordenadas no link. Abra a academia no Google Maps no computador e copie o link da barra de endereço.");
+              }}>🗺️ Pegar do link do Google Maps</button>
+            </div>
+            <p className="text-xs text-suave sm:col-span-2">A latitude e a longitude fazem a academia aparecer no “Perto de mim” e no mapa, e são usadas no check-in por QR.</p>
           </div>
 
           <h3 className="pt-2 text-xl font-bold">Pix das mensalidades</h3>
@@ -205,7 +217,7 @@ export default function Config() {
             <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
           </div>
 
-          <p className="rounded-xl bg-painel2 p-3 text-sm">Plano atual: <b>{ROTULO_PLANO[a.plano] || "Essencial"}</b>. Para mudar de plano, fale com o suporte do MA Academias.</p>
+          <p className="rounded-xl bg-painel2 p-3 text-sm">Plano atual: <b>{ROTULO_PLANO[a.plano] || "Base"}</b>. Para mudar de plano, fale com o suporte do MA Academias.</p>
 
           {liberado(a.plano, "backup") && (<>
           <h3 className="pt-2 text-xl font-bold">Backup</h3>
@@ -293,7 +305,13 @@ export default function Config() {
           </label>
           </>)}
 
-          <h3 className="pt-2 text-xl font-bold">Funções ligadas</h3>
+          {liberado(a.plano, "mensalidades") && (
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.professor_ve_mensalidades} onChange={(e) => muda("professor_ve_mensalidades", e.target.checked)} /> Professores podem ver (sem mexer) as mensalidades dos alunos deles</label>
+          )}
+          <p className="text-xs text-suave">Fotos do feed ficam {a.feed_retencao_dias || 30} dias e depois são apagadas para liberar espaço.</p>
+
+          <h3 className="pt-2 text-xl font-bold">O que aparece no app</h3>
+          <p className="text-xs text-suave">Ligue só o que sua academia usa. O que tem 🔒 é de outro plano.</p>
           <div className="flex flex-wrap gap-2">
             {MODULOS.map(([k, v]) => {
               const pode = liberado(a.plano, k);

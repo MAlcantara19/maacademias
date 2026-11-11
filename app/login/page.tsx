@@ -100,6 +100,7 @@ export default function Login() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-5 py-10">
       <Link href="/" className="mb-10 text-sm text-suave">← Academias</Link>
       <Suspense><FormLogin /></Suspense>
+      <p className="mt-8 text-center text-xs text-suave">Ao entrar, você concorda com os <a className="underline" href="/termos">Termos de Uso</a> e a <a className="underline" href="/privacidade">Política de Privacidade</a>.</p>
     </main>
   );
 }

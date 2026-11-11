@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { supabaseServidor } from "@/lib/supabase/server";
-import { buscarAcademia, corDa } from "@/lib/academia";
+import { buscarAcademia, corDa, modulo } from "@/lib/academia";
 import { Faixa } from "@/components/Faixa";
 import { FormCadastro } from "./FormCadastro";
 
@@ -8,7 +8,7 @@ export default async function Cadastro({ params, searchParams }: { params: Promi
   const { slug } = await params;
   const { indicado } = await searchParams;
   const academia = await buscarAcademia(slug);
-  if (!academia) notFound();
+  if (!academia || !modulo(academia, "cadastro_online")) notFound();
   const sb = await supabaseServidor();
   const [{ data: modalidades }, { data: turmas }, { data: vagas }] = await Promise.all([
     sb.from("modalidades").select("id, nome").eq("academia_id", academia.id).eq("ativa", true).order("ordem"),

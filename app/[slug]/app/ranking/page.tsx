@@ -13,9 +13,8 @@ const PERIODOS: Record<string, () => [string, string]> = {
     const ini = d.toISOString().slice(0, 10); d.setMonth(d.getMonth() + 1); d.setDate(0);
     return [ini, d.toISOString().slice(0, 10)];
   },
-  "Esta temporada (trimestre)": () => {
-    const h = hojeISO(); const ano = Number(h.slice(0, 4)), tri = Math.floor((Number(h.slice(5, 7)) - 1) / 3) * 3;
-    return [new Date(Date.UTC(ano, tri, 1)).toISOString().slice(0, 10), h];
+  "Esta temporada (semestre)": () => {
+    const h = hojeISO(); return [Number(h.slice(5, 7)) <= 6 ? `${h.slice(0, 4)}-01-01` : `${h.slice(0, 4)}-07-01`, h];
   },
   "Últimos 90 dias": () => [addDias(hojeISO(), -90), hojeISO()],
   "Este ano": () => [hojeISO().slice(0, 4) + "-01-01", hojeISO()],

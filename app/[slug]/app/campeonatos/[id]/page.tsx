@@ -6,6 +6,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataBR, dataHoraBR, whatsapp, primeiroNome } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
+import { liberado } from "@/lib/planos";
 
 const RESULTADOS: Record<string, string> = { ouro: "🥇 Ouro", prata: "🥈 Prata", bronze: "🥉 Bronze", participou: "Participou", nao_compareceu: "Não compareceu" };
 
@@ -81,6 +82,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
   }
 
   const futuro = new Date(ev.inicio) > new Date();
+  const completo = liberado(ctx.academia.plano, "campeonatos_completo");
 
   return (
     <div className="space-y-5">
@@ -90,7 +92,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
         <p className="text-suave">{dataHoraBR(ev.inicio)}{ev.local ? ` · ${ev.local}` : ""} · {ctx.academia.nome}</p>
       </header>
 
-      {ck && futuro && (
+      {ck && futuro && completo && (
         <section className="nao-imprimir rounded-2xl bg-painel p-4">
           <p className="numero text-3xl font-bold">{ck.prontos} de {ck.atletas} atletas prontos</p>
           <div className="mt-2"><Barra pct={ck.pct_prontos} cor="var(--color-ok)" /></div>
@@ -107,13 +109,13 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
         <div className="nao-imprimir flex flex-wrap gap-2">
           <button className="btn" onClick={() => window.print()}>Imprimir / salvar PDF</button>
           <button className="btn-sec" onClick={cobrarPendencias}>Mandar recado aos inscritos</button>
-          <button className="btn-sec" onClick={() => setNovoCrono({ tipo: "pesagem", data: ev.inicio.slice(0, 10) })}>Adicionar ao cronograma</button>
+          {completo && <button className="btn-sec" onClick={() => setNovoCrono({ tipo: "pesagem", data: ev.inicio.slice(0, 10) })}>Adicionar ao cronograma</button>}
         </div>
       )}
       {msg && <p className="nao-imprimir text-sm text-suave">{msg}</p>}
 
       {/* Cronograma */}
-      <section className="imprimir-claro rounded-2xl bg-painel p-4">
+      {completo && <section className="imprimir-claro rounded-2xl bg-painel p-4">
         <h2 className="text-2xl font-bold">Cronograma</h2>
         {novoCrono && (
           <div className="nao-imprimir my-3 grid gap-2 sm:grid-cols-3">
@@ -146,7 +148,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
           ))}
           {!crono.length && <p className="text-suave">Sem horários cadastrados.</p>}
         </ul>
-      </section>
+      </section>}
 
       {/* Inscrever */}
       {ctx.equipe && futuro && (
@@ -185,11 +187,11 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
                     Nasc. {dataBR(a.nascimento)} (idade de campeonato {a.idade_campeonato}) · último peso {a.ultimo_peso ? `${Number(a.ultimo_peso)} kg em ${dataBR(a.pesado_em)}` : "—"}
                   </p>
                   <p className="text-sm text-suave">
-                    Federação: {a.numero_federacao ? `${a.federacao} nº ${a.numero_federacao}${a.federacao_valida_ate ? `, válida até ${dataBR(a.federacao_valida_ate)}` : ""}` : "sem carteirinha"}
-                    {a.area || a.horario_luta ? ` · ${a.area || ""} ${a.horario_luta ? dataHoraBR(a.horario_luta) : ""}` : ""}
+                    {completo && <>Federação: {a.numero_federacao ? `${a.federacao} nº ${a.numero_federacao}${a.federacao_valida_ate ? `, válida até ${dataBR(a.federacao_valida_ate)}` : ""}` : "sem carteirinha"}
+                    {a.area || a.horario_luta ? ` · ${a.area || ""} ${a.horario_luta ? dataHoraBR(a.horario_luta) : ""}` : ""}</>}
                   </p>
                 </div>
-                {a.carteirinha_federacao_url && (
+                {completo && a.carteirinha_federacao_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.carteirinha_federacao_url} alt="Carteirinha" className="hidden h-20 rounded-lg sm:block" />
                 )}

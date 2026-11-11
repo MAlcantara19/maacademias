@@ -44,7 +44,7 @@ export async function proxy(request: NextRequest) {
 
   // 1) Domínio próprio → reescreve /qualquer-coisa para /<slug>/qualquer-coisa
   let resposta: NextResponse;
-  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth") && !pathname.startsWith("/status") && !pathname.startsWith("/minha-conta") && !pathname.startsWith("/master") && !pathname.startsWith("/conheca") && !pathname.startsWith("/demo") && !pathname.startsWith("/planos")) {
+  if (!eDominioPrincipal(host) && !pathname.startsWith("/login") && !pathname.startsWith("/auth") && !pathname.startsWith("/status") && !pathname.startsWith("/minha-conta") && !pathname.startsWith("/master") && !pathname.startsWith("/conheca") && !pathname.startsWith("/demo") && !pathname.startsWith("/planos") && !pathname.startsWith("/termos") && !pathname.startsWith("/privacidade")) {
     const slug = await slugDoDominio(host);
     if (slug && !pathname.startsWith(`/${slug}`)) {
       const url = request.nextUrl.clone();

@@ -14,13 +14,22 @@ export function Diretorio({ academias }: { academias: any[] }) {
   const [posicao, setPosicao] = useState<[number, number] | null>(null);
   const [busca, setBusca] = useState("");
   const [erro, setErro] = useState("");
+  const [buscando, setBuscando] = useState(false);
 
   function pertoDeMim() {
     setErro("");
     if (!navigator.geolocation) return setErro("Seu navegador não informa a localização.");
+    if (!window.isSecureContext) return setErro("A localização só funciona no site com https (ou em localhost).");
+    setBuscando(true);
     navigator.geolocation.getCurrentPosition(
-      (p) => setPosicao([p.coords.latitude, p.coords.longitude]),
-      () => setErro("Permita o acesso à localização para ordenar por distância.")
+      (p) => { setPosicao([p.coords.latitude, p.coords.longitude]); setBuscando(false); },
+      (e) => {
+        setBuscando(false);
+        setErro(e.code === 1 ? "Você bloqueou a localização. Libere no cadeado ao lado do endereço do site e tente de novo."
+          : e.code === 3 ? "Demorou para achar sua localização. Ative o GPS/localização do aparelho e tente de novo."
+          : "Não foi possível pegar sua localização neste aparelho.");
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 10 * 60 * 1000 }
     );
   }
 
@@ -41,7 +50,7 @@ export function Diretorio({ academias }: { academias: any[] }) {
     <section>
       <div className="flex flex-col gap-3 sm:flex-row">
         <input className="campo" placeholder="Buscar por nome, cidade ou modalidade" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        <button className="btn-sec shrink-0" onClick={pertoDeMim}>📍 Perto de mim</button>
+        <button className="btn-sec shrink-0" onClick={pertoDeMim} disabled={buscando}>{buscando ? "📍 Buscando…" : posicao ? "📍 Ordenado por distância" : "📍 Perto de mim"}</button>
       </div>
       {erro && <p className="mt-2 text-sm text-alerta">{erro}</p>}
 
@@ -63,7 +72,7 @@ export function Diretorio({ academias }: { academias: any[] }) {
                 <div className="min-w-0">
                   <h2 className="text-2xl font-bold">{a.nome}</h2>
                   <p className="text-sm text-suave">
-                    {a.cidade || "—"}{a.km != null && <> · {a.km < 1 ? `${Math.round(a.km * 1000)} m` : `${a.km.toFixed(1)} km`}</>}
+                    {a.cidade || "—"}{a.km != null ? <> · <b>{a.km < 1 ? `${Math.round(a.km * 1000)} m` : `${a.km.toFixed(1)} km`}</b> de você</> : posicao ? " · sem endereço no mapa" : ""}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {(a.modalidades || []).map((m: string) => <span key={m} className="chip">{m}</span>)}

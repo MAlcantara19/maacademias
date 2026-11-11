@@ -37,11 +37,11 @@ export default async function Status() {
       const corpo = await r.json().catch(() => null);
       if (r.ok && Array.isArray(corpo)) {
         itens.push({ ok: true, titulo: "Banco de dados (banco-academias.sql)", detalhe: "Tabelas encontradas ✓" });
-        const piloto = corpo.find((a: any) => a.slug === "academia-piloto");
+        const piloto = corpo.find((a: any) => a.slug === "piloto-completo");
         itens.push({
           ok: !!piloto,
           titulo: "Academia Piloto (piloto-academias.sql)",
-          detalhe: piloto ? `Encontrada ✓ — abra /academia-piloto` : corpo.length ? `Academias: ${corpo.map((a: any) => a.slug).join(", ")}` : "Nenhuma academia ainda. Rode o piloto-academias.sql no SQL Editor.",
+          detalhe: piloto ? `Encontrada ✓ — abra /piloto-completo` : corpo.length ? `Academias: ${corpo.map((a: any) => a.slug).join(", ")}` : "Nenhuma academia ainda. Rode o piloto-academias.sql no SQL Editor.",
         });
       } else if (corpo?.code === "PGRST205" || corpo?.code === "42P01" || r.status === 404) {
         itens.push({ ok: false, titulo: "Banco de dados (banco-academias.sql)", detalhe: "A tabela academias não existe. Rode o banco-academias.sql no SQL Editor do Supabase." });
@@ -67,7 +67,7 @@ export default async function Status() {
           </li>
         ))}
       </ul>
-      {tudoOk && <a href="/academia-piloto" className="btn mt-6">Abrir a Academia Piloto</a>}
+      {tudoOk && <a href="/piloto-completo" className="btn mt-6">Abrir o Piloto Completo</a>}
     </main>
   );
 }

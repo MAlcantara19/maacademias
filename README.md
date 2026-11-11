@@ -86,3 +86,18 @@ combinações/contragolpes, contrato, despesas, indicações, painel master e ba
 por papel, temporadas, tema minimalista e logins de teste por modalidade) e 05 (planos comerciais:
 Essencial, Profissional, Completo, Fundador, Social e Exclusivo). Preços e o que cada plano inclui: `lib/planos.ts`.
 O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria só a Academia Piloto.
+
+
+## Atualização 06 (planos Base, Intermediário e Completo)
+
+- Planos e preços: `lib/planos.ts` (o que cada plano libera e quanto custa).
+- Três academias piloto com os mesmos alunos: `/piloto-base`, `/piloto-intermediario`, `/piloto-completo`.
+  Recrie quando quiser rodando `supabase/piloto-academias.sql` (não mexe nas outras academias).
+- Demonstração por plano: `/demo?plano=base` (usa NEXT_PUBLIC_DEMO_EMAIL e NEXT_PUBLIC_DEMO_SENHA;
+  sugestão: prof.piloto@prof.com, que está nas 3 pilotos).
+- Termos de Uso (`/termos`) e Política de Privacidade (`/privacidade`): texto-base para revisar.
+  Ao mudar o texto, troque `VERSAO_TERMOS` em `lib/termos.ts` e todos aceitam de novo.
+  Troque também o e-mail de contato em `lib/termos.ts`.
+- Painel master: `/master/calendario` (todas as datas) e `/master/atividade` (o que foi feito + erros).
+- Limpeza diária das fotos do feed: `vercel.json` chama `/api/limpar-feed`.
+  Precisa das variáveis `SUPABASE_SECRET_KEY` e `CRON_SECRET` (qualquer senha longa) na Vercel.

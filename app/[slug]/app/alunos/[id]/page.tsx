@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -9,6 +10,8 @@ import { Faixa } from "@/components/Faixa";
 import { Barra } from "@/components/Grafico";
 import { ComparaPeso } from "@/components/ComparaPeso";
 import { CadastroRosto } from "@/components/CadastroRosto";
+import { liberado } from "@/lib/planos";
+import { DIAS, hora } from "@/lib/util";
 
 function Bloco({ titulo, children, acao }: { titulo: string; children: React.ReactNode; acao?: React.ReactNode }) {
   return (
@@ -42,7 +45,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       sb.from("historico_ausencias").select("*").eq("membro_id", id).order("ano", { ascending: false }),
       sb.from("ausencias").select("*").eq("membro_id", id).order("de", { ascending: false }).limit(10),
       sb.from("pendencias").select("*").eq("membro_id", id).order("criada_em", { ascending: false }),
-      sb.from("matriculas").select("*, turmas(nome, modalidade_id)").eq("membro_id", id),
+      sb.from("matriculas").select("*, turmas(nome, modalidade_id, horarios(dia_semana, hora_inicio, hora_fim))").eq("membro_id", id),
       sb.from("modalidades").select("id, nome, graduacoes, cores_graduacoes").eq("academia_id", ctx.academia.id),
       ctx.equipe ? sb.from("turmas").select("id, nome").eq("academia_id", ctx.academia.id).eq("ativa", true) : Promise.resolve({ data: [] }),
       sb.from("carteirinhas").select("*").eq("membro_id", id).order("ano", { ascending: false }),
@@ -117,7 +120,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
     if (form.arquivo) {
       const ext = form.arquivo.name.split(".").pop();
       const caminho = `${ctx.academia.id}/fotos/${a.perfil_id}-${Date.now()}.${ext}`;
-      const up = await sb.storage.from("publico").upload(caminho, form.arquivo);
+      const up = await sb.storage.from("publico").upload(caminho, await comprimir(form.arquivo));
       if (up.error) return setMsg("Não foi possível enviar a foto: " + up.error.message);
       upd.foto_url = sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl;
     }
@@ -253,7 +256,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
         </Bloco>
 
         {/* Peso */}
-        <Bloco titulo="Peso" acao={podeEditar && <button className="btn-sec text-sm" onClick={() => setAberto(aberto === "peso" ? "" : "peso")}>Registrar</button>}>
+        {liberado(ctx.academia.plano, "peso") && <Bloco titulo="Peso" acao={podeEditar && <button className="btn-sec text-sm" onClick={() => setAberto(aberto === "peso" ? "" : "peso")}>Registrar</button>}>
           {aberto === "peso" && (
             <div className="mb-4 grid grid-cols-3 gap-2">
               <input className="campo" type="number" step="0.1" inputMode="decimal" placeholder="Peso (kg)" onChange={(e) => f("peso", e.target.value)} />
@@ -264,7 +267,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <p className="numero text-5xl font-bold">{ultimoPeso ? `${Number(ultimoPeso.peso_kg)} kg` : "—"}</p>
           <p className="mb-3 text-sm text-suave">{ultimoPeso ? `em ${dataBR(ultimoPeso.data)}` : "Nenhum peso registrado"}</p>
           <ComparaPeso medidas={(x.medidas || []).filter((m: any) => m.peso_kg)} membroId={id} />
-        </Bloco>
+        </Bloco>}
 
         {/* Graduação */}
         <Bloco titulo="Graduação" acao={ctx.equipe && <button className="btn-sec text-sm" onClick={() => setAberto(aberto === "grad" ? "" : "grad")}>Graduar</button>}>
@@ -285,14 +288,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             </div>
           )}
           <ul className="space-y-3">
-            {x.graduacoes?.map((g: any) => {
+            {(liberado(ctx.academia.plano, "historico_graduacao") ? x.graduacoes : x.graduacoes?.slice(0, 1))?.map((g: any) => {
               const i = (g.modalidades?.graduacoes || []).indexOf(g.faixa);
               const cor = g.modalidades?.cores_graduacoes?.[i];
               return (
                 <li key={g.id}>
                   <div className="flex justify-between text-sm">
                     <span className="font-semibold">{g.modalidades?.nome}: {g.faixa}{g.grau ? ` · ${g.grau}º grau` : ""}</span>
-                    <span className="text-suave">{dataBR(g.data)} · <Link className="underline" href={`${base}/certificado/${g.id}`}>certificado</Link></span>
+                    <span className="text-suave">{dataBR(g.data)}{liberado(ctx.academia.plano, "certificado") && <> · <Link className="underline" href={`${base}/certificado/${g.id}`}>certificado</Link></>}</span>
                   </div>
                   <Faixa cor={cor} graus={g.grau} altura={10} className="mt-1" />
                   {g.observacao && <p className="mt-1 text-xs text-suave">{g.observacao}</p>}
@@ -303,14 +306,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           </ul>
         </Bloco>
 
-        {(ctx.academia.modos_chamada || []).includes("facial") && (
+        {(ctx.academia.modos_chamada || []).includes("facial") && liberado(ctx.academia.plano, "chamada_facial") && (
           <Bloco titulo="Chamada por foto">
             <CadastroRosto perfilId={a.perfil_id} academiaId={ctx.academia.id} nome={a.nome} podeEditar={ctx.equipe || meu} />
           </Bloco>
         )}
 
         {/* Títulos */}
-        <Bloco titulo="Títulos">
+        {liberado(ctx.academia.plano, "titulos") && <Bloco titulo="Títulos">
           {x.conquistas?.length ? (
             <>
               <div className="flex flex-wrap gap-2">
@@ -326,10 +329,10 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             </>
           ) : <p className="text-suave">Nenhum título ainda. Estude, treine e participe de campeonatos para ganhar!</p>}
           <p className="mt-3 text-xs text-suave">Títulos: 🎓 Primeiros passos · 💯 Gabaritou · 📚 Estudioso · 🈴 Mestre das palavras · 🔥 Disciplina · ⚡ Desafiante · 🥋 Pronto pro exame · 💪 50 · 🏅 100 · 🏆 250 treinos · 🤝 Embaixador · 🥇 Medalhista</p>
-        </Bloco>
+        </Bloco>}
 
         {/* Exames de faixa */}
-        <Bloco titulo="Exames de faixa" acao={<Link href={`${base}/tecnicas${ctx.equipe ? `/exame?aluno=${id}` : ""}`} className="btn-sec text-sm">{ctx.equipe ? "Novo exame" : "Ver matéria"}</Link>}>
+        {ctx.academia.modulos?.tecnicas === true && <Bloco titulo="Exames de faixa" acao={<Link href={`${base}/tecnicas${ctx.equipe ? `/exame?aluno=${id}` : ""}`} className="btn-sec text-sm">{ctx.equipe ? "Novo exame" : "Ver matéria"}</Link>}>
           <ul className="space-y-2">
             {x.exames?.map((e: any) => (
               <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-3">
@@ -343,10 +346,10 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             {!x.exames?.length && <p className="text-suave">Nenhum exame registrado.</p>}
             {x.simulados?.length > 0 && <p className="text-sm text-suave">📝 Simulados recentes: {x.simulados.map((q: any) => `${q.acertos}/${q.total} (${dataBR(q.criado_em).slice(0, 5)})`).join(" · ")}</p>}
           </ul>
-        </Bloco>
+        </Bloco>}
 
         {/* Ausências */}
-        <Bloco titulo="Ausências" acao={podeEditar && <button className="btn-sec text-sm" onClick={() => setAberto(aberto === "aus" ? "" : "aus")}>{ctx.equipe ? "Registrar" : "Avisar falta"}</button>}>
+        <Bloco titulo="Ausências" acao={(ctx.equipe || (meu && liberado(ctx.academia.plano, "aviso_falta"))) && <button className="btn-sec text-sm" onClick={() => setAberto(aberto === "aus" ? "" : "aus")}>{ctx.equipe ? "Registrar" : "Avisar falta"}</button>}>
           {aberto === "aus" && (
             <div className="mb-4 grid grid-cols-2 gap-2">
               <div><label className="rotulo">De</label><input type="date" className="campo" defaultValue={hojeISO()} onChange={(e) => f("de", e.target.value)} onFocus={() => !form.de && f("de", hojeISO())} /></div>
@@ -437,7 +440,15 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <ul className="space-y-2">
             {x.matriculas?.map((m: any) => (
               <li key={m.turma_id} className="flex flex-wrap items-center justify-between gap-2">
-                <span>{m.turmas?.nome} <span className="text-sm text-suave">desde {dataBR(m.desde)}{m.ate ? ` até ${dataBR(m.ate)}` : ""}</span></span>
+                <span>
+                  {m.turmas?.nome} <span className="text-sm text-suave">desde {dataBR(m.desde)}{m.ate ? ` até ${dataBR(m.ate)}` : ""}</span>
+                  {(m.turmas?.horarios || []).length > 0 && (
+                    <span className="block text-xs text-suave">
+                      🕒 {[...(m.turmas.horarios || [])].sort((p: any, q: any) => p.dia_semana - q.dia_semana || p.hora_inicio.localeCompare(q.hora_inicio))
+                        .map((h: any) => `${DIAS[h.dia_semana].slice(0, 3)} ${hora(h.hora_inicio)}–${hora(h.hora_fim)}`).join(" · ")}
+                    </span>
+                  )}
+                </span>
                 <span className="flex items-center gap-2">
                   <span className="chip">{m.status}</span>
                   {ctx.equipe && m.status === "ativa" && <button className="text-sm text-suave underline" onClick={() => mudarMatricula(m, "trancada")}>Trancar</button>}

@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -27,7 +28,7 @@ export function Despesas({ mes, recebido }: { mes: string; recebido: number }) {
     let comprovante = null;
     if (nova.arquivo) {
       const caminho = `${ctx.academia.id}/despesas/${Date.now()}.${nova.arquivo.name.split(".").pop()}`;
-      const up = await sb.storage.from("privado").upload(caminho, nova.arquivo);
+      const up = await sb.storage.from("privado").upload(caminho, await comprimir(nova.arquivo));
       if (!up.error) comprovante = "privado:" + caminho;
     }
     const { error } = await sb.from("despesas").insert({

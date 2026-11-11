@@ -8,6 +8,8 @@ import { Faixa } from "@/components/Faixa";
 import { BoasVindas } from "@/components/BoasVindas";
 import { Contrato } from "@/components/Contrato";
 import { liberado } from "@/lib/planos";
+import { BotaoWhats } from "@/components/BotaoWhats";
+import { AceiteTermos } from "@/components/AceiteTermos";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
@@ -37,6 +39,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
         { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/cronometro`, rotulo: "Cronômetro", icone: "⏱️" },
+        { href: `${base}/totem`, rotulo: "Modo totem", icone: "📟", m: "totem" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
         { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
@@ -59,7 +62,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
    .filter((i: any) => !(i.href.endsWith("/tecnicas") || i.href.endsWith("/estudar")) || ctx.academia.modulos?.tecnicas === true)
    .filter((i: any) => !i.href.endsWith("/feed") || liberado(plano, "feed") || liberado(plano, "galeria"))
    .filter((i: any) => !i.href.endsWith("/relatorio") || (ctx.admin && liberado(plano, "relatorio")))
-   .filter((i: any) => !(ctx.equipe && !ctx.admin && i.href.endsWith("/mensalidades")))
+   .filter((i: any) => !(ctx.equipe && !ctx.admin && i.href.endsWith("/mensalidades") && !ctx.academia.professor_ve_mensalidades))
    .map((i: any) => (ctx.equipe && !ctx.admin && i.href.endsWith("/gestao") ? { ...i, rotulo: "Minhas turmas" } : i))
    .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));
 
@@ -82,7 +85,9 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
       <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto lg:flex"
         data-modo={ctx.academia.tema?.modo || "escuro"} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
         {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
+        <AceiteTermos />
         <Contrato ctx={ctx} />
+        {!ctx.equipe && <BotaoWhats numero={ctx.academia.whatsapp} acima texto={`Oi! Sou aluno(a) da ${ctx.academia.nome}.`} rotulo={`Falar com a ${ctx.academia.nome}`} />}
         {/* Lateral (computador) */}
         <aside className="nao-imprimir sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-linha bg-painel p-4 lg:flex">
           <Link href={`/${ctx.academia.slug}`} className="titulo text-2xl font-extrabold">{ctx.academia.nome}</Link>

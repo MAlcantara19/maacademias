@@ -5,6 +5,8 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, NENHUM, hora, hojeISO, addDias, dataBR, dataHoraBR, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
+import { PreCheckin } from "@/components/PreCheckin";
+import { liberado } from "@/lib/planos";
 import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
 
@@ -86,7 +88,7 @@ export default function Inicio() {
         const ids = ctx.meusAlunos.map((a) => a.id);
         const [painel, horarios, pendencias] = await Promise.all([
           sb.from("painel_alunos").select("*").in("membro_id", ids.length ? ids : [NENHUM]),
-          sb.from("matriculas").select("turmas(nome, modalidades(nome, cor), horarios(*))").in("membro_id", ids.length ? ids : [NENHUM]).eq("status", "ativa"),
+          sb.from("matriculas").select("membro_id, turmas(nome, modalidades(nome, cor), horarios(*))").in("membro_id", ids.length ? ids : [NENHUM]).eq("status", "ativa"),
           sb.from("pendencias").select("*").in("membro_id", ids.length ? ids : [NENHUM]).neq("status", "resolvida").eq("visivel_aluno", true),
         ]);
         // Próxima aula (hoje em diante)
@@ -94,7 +96,7 @@ export default function Inicio() {
         (horarios.data || []).forEach((m: any) => (m.turmas?.horarios || []).forEach((h: any) => {
           for (let k = 0; k < 7; k++) {
             const dia = addDias(hoje, k);
-            if (new Date(dia + "T12:00:00").getDay() === h.dia_semana) lista.push({ ...h, dia, turma: m.turmas.nome, modalidade: m.turmas.modalidades });
+            if (new Date(dia + "T12:00:00").getDay() === h.dia_semana) lista.push({ ...h, dia, turma: m.turmas.nome, modalidade: m.turmas.modalidades, membro_id: m.membro_id });
           }
         }));
         const agora = new Date().toLocaleTimeString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -237,6 +239,9 @@ export default function Inicio() {
                 {d.proxima.dia === hojeISO() ? "Hoje" : DIAS[d.proxima.dia_semana]} · {hora(d.proxima.hora_inicio)}
               </p>
               <p>{d.proxima.turma}{d.proxima.tipo_treino ? ` · treino ${d.proxima.tipo_treino}` : ""}</p>
+              {ctx.academia.modulos?.pre_checkin !== false && (
+                <PreCheckin academiaId={ctx.academia.id} horarioId={d.proxima.id} data={d.proxima.dia} membroId={d.proxima.membro_id} claro />
+              )}
             </section>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -251,7 +256,7 @@ export default function Inicio() {
               </Link>
             ))}
           </div>
-          {ctx.meusAlunos[0] && (() => {
+          {ctx.meusAlunos[0] && liberado(ctx.academia.plano, "indicacoes") && (() => {
             const link = typeof window !== "undefined" ? `${window.location.origin}/${ctx.academia.slug}/cadastro?indicado=${ctx.meusAlunos[0].id}` : "";
             const texto = `Bora treinar comigo na ${ctx.academia.nome}? 🥋 Faz o cadastro por aqui: ${link}`;
             return (

@@ -7,6 +7,7 @@ import { DIAS_CURTOS, DIAS, hora, whatsapp, dataHoraBR } from "@/lib/util";
 import { Faixa } from "@/components/Faixa";
 import { Avatar } from "@/components/Avatar";
 import { FormExperimental } from "./FormExperimental";
+import { BotaoWhats } from "@/components/BotaoWhats";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -44,7 +45,6 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
   );
   Object.values(grade).forEach((l) => l.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio)));
   const diasComAula = [1, 2, 3, 4, 5, 6, 0].filter((d) => grade[d]?.length);
-  const zap = whatsapp(academia.whatsapp, `Olá! Vi o site da ${academia.nome} e quero saber mais.`);
 
   return (
     <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo pb-28 text-texto"
@@ -189,7 +189,7 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
           <section id="experimental" className="rounded-3xl bg-painel p-6 sm:p-8">
             <h2 className="text-4xl font-extrabold">Agende sua aula experimental</h2>
             <p className="mt-2 text-suave">A primeira aula é para conhecer. Escolha a modalidade e o professor responde pelo WhatsApp.</p>
-            <p className="mt-1 text-sm text-suave">Já decidiu treinar? <Link href={`/${slug}/cadastro`} className="underline">Faça seu cadastro de aluno</Link>.</p>
+            {modulo(academia, "cadastro_online") && <p className="mt-1 text-sm text-suave">Já decidiu treinar? <Link href={`/${slug}/cadastro`} className="underline">Faça seu cadastro de aluno</Link>.</p>}
             <FormExperimental
               academiaId={academia.id}
               modalidades={modalidades || []}
@@ -218,13 +218,15 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
         </section>
       </main>
 
+      <BotaoWhats numero={academia.whatsapp} acima={modulo(academia, "aula_experimental")} texto={`Olá! Vi o site da ${academia.nome} e quero saber mais.`} rotulo={`Falar com a ${academia.nome}`} />
+
       {/* Barra fixa no celular */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-linha bg-fundo/95 px-4 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+      {modulo(academia, "aula_experimental") && <div className="fixed inset-x-0 bottom-0 z-30 border-t border-linha bg-fundo/95 px-4 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <div className="mx-auto flex max-w-5xl gap-2">
-          {zap && <a href={zap} target="_blank" className="btn-sec flex-1">WhatsApp</a>}
+
           {modulo(academia, "aula_experimental") && <a href="#experimental" className="btn flex-1">Aula experimental</a>}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

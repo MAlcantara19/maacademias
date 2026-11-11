@@ -2,7 +2,11 @@
 import { SUPABASE_URL, SUPABASE_CHAVE } from "@/lib/supabase/chaves";
 
 // Tela de erro: mostra o motivo em vez de uma página branca
+import { useEffect } from "react";
+import { registrarErro } from "@/components/RegistroErros";
+
 export default function Erro({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => { registrarErro(error.message || "Erro na página", `${error.digest || ""}\n${error.stack || ""}`); }, [error]);
   const semChaves = !SUPABASE_URL || !SUPABASE_CHAVE;
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-4 p-6">

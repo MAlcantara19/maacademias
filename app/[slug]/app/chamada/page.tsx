@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -28,6 +29,7 @@ function Chamada() {
   const [nomes, setNomes] = useState<Record<string, string[]>>({});
   const [perfisDe, setPerfisDe] = useState<Record<string, string>>({});
   const [facial, setFacial] = useState<any>(null);
+  const [vao, setVao] = useState<Set<string>>(new Set());
   const [plano, setPlano] = useState<any>(null);
   const [ouvindo, setOuvindo] = useState(false);
   const [ouvido, setOuvido] = useState("");
@@ -73,6 +75,10 @@ function Chamada() {
         setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
         setPerfisDe(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.perfil_id])));
       }
+      if (h) {
+        const { data: pc } = await sb.from("pre_checkins").select("membro_id").eq("horario_id", h.id).eq("data", data);
+        setVao(new Set((pc || []).map((x: any) => x.membro_id)));
+      } else setVao(new Set());
       const { data: pl } = await sb.from("planos_aula").select("*").eq("turma_id", turmaId).eq("data", data).limit(1);
       setPlano(pl?.[0] || null);
       if (!h) return;
@@ -226,7 +232,7 @@ function Chamada() {
     let ordem = 0;
     for (const arq of Array.from(arquivos)) {
       const caminho = `${ctx.academia.id}/feed/${postId}-${ordem}.${arq.name.split(".").pop()}`;
-      const up = await sb.storage.from("privado").upload(caminho, arq);
+      const up = await sb.storage.from("privado").upload(caminho, await comprimir(arq));
       if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, ordem: ordem++ });
     }
     if (presentes.size) await sb.from("post_marcacoes").insert(Array.from(presentes.keys()).map((m) => ({ post_id: postId, membro_id: m })));
@@ -282,7 +288,7 @@ function Chamada() {
       {horariosDoDia.length > 0 && (
         <div className="sticky top-[60px] z-10 flex items-center justify-between gap-3 rounded-2xl bg-painel p-4 lg:top-2">
           <p className="numero text-3xl font-bold">
-            {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes</span>
+            {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes{vao.size ? ` · ✋ ${vao.size} avisaram que vinham` : ""}</span>
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             {(ctx.academia.modos_chamada || []).includes("facial") && liberado(ctx.academia.plano, "chamada_facial") && !cancelada && (
@@ -290,9 +296,9 @@ function Chamada() {
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => chamadaPorFoto(e.target.files?.[0])} />
               </label>
             )}
-            <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
+            {liberado(ctx.academia.plano, "chamada_voz") && <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
               {ouvindo ? "⏹ Parar" : "🎤 Por voz"}
-            </button>
+            </button>}
             <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>Todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
           </div>
@@ -357,7 +363,7 @@ function Chamada() {
                 >
                   <Avatar foto={a.foto_url} nome={a.nome} cor={a.cor_faixa} grau={a.grau} tamanho={44} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">{a.nome}</p>
+                    <p className="truncate font-semibold">{a.nome}{vao.has(a.membro_id) && <span title="Avisou que vinha"> ✋</span>}</p>
                     <div className="flex flex-wrap gap-1">
                       {(a.alertas || []).map((al: any, k: number) => (
                         <span key={k} className="text-xs text-suave" title={al.texto}>{al.icone} {al.texto}</span>

@@ -145,16 +145,16 @@ export default function Estudar() {
   // Períodos do placar: semana, mês e temporada (trimestre)
   function intervalo(p: string): [string, string] {
     const h = hojeISO(), ano = Number(h.slice(0, 4)), mes = Number(h.slice(5, 7)) - 1;
-    const tri = Math.floor(mes / 3) * 3;
+    const tri = mes < 6 ? 0 : 6; // temporada = semestre
     const iso = (d: Date) => d.toISOString().slice(0, 10);
     if (p === "semana-passada") return [addDias(segunda, -7), addDias(segunda, -1)];
     if (p === "mes") return [h.slice(0, 8) + "01", h];
     if (p === "temporada") return [iso(new Date(Date.UTC(ano, tri, 1))), h];
-    if (p === "temporada-passada") return [iso(new Date(Date.UTC(ano, tri - 3, 1))), iso(new Date(Date.UTC(ano, tri, 0)))];
+    if (p === "temporada-passada") return [iso(new Date(Date.UTC(ano, tri - 6, 1))), iso(new Date(Date.UTC(ano, tri, 0)))];
     return [segunda, addDias(segunda, 6)];
   }
-  const nomeTemporada = (() => { const h = hojeISO(); return `${Math.floor((Number(h.slice(5, 7)) - 1) / 3) + 1}º tri/${h.slice(2, 4)}`; })();
-  const fimTemporada = (() => { const h = hojeISO(); const ano = Number(h.slice(0, 4)), tri = Math.floor((Number(h.slice(5, 7)) - 1) / 3) * 3; return new Date(Date.UTC(ano, tri + 3, 0)).toISOString().slice(0, 10); })();
+  const nomeTemporada = (() => { const h = hojeISO(); return `${Number(h.slice(5, 7)) <= 6 ? 1 : 2}º sem/${h.slice(2, 4)}`; })();
+  const fimTemporada = (() => { const h = hojeISO(); const ano = Number(h.slice(0, 4)); return Number(h.slice(5, 7)) <= 6 ? `${ano}-06-30` : `${ano}-12-31`; })();
 
   async function carregarPlacar(sem: number, p?: string) {
     const per = p || (sem ? "semana-passada" : periodo);

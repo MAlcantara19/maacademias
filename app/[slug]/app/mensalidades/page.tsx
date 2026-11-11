@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -122,7 +123,7 @@ export default function Mensalidades() {
   async function enviarComprovante(c: any, arquivo?: File) {
     if (!arquivo) return;
     const caminho = `${ctx.academia.id}/comprovantes/${c.id}-${Date.now()}.${arquivo.name.split(".").pop()}`;
-    const up = await sb.storage.from("privado").upload(caminho, arquivo);
+    const up = await sb.storage.from("privado").upload(caminho, await comprimir(arquivo));
     if (up.error) return setMsg("Não foi possível enviar: " + up.error.message);
     const { data } = await sb.rpc("enviar_comprovante", { p_cobranca: c.id, p_url: "privado:" + caminho });
     setMsg(data ? "Comprovante enviado! A academia vai conferir e dar baixa." : "Não foi possível registrar o comprovante.");
@@ -186,7 +187,7 @@ export default function Mensalidades() {
         <h1 className="text-4xl font-extrabold">Mensalidades</h1>
         <div className="flex gap-2">
           <input type="month" className="campo w-auto" value={mes} onChange={(e) => setMes(e.target.value)} aria-label="Mês" />
-          <button className="btn" onClick={gerarMes}>Gerar do mês</button>
+          {ctx.admin && <button className="btn" onClick={gerarMes}>Gerar do mês</button>}
         </div>
       </div>
       {msg && <p className="text-sm text-suave">{msg}</p>}
@@ -264,13 +265,13 @@ export default function Mensalidades() {
                 {s === "paga" ? (
                   <>
                     <Link href={`${base}/recibo/${c.id}`} className="btn-sec text-sm">Recibo</Link>
-                    <button className="text-sm text-suave underline" onClick={() => desfazer(c)}>desfazer</button>
+                    {ctx.admin && <button className="text-sm text-suave underline" onClick={() => desfazer(c)}>desfazer</button>}
                   </>
                 ) : (
                   <>
-                    <button className="btn text-sm" onClick={() => setBaixa({ ...c, valor: c.atrasada ? c.total_atualizado : c.valor })}>Dar baixa</button>
+                    {ctx.admin && <button className="btn text-sm" onClick={() => setBaixa({ ...c, valor: c.atrasada ? c.total_atualizado : c.valor })}>Dar baixa</button>}
                     {z && s !== "isenta" && <a href={z} target="_blank" className="btn-sec text-sm">Lembrar</a>}
-                    <button className="text-sm text-suave underline" onClick={() => isentar(c)}>{s === "isenta" ? "cobrar" : "isentar"}</button>
+                    {ctx.admin && <button className="text-sm text-suave underline" onClick={() => isentar(c)}>{s === "isenta" ? "cobrar" : "isentar"}</button>}
                   </>
                 )}
               </div>
@@ -310,7 +311,7 @@ export default function Mensalidades() {
       )}
 
       {/* Planos */}
-      <section className="rounded-2xl bg-painel p-4">
+      {ctx.admin && <section className="rounded-2xl bg-painel p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Planos</h2>
           {ctx.admin && <button className="btn-sec text-sm" onClick={() => setNovoPlano({})}>Novo plano</button>}
@@ -326,9 +327,9 @@ export default function Mensalidades() {
         <ul className="space-y-1">
           {planos.map((p) => <li key={p.id} className="flex justify-between"><span>{p.nome}</span><span className="numero">{dinheiro(p.valor)}</span></li>)}
         </ul>
-      </section>
+      </section>}
 
-      {semPlano.length > 0 && planos.length > 0 && (
+      {ctx.admin && semPlano.length > 0 && planos.length > 0 && (
         <section className="rounded-2xl bg-painel p-4">
           <h2 className="mb-1 text-2xl font-bold">Alunos sem plano ({semPlano.length})</h2>
           <p className="mb-3 text-sm text-suave">Defina o plano e o dia do vencimento para entrarem no “Gerar do mês”.</p>

@@ -1,5 +1,8 @@
 -- =====================================================================
--- MA ACADEMIAS — ACADEMIA PILOTO (dados de demonstração)
+-- MA ACADEMIAS — ACADEMIAS PILOTO (dados de demonstração)
+-- Cria 3 academias com os MESMOS alunos e dados, uma por plano:
+--   /piloto-base  ·  /piloto-intermediario  ·  /piloto-completo
+-- Os logins de teste entram nas 3 (troque de academia pelo menu).
 -- Rode DEPOIS do banco-academias.sql. Rodar de novo recria SÓ a Academia
 -- Piloto (as outras academias não são tocadas).
 -- Pode rodar de novo quando quiser: ele apaga o piloto antigo e recria,
@@ -37,7 +40,7 @@
 -- =====================================================================
 
 -- ---------- Limpa o piloto anterior ----------
-delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo');
+delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
 delete from perfis where email like '%.piloto@example.com'
    or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
                 'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com');
@@ -60,7 +63,8 @@ begin
   return v_membro;
 end $$;
 
-do $$
+create or replace function criar_piloto(p_slug text, p_nome text, p_plano text, p_cor text, p_tema jsonb, p_primeira boolean)
+returns void language plpgsql as $$
 declare
   ac   uuid;  ac2 uuid;
   mo_jj uuid; mo_judo uuid; mo_mt uuid; mo_tkd uuid;
@@ -85,22 +89,22 @@ begin
   insert into academias (slug, nome, slogan, sobre, endereco, cidade,
     latitude, longitude, maps_url, whatsapp, instagram, email,
     cores, no_diretorio, modulos, modos_chamada, qr_fixo_token)
-  values ('academia-piloto', 'Academia Piloto', 'Treino sério, ambiente de família.',
-    'A Academia Piloto é um exemplo de como fica a página da sua academia. '
-    || 'Aqui vai a história: quando começou, quem fundou, as conquistas e o que '
+  values (p_slug, p_nome, 'Treino sério, ambiente de família.',
+    'Esta é uma academia de demonstração do plano ' || p_nome || '. Aqui vai a história: quando começou, quem fundou, as conquistas e o que '
     || 'a academia acredita. Jiu-jitsu, judô, muay thai e taekwondo para todas as idades.',
     'Rua Exemplo, 100 — Centro', 'Três Rios - RJ',
     -22.1165, -43.2092, 'https://maps.google.com/?q=-22.1165,-43.2092',
     '5500000000000', '@academiapiloto', 'contato@example.com',
-    '{"primaria":"#7c3aed","secundaria":"#0b0b12","destaque":"#c4b5fd"}',
+    jsonb_build_object('primaria', p_cor, 'secundaria', '#0b0b12'),
     true,
     '{"sobre":true,"propaganda":true,"calendario":true,"avisos":true,"ranking":true,
       "feed":true,"materiais":true,"mensalidades":true,"carteirinha":true,
       "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":true,"galeria":true}',
-    array['manual','qr_fixo','facial'], 'PILOTO-QR-DEMO')
+    array['manual','qr_fixo','facial'], 'PILOTO-QR-' || upper(p_plano))
   returning id into ac;
+  execute 'update academias set plano = $1, tema = $2 where id = $3' using p_plano, p_tema, ac;
 
-  update academias set pix_chave = 'contato@example.com', pix_nome = 'ACADEMIA PILOTO', pix_cidade = 'TRES RIOS'
+  update academias set pix_chave = 'contato@example.com', pix_nome = upper(p_nome), pix_cidade = 'TRES RIOS'
    where id = ac;
 
   -- Dois pedidos de cadastro esperando aprovação (vindos do link da academia)
@@ -112,12 +116,14 @@ begin
     (ac, 'Nova Criança 01', null, null, '2016-06-06', 'F', null, 'Responsável Nova', '5500000000302', true,
      'Quer começar no judô kids.');
 
-  insert into academias (slug, nome, slogan, cidade, latitude, longitude,
-    whatsapp, cores, no_diretorio)
-  values ('clube-de-luta-exemplo', 'Clube de Luta Exemplo', 'Segunda academia do mapa.',
-    'Juiz de Fora - MG', -21.7642, -43.3503, '5500000000000',
-    '{"primaria":"#dc2626","secundaria":"#111111"}', true)
-  returning id into ac2;
+  if p_primeira then
+    insert into academias (slug, nome, slogan, cidade, latitude, longitude,
+      whatsapp, cores, no_diretorio)
+    values ('clube-de-luta-exemplo', 'Clube de Luta Exemplo', 'Segunda academia do mapa.',
+      'Juiz de Fora - MG', -21.7642, -43.3503, '5500000000000',
+      '{"primaria":"#dc2626","secundaria":"#111111"}', true)
+    returning id into ac2;
+  end if;
 
   insert into propagandas (academia_id, titulo, texto, imagem_url, ordem)
   values
@@ -146,9 +152,11 @@ begin
           array['Branca','Amarela','Verde','Azul','Vermelha','Preta'], 4) returning id into mo_tkd;
   update modalidades set cores_graduacoes = array['#f5f5f5','#facc15','#16a34a','#1d4ed8','#dc2626','#111111'] where id = mo_tkd;
 
-  insert into modalidades (academia_id, nome, cor, graduacoes)
-  values (ac2, 'MMA', '#dc2626', array['Iniciante','Intermediário','Avançado']),
-         (ac2, 'Boxe', '#f59e0b', array['Iniciante','Intermediário','Avançado']);
+  if p_primeira then
+    insert into modalidades (academia_id, nome, cor, graduacoes)
+    values (ac2, 'MMA', '#dc2626', array['Iniciante','Intermediário','Avançado']),
+           (ac2, 'Boxe', '#f59e0b', array['Iniciante','Intermediário','Avançado']);
+  end if;
 
   -- =================================================================
   -- EQUIPE
@@ -254,17 +262,23 @@ begin
   end loop;
   -- (crianças não terão login: o e-mail fica só para o piloto poder ser recriado)
 
-  insert into perfis (nome, email, sexo, telefone, trocar_senha)
-    values ('Responsável 01', 'responsavel.piloto@resp.com', 'F', '5500000000010', false)
-    returning id into resp1;
-  insert into perfis (nome, email, sexo, telefone, trocar_senha)
-    values ('Responsável 02', 'responsavel02.piloto@example.com', 'M', '5500000000011', false)
-    returning id into resp2;
+  select id into resp1 from perfis where email = 'responsavel.piloto@resp.com';
+  if resp1 is null then
+    insert into perfis (nome, email, sexo, telefone, trocar_senha)
+      values ('Responsável 01', 'responsavel.piloto@resp.com', 'F', '5500000000010', false)
+      returning id into resp1;
+  end if;
+  select id into resp2 from perfis where email = 'responsavel02.piloto@example.com';
+  if resp2 is null then
+    insert into perfis (nome, email, sexo, telefone, trocar_senha)
+      values ('Responsável 02', 'responsavel02.piloto@example.com', 'M', '5500000000011', false)
+      returning id into resp2;
+  end if;
 
   insert into responsaveis (responsavel_id, dependente_id, parentesco)
-  select resp1, perfil_id, 'mãe' from membros where id in (criancas[1], criancas[2]);
+  select resp1, perfil_id, 'mãe' from membros where id in (criancas[1], criancas[2]) on conflict do nothing;
   insert into responsaveis (responsavel_id, dependente_id, parentesco)
-  select resp2, perfil_id, 'pai' from membros where id in (criancas[3], criancas[4]);
+  select resp2, perfil_id, 'pai' from membros where id in (criancas[3], criancas[4]) on conflict do nothing;
 
   -- =================================================================
   -- MATRÍCULAS
@@ -333,7 +347,7 @@ begin
           when k = 7 and d > hoje - 21 then 0   -- sumiu
           when k is null     then 80   -- crianças
           else 55 + (coalesce(k, 1) * 3) % 30 end;
-        v_hash := abs(hashtext(m::text || d::text));
+        v_hash := abs(hashtext((select perfil_id from membros where id = m)::text || d::text || h.hora_inicio::text));
         if v_hash % 100 < v_chance then
           insert into presencas (aula_id, membro_id, metodo, chegou_em, atraso_min, confirmado_por)
           values (v_aula, m,
@@ -403,9 +417,11 @@ begin
     join matriculas mt on mt.membro_id = alunos[x]
     join turmas t on t.id = mt.turma_id
     join modalidades mo on mo.id = t.modalidade_id;
-  insert into medidas (perfil_id, data, peso_kg, altura_cm)
-  select (select perfil_id from membros where id = alunos[x]), hoje - mm.n * 30, 62 + x * 1.5 - mm.n * 0.4, 168 + x % 12
-    from generate_series(17, 24) g(x), generate_series(0, 3) mm(n);
+  if p_primeira then
+    insert into medidas (perfil_id, data, peso_kg, altura_cm)
+    select (select perfil_id from membros where id = alunos[x]), hoje - mm.n * 30, 62 + x * 1.5 - mm.n * 0.4, 168 + x % 12
+      from generate_series(17, 24) g(x), generate_series(0, 3) mm(n);
+  end if;
 
   -- Histórico: Aluno 01 trocou de faixa no jiu-jitsu
   insert into graduacoes (membro_id, modalidade_id, faixa, grau, data, registrado_por, observacao)
@@ -413,7 +429,9 @@ begin
          (alunos[1], mo_jj, 'Azul', 1, hoje - 20, pr_jj, 'Graduação de fim de semestre');
 
   -- =================================================================
-  -- PESO E ALTURA (6 meses de histórico para os gráficos)
+  -- PESO E ALTURA (são da pessoa: só na primeira academia)
+  if p_primeira then
+  -- (6 meses de histórico para os gráficos)
   -- =================================================================
   for i in 1..16 loop
     select perfil_id into pf from membros where id = alunos[i];
@@ -428,6 +446,8 @@ begin
   insert into medidas (perfil_id, data, peso_kg, altura_cm)
   select perfil_id, hoje - 10, 25 + (row_number() over ()) * 4, 120 + (row_number() over ()) * 6
     from membros where id = any(criancas);
+
+  end if;
 
   -- =================================================================
   -- CLASSES DE IDADE E CATEGORIAS DE PESO (EXEMPLO — confira na federação)
@@ -530,7 +550,7 @@ begin
   insert into eventos (academia_id, modalidade_id, tipo, titulo, descricao, inicio, local, publico)
   values (ac, mo_jj, 'prova', 'Graduação de fim de ano — Jiu-jitsu',
           'Troca de faixas e graus. Família convidada!', (hoje + 35) + time '10:00',
-          'Academia Piloto', true)
+          p_nome, true)
   returning id into ev_prova;
 
   insert into eventos (academia_id, tipo, titulo, descricao, inicio, publico) values
@@ -578,7 +598,7 @@ begin
   insert into eventos (academia_id, modalidade_id, tipo, titulo, descricao, inicio, local, publico)
   values (ac, mo_jj, 'evento', 'Seletiva interna (teste de notificação)',
           'Evento de teste para ver o lembrete de pesagem.', now() + interval '75 minutes',
-          'Academia Piloto', false)
+          p_nome, false)
   returning id into ev_teste;
   insert into inscricoes_evento (evento_id, membro_id, classe, categoria_peso)
   select ev_teste, alunos[x], 'Adulto', 'Médio' from generate_series(1, 3) g(x);
@@ -700,7 +720,7 @@ begin
      null, 'matriculou', now() - interval '20 days', (hoje - 18) + time '19:00'),
     (ac, mo_mt,   pr_mt,   'Visitante 06', '5500000000106', '2001-01-01',
      null, 'desistiu', now() - interval '25 days', (hoje - 22) + time '19:00');
-  update aulas_experimentais set encaminhada_para = pr_mt where nome = 'Visitante 02';
+  update aulas_experimentais set encaminhada_para = pr_mt where nome = 'Visitante 02' and academia_id = ac;
 
   -- =================================================================
   -- PENDÊNCIAS / RECADOS (além das automáticas de carteirinha)
@@ -845,27 +865,33 @@ begin
    where id = pr_jj;
 end $$;
 
+-- As 3 academias piloto: mesmos alunos e dados, cada uma com seu plano
+select criar_piloto('piloto-completo',      'Piloto Completo',      'completo',      '#7c3aed', '{"modo":"escuro","fonte":"esportiva"}', true);
+select criar_piloto('piloto-intermediario', 'Piloto Intermediário', 'intermediario', '#0d9488', '{"modo":"escuro","fonte":"simples"}',   false);
+select criar_piloto('piloto-base',          'Piloto Base',          'base',          '#2563eb', '{"modo":"claro","fonte":"simples"}',    false);
+
+drop function criar_piloto(text, text, text, text, jsonb, boolean);
 drop function pil_pessoa(uuid, text, text, text, date, text);
 
 -- Resumo do que foi criado
 select
   (select count(*) from membros m join academias a on a.id = m.academia_id
-    where a.slug = 'academia-piloto' and m.papel = 'aluno') as alunos,
+    where a.slug = 'piloto-completo' and m.papel = 'aluno') as alunos,
   (select count(*) from aulas au join turmas t on t.id = au.turma_id
-     join academias a on a.id = t.academia_id where a.slug = 'academia-piloto') as aulas,
+     join academias a on a.id = t.academia_id where a.slug = 'piloto-completo') as aulas,
   (select count(*) from presencas p join aulas au on au.id = p.aula_id
      join turmas t on t.id = au.turma_id join academias a on a.id = t.academia_id
-    where a.slug = 'academia-piloto') as presencas;
+    where a.slug = 'piloto-completo') as presencas;
 
--- Conteúdo de estudo e tema da Academia Piloto (quando as atualizações já existem)
+-- Conteúdo de estudo, desafio e títulos das academias piloto
 do $$
-declare v_ac uuid := (select id from academias where slug = 'academia-piloto');
+declare v_ac uuid;
 begin
-  update academias set tema = '{"modo":"escuro","fonte":"esportiva"}'::jsonb where id = v_ac;
-  if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
+  for v_ac in select id from academias where slug like 'piloto-%' loop
+    if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
+  end loop;
   if exists (select 1 from pg_proc where proname = 'gerar_desafios') then perform gerar_desafios(); end if;
   if exists (select 1 from pg_proc where proname = 'avaliar_conquistas') then perform avaliar_conquistas(); end if;
-  -- liga os logins de teste que já existirem
   update perfis p set user_id = u.id from auth.users u
    where p.user_id is null and lower(p.email) = lower(u.email)
      and not exists (select 1 from perfis x where x.user_id = u.id);

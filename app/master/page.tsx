@@ -19,16 +19,19 @@ export default function Master() {
   const [nova, setNova] = useState<any>(null);
   const [editar, setEditar] = useState<any>(null);
   const [msg, setMsg] = useState("");
+  const [uso, setUso] = useState<Record<string, any>>({});
 
   async function carregar() {
     const { data: m } = await sb.rpc("sou_master");
     setOk(!!m);
     if (!m) return;
-    const [{ data: r }, { data: ac }, { data: cal }] = await Promise.all([
+    const [{ data: r }, { data: ac }, { data: cal }, { data: uso }] = await Promise.all([
       sb.rpc("resumo_master"),
-      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio, plano"),
+      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio, plano, feed_retencao_dias"),
       sb.rpc("calendario_master", { p_dias: 45 }),
+      sb.rpc("uso_armazenamento"),
     ]);
+    setUso(Object.fromEntries((uso || []).map((u: any) => [u.academia_id, u])));
     setLista(r || []);
     setExtra(Object.fromEntries((ac || []).map((a: any) => [a.id, a])));
     setAgenda(cal || []);
@@ -42,7 +45,7 @@ export default function Master() {
     const id = crypto.randomUUID();
     const { error } = await sb.from("academias").insert({
       id, nome: nova.nome, slug: nova.slug || slugDe(nova.nome), cidade: nova.cidade || null, tipo: nova.tipo || "academia",
-      plano: nova.tipo === "projeto_social" ? "social" : nova.plano || "essencial",
+      plano: nova.tipo === "projeto_social" ? "social" : nova.plano || "base",
       whatsapp: nova.whatsapp || null, cores: { primaria: nova.cor || "#7c3aed" }, no_diretorio: true,
     });
     if (error) return setMsg(error.message.includes("duplicate") ? "Já existe uma academia com esse endereço." : error.message);
@@ -86,12 +89,15 @@ export default function Master() {
   const previsto = pagantes.reduce((s, a) => s + Number(a.plataforma_valor), 0);
   const recebido = pagantes.filter((a) => a.plataforma_pago_mes).reduce((s, a) => s + Number(a.plataforma_valor), 0);
   const totalAlunos = lista.reduce((s, a) => s + (a.alunos_ativos || 0), 0);
+  const totalMb = Object.values(uso).reduce((s: number, u: any) => s + Number(u.mb || 0), 0);
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-5 pb-16 pt-[max(1.5rem,env(safe-area-inset-top))]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-5xl font-extrabold">Painel master</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link href="/master/calendario" className="btn-sec">📅 Calendário</Link>
+          <Link href="/master/atividade" className="btn-sec">🧾 Atividade e erros</Link>
           <button className="btn" onClick={() => setNova({ cor: "#7c3aed", tipo: "academia" })}>Nova academia</button>
           <button className="btn-sec" onClick={async () => { await sb.auth.signOut(); router.replace("/login"); }}>Sair</button>
         </div>
@@ -99,7 +105,7 @@ export default function Master() {
       {msg && <p className="text-sm text-alerta">{msg}</p>}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[[lista.length, "academias"], [totalAlunos, "alunos ativos"], [dinheiro(recebido), "você recebeu este mês"], [dinheiro(previsto - recebido), "falta receber"]].map(([v, r]) => (
+        {[[lista.length, "academias"], [totalAlunos, "alunos ativos"], [dinheiro(recebido), "você recebeu este mês"], [`${Math.round(totalMb)} MB`, "de 1.024 MB grátis em arquivos"]].map(([v, r]) => (
           <div key={r as string} className="rounded-2xl bg-painel p-4"><p className="numero text-3xl font-bold">{v}</p><p className="text-sm text-suave">{r}</p></div>
         ))}
       </section>
@@ -111,7 +117,7 @@ export default function Master() {
           <input className="campo" placeholder="endereço no site" value={nova.slug || ""} onChange={(e) => setNova({ ...nova, slug: slugDe(e.target.value) })} />
           <input className="campo" placeholder="Cidade" onChange={(e) => setNova({ ...nova, cidade: e.target.value })} />
           <select className="campo" value={nova.tipo} onChange={(e) => setNova({ ...nova, tipo: e.target.value })}><option value="academia">Academia</option><option value="projeto_social">Projeto social</option></select>
-          <select className="campo" value={nova.plano || "essencial"} onChange={(e) => setNova({ ...nova, plano: e.target.value, valor: PRECO_PLANO[e.target.value] || "" })}>
+          <select className="campo" value={nova.plano || "base"} onChange={(e) => setNova({ ...nova, plano: e.target.value, valor: PRECO_PLANO[e.target.value] || "" })}>
             {Object.entries(ROTULO_PLANO).map(([k, v]) => <option key={k} value={k}>Plano {v}{PRECO_PLANO[k] ? ` — R$ ${PRECO_PLANO[k]}/mês` : ""}</option>)}
           </select>
           <span />
@@ -139,7 +145,7 @@ export default function Master() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-suave">Plano:</span>
-                    <select className="campo w-auto py-1.5 text-sm" value={x.plano || "essencial"} onChange={(e) => mudarPlano(a, e.target.value)}>
+                    <select className="campo w-auto py-1.5 text-sm" value={x.plano || "base"} onChange={(e) => mudarPlano(a, e.target.value)}>
                       {Object.entries(ROTULO_PLANO).map(([k, v]) => <option key={k} value={k}>{v}{PRECO_PLANO[k] ? ` — R$ ${PRECO_PLANO[k]}` : ""}</option>)}
                     </select>
                   </div>
@@ -149,6 +155,14 @@ export default function Master() {
                     <div className="rounded-xl bg-painel2 p-2"><p className="numero text-xl font-bold">{dinheiro(a.recebido_mes).replace(",00", "")}</p><p className="text-[11px] text-suave">recebeu no mês</p></div>
                   </div>
                   {Number(a.atrasado) > 0 && <p className="text-sm text-erro">Alunos devendo: {dinheiro(a.atrasado)}</p>}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-suave">
+                    <span>💾 {uso[a.academia_id]?.mb ?? 0} MB ({uso[a.academia_id]?.mb_feed ?? 0} MB de feed)</span>
+                    <span>· fotos do feed ficam</span>
+                    <select className="campo w-auto px-2 py-1 text-xs" value={x.feed_retencao_dias || 30}
+                      onChange={async (e) => { await sb.from("academias").update({ feed_retencao_dias: Number(e.target.value) }).eq("id", a.academia_id); carregar(); }}>
+                      {[15, 30, 60, 90, 180].map((d) => <option key={d} value={d}>{d} dias</option>)}
+                    </select>
+                  </div>
                   {a.proximo_evento && <p className="text-sm">📅 {a.proximo_evento} · {dataHoraBR(a.proximo_evento_data)}</p>}
                   <div className="rounded-xl border border-linha p-2 text-sm">
                     {editar?.id === a.academia_id ? (
@@ -182,7 +196,7 @@ export default function Master() {
         </div>
 
         <aside className="h-fit rounded-2xl bg-painel p-4">
-          <h2 className="mb-3 text-2xl font-bold">📅 Próximos 45 dias</h2>
+          <div className="mb-3 flex items-center justify-between"><h2 className="text-2xl font-bold">📅 Próximos 45 dias</h2><Link href="/master/calendario" className="text-sm underline">ver tudo</Link></div>
           <ul className="space-y-2">
             {agenda.map((e, i) => (
               <li key={i} className="border-l-4 pl-3" style={{ borderColor: extra[lista.find((a) => a.slug === e.slug)?.academia_id]?.cores?.primaria || "var(--cor)" }}>

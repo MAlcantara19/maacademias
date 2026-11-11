@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -55,7 +56,7 @@ export default function Feed() {
     let ordem = 0;
     for (const arq of Array.from(novo.arquivos as FileList)) {
       const caminho = `${ctx.academia.id}/feed/${postId}-${ordem}.${arq.name.split(".").pop()}`;
-      const up = await sb.storage.from("privado").upload(caminho, arq);
+      const up = await sb.storage.from("privado").upload(caminho, await comprimir(arq));
       if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, ordem: ordem++ });
     }
     if (novo.marcados?.length) await sb.from("post_marcacoes").insert(novo.marcados.map((m: string) => ({ post_id: postId, membro_id: m })));

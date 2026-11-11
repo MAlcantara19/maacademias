@@ -1,4 +1,5 @@
 "use client";
+import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -63,7 +64,7 @@ export default function Pendencias() {
     let anexo: string | null = null;
     if (r.arquivo) {
       const caminho = `${ctx.academia.id}/pendencias/${p.id}-${Date.now()}.${r.arquivo.name.split(".").pop()}`;
-      const up = await sb.storage.from("privado").upload(caminho, r.arquivo);
+      const up = await sb.storage.from("privado").upload(caminho, await comprimir(r.arquivo));
       if (up.error) return setMsg("Não foi possível enviar o arquivo: " + up.error.message);
       anexo = "privado:" + caminho;
     }
