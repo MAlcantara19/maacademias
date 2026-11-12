@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { QR } from "@/components/QR";
 import { Backup } from "@/components/Backup";
 import { ROTULO_PLANO, liberado, planoMinimoNome } from "@/lib/planos";
 
@@ -20,8 +19,6 @@ export default function Config() {
   const sb = supabaseNavegador();
   const router = useRouter();
   const [a, setA] = useState<any>(ctx.academia);
-  const [link, setLink] = useState("");
-  const [linkCadastro, setLinkCadastro] = useState("");
   const [msg, setMsg] = useState("");
   const [logo, setLogo] = useState<File | null>(null);
   const [capa, setCapa] = useState<File | null>(null);
@@ -56,11 +53,6 @@ export default function Config() {
   async function alternarBanner(b: any) { await sb.from("propagandas").update({ ativa: !b.ativa }).eq("id", b.id); carregarBanners(); }
   async function apagarBanner(b: any) { if (confirm("Apagar este banner?")) { await sb.from("propagandas").delete().eq("id", b.id); carregarBanners(); } }
 
-  useEffect(() => {
-    setLink(`${window.location.origin}/${a.slug}/checkin?t=${a.qr_fixo_token}`);
-    setLinkCadastro(`${window.location.origin}/${a.slug}/cadastro`);
-  }, [a.qr_fixo_token, a.slug]);
-
   const muda = (k: string, v: any) => setA((x: any) => ({ ...x, [k]: v }));
 
   async function salvar() {
@@ -80,7 +72,7 @@ export default function Config() {
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
-      professor_ve_mensalidades: !!a.professor_ve_mensalidades,
+      professor_ve_mensalidades: !!a.professor_ve_mensalidades, professor_mexe_mensalidades: !!a.professor_ve_mensalidades && !!a.professor_mexe_mensalidades,
       tema: a.tema || {}, modos_chamada: a.modos_chamada || ["manual"], tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
       contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
@@ -88,13 +80,6 @@ export default function Config() {
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
     router.refresh();
-  }
-
-  async function novoQR() {
-    if (!confirm("Gerar um QR novo? O QR impresso na parede para de funcionar.")) return;
-    const token = crypto.randomUUID().replace(/-/g, "");
-    const { error } = await sb.from("academias").update({ qr_fixo_token: token }).eq("id", a.id);
-    if (!error) muda("qr_fixo_token", token);
   }
 
   return (
@@ -108,27 +93,7 @@ export default function Config() {
         Horários, turmas e professores ficam em <b>Turmas e equipe</b>.
       </p>
 
-      {liberado(a.plano, "chamada_qr") && <section className="imprimir-claro flex flex-col items-center gap-4 rounded-3xl bg-painel p-6 text-center">
-        <h2 className="text-3xl font-bold">Check-in da {a.nome}</h2>
-        <QR texto={link} tamanho={260} />
-        <p className="max-w-sm text-suave">Aponte a câmera do celular, entre com seu login e sua presença é marcada.</p>
-        <div className="nao-imprimir flex flex-wrap justify-center gap-2">
-          <button className="btn" onClick={() => window.print()}>Imprimir para a parede</button>
-          <button className="btn-sec" onClick={() => navigator.clipboard.writeText(link).then(() => setMsg("Link copiado."))}>Copiar link</button>
-          {ctx.admin && <button className="btn-sec" onClick={novoQR}>Gerar QR novo</button>}
-        </div>
-        <p className="nao-imprimir text-xs text-suave">O check-in só vale para quem está a até {a.checkin_raio_m} m da academia e no horário da aula.</p>
-      </section>}
-
-      {a.modulos?.cadastro_online !== false && <section className="nao-imprimir flex flex-col items-center gap-3 rounded-3xl bg-painel p-6 text-center">
-        <h2 className="text-3xl font-bold">Link de cadastro de alunos</h2>
-        <p className="max-w-sm text-suave">Mande no grupo da turma ou cole na recepção. O aluno preenche e você aprova em “Alunos”.</p>
-        <QR texto={linkCadastro} tamanho={180} />
-        <div className="flex flex-wrap justify-center gap-2">
-          <button className="btn-sec" onClick={() => navigator.clipboard.writeText(linkCadastro).then(() => setMsg("Link de cadastro copiado."))}>Copiar link</button>
-          <a className="btn-sec" target="_blank" href={`https://wa.me/?text=${encodeURIComponent(`Faça seu cadastro na ${a.nome}: ${linkCadastro}`)}`}>Mandar no WhatsApp</a>
-        </div>
-      </section>}
+      <p className="nao-imprimir rounded-xl bg-painel p-3 text-sm">📱 Os QR Codes (check-in da parede, cadastro e página) agora ficam no menu <b>QR Codes</b>.</p>
 
       {ctx.admin ? (
         <section className="nao-imprimir space-y-4 rounded-2xl bg-painel p-4">
@@ -293,11 +258,13 @@ export default function Config() {
             ))}
           </div>
           <p className="text-xs text-suave">Projeto social: sem mensalidades e com relatório e lista de presença para prestação de contas.</p>
+          {a.modulos?.tecnicas === true && (<>
           <div className="flex items-center gap-2 text-sm">
             <span>Meta de estudo por semana (quizzes/roletas):</span>
             <input type="number" min={1} max={20} className="campo w-20" value={a.meta_estudo_semanal ?? 3} onChange={(e) => muda("meta_estudo_semanal", e.target.value)} />
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tecnicas_progressivas} onChange={(e) => muda("tecnicas_progressivas", e.target.checked)} /> Técnicas progressivas: o aluno vê a matéria até a próxima faixa dele</label>
+          </>)}
 
           {liberado(a.plano, "chamada_facial") && (<>
           <h3 className="pt-2 text-xl font-bold">Chamada</h3>
@@ -309,7 +276,14 @@ export default function Config() {
           </>)}
 
           {liberado(a.plano, "mensalidades") && (
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.professor_ve_mensalidades} onChange={(e) => muda("professor_ve_mensalidades", e.target.checked)} /> Professores podem ver (sem mexer) as mensalidades dos alunos deles</label>
+            <div className="space-y-1 rounded-xl bg-painel2 p-3 text-sm">
+              <p className="font-semibold">Professores e as mensalidades dos alunos deles</p>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={!!a.professor_ve_mensalidades}
+                onChange={(e) => setA((x: any) => ({ ...x, professor_ve_mensalidades: e.target.checked, professor_mexe_mensalidades: e.target.checked ? x.professor_mexe_mensalidades : false }))} /> Podem <b>ver</b></label>
+              <label className={`flex items-center gap-2 ${a.professor_ve_mensalidades ? "" : "opacity-50"}`}><input type="checkbox" disabled={!a.professor_ve_mensalidades} checked={!!a.professor_mexe_mensalidades}
+                onChange={(e) => muda("professor_mexe_mensalidades", e.target.checked)} /> Podem <b>mexer</b> (dar baixa, isentar, desfazer)</label>
+              <p className="text-xs text-suave">Só dos alunos das turmas de cada professor. Gerar o mês, planos e despesas continuam só com o admin.</p>
+            </div>
           )}
           <p className="text-xs text-suave">Fotos do feed ficam {a.feed_retencao_dias || 30} dias e depois são apagadas para liberar espaço.</p>
 

@@ -133,3 +133,11 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Piloto Base sem dados de mensalidade.
 - Tablet (a partir de 768 px) já usa o menu lateral completo.
 - Demonstração em dois aparelhos: o QR em `/demo` abre o celular já como o perfil escolhido.
+
+## Atualização 11
+
+- Menu novo "QR Codes" (check-in da parede, cadastro e página da academia); Personalizar academia só para o admin.
+- Professores: o admin escolhe se podem VER e se podem MEXER nas mensalidades dos alunos deles.
+- Técnicas progressivas e meta de estudo só aparecem quando o estudo está ligado.
+- Cronômetro com 4 estilos (Placar, Anel, Painel LED, Minimalista), na tela normal com botão de tela cheia.
+- Cabeçalhos de segurança (next.config.ts), só no site publicado.

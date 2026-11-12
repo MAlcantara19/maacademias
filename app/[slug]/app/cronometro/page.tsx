@@ -13,6 +13,9 @@ export default function Cronometro() {
   const [resta, setResta] = useState(0);
   const [pausado, setPausado] = useState(false);
   const [tela, setTela] = useState(false);
+  const [estilo, setEstilo] = useState("placar");
+  useEffect(() => { try { setEstilo(localStorage.getItem("ma_crono_estilo") || "placar"); } catch { /* */ } }, []);
+  const escolherEstilo = (e: string) => { setEstilo(e); try { localStorage.setItem("ma_crono_estilo", e); } catch { /* */ } };
   const audio = useRef<AudioContext | null>(null);
 
   function bipe(freq = 880, dur = 0.25, vezes = 1) {
@@ -52,7 +55,7 @@ export default function Cronometro() {
     else if (fase === "descanso") irPara("luta", round + 1);
   }, [resta]); // eslint-disable-line
 
-  function comecar() { setPausado(false); setTela(true); irPara(cfg.preparar ? "preparar" : "luta", 1); }
+  function comecar() { setPausado(false); irPara(cfg.preparar ? "preparar" : "luta", 1); }
   function parar() { setFase("parado"); setPausado(false); setTela(false); }
 
   const mmss = (s: number) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, "0")}`;
@@ -91,19 +94,106 @@ export default function Cronometro() {
         </>
       )}
 
-      <Tatame ativo={tela && fase !== "parado"} onSair={parar}>
+      {fase === "parado" && (
+        <div>
+          <p className="mb-2 text-sm text-suave">Estilo do cronômetro</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {ESTILOS.map((e) => (
+              <button key={e.id} onClick={() => escolherEstilo(e.id)} className="rounded-xl border-2 p-3 text-left"
+                style={{ borderColor: estilo === e.id ? "var(--cor)" : "var(--color-linha)" }}>
+                <span className="block font-semibold">{e.icone} {e.nome}</span>
+                <span className="text-xs text-suave">{e.texto}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Tatame ativo={tela && fase !== "parado"} onSair={() => setTela(false)}>
         {fase !== "parado" && (
-          <div className="flex w-full flex-col items-center gap-4 text-center">
-            <p className="titulo text-[8vw] font-extrabold leading-none sm:text-6xl" style={{ color: cor }}>{rotulo}</p>
-            <p className="numero font-extrabold leading-none" style={{ fontSize: "min(38vw, 45vh)", color: cor }}>{mmss(resta)}</p>
-            {fase !== "fim" && <p className="numero text-3xl">Round {round} de {cfg.rounds}</p>}
-            <div className="flex gap-3">
-              {fase !== "fim" && <button className="btn px-8 py-4 text-xl" onClick={() => setPausado(!pausado)}>{pausado ? "▶ Continuar" : "⏸ Pausar"}</button>}
-              <button className="btn-sec px-8 py-4 text-xl" onClick={parar}>⏹ Encerrar</button>
+          <div className="flex w-full flex-col items-center gap-4">
+            <Visor estilo={estilo} fase={fase} rotulo={rotulo} cor={cor} tempo={mmss(resta)} resta={resta}
+              total={fase === "luta" ? cfg.luta : fase === "descanso" ? cfg.descanso : fase === "preparar" ? cfg.preparar : 1}
+              round={round} rounds={cfg.rounds} grande={tela} />
+            <div className="flex flex-wrap justify-center gap-2">
+              {fase !== "fim" && <button className="btn px-6 py-3 text-lg" onClick={() => setPausado(!pausado)}>{pausado ? "▶ Continuar" : "⏸ Pausar"}</button>}
+              {!tela && <button className="btn-sec px-6 py-3 text-lg" onClick={() => setTela(true)}>⛶ Tela cheia</button>}
+              <button className="btn-sec px-6 py-3 text-lg" onClick={parar}>⏹ Encerrar</button>
             </div>
           </div>
         )}
       </Tatame>
+    </div>
+  );
+}
+
+const ESTILOS = [
+  { id: "placar", nome: "Placar", icone: "🔢", texto: "Números gigantes na cor da fase" },
+  { id: "anel", nome: "Anel", icone: "⭕", texto: "Círculo que vai esvaziando" },
+  { id: "led", nome: "Painel LED", icone: "📟", texto: "Como o placar de campeonato" },
+  { id: "minimo", nome: "Minimalista", icone: "◻️", texto: "Fundo claro, só o essencial" },
+];
+
+function Visor({ estilo, fase, rotulo, cor, tempo, resta, total, round, rounds, grande }: any) {
+  const tamanho = grande ? "min(34vw, 42vh)" : "min(26vw, 9rem)";
+  const progresso = Math.max(0, Math.min(1, resta / Math.max(1, total)));
+  const rodadas = fase !== "fim" && (
+    <div className="flex gap-1.5">
+      {Array.from({ length: rounds }).map((_, i) => (
+        <span key={i} className="h-3 w-6 rounded-full" style={{ background: i < round ? cor : "rgba(127,127,127,.3)" }} />
+      ))}
+    </div>
+  );
+
+  if (estilo === "anel") {
+    const r = 45, c = 2 * Math.PI * r;
+    return (
+      <div className="flex flex-col items-center gap-3">
+        <div className="relative" style={{ width: grande ? "min(70vw, 70vh)" : "min(80vw, 22rem)", aspectRatio: "1" }}>
+          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
+            <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(127,127,127,.2)" strokeWidth="6" />
+            <circle cx="50" cy="50" r={r} fill="none" stroke={cor} strokeWidth="6" strokeLinecap="round"
+              strokeDasharray={c} strokeDashoffset={c * (1 - progresso)} style={{ transition: "stroke-dashoffset 1s linear" }} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <p className="text-xl font-bold" style={{ color: cor }}>{rotulo}</p>
+            <p className="numero font-extrabold leading-none" style={{ fontSize: grande ? "min(16vw, 20vh)" : "4.5rem" }}>{tempo}</p>
+            {fase !== "fim" && <p className="text-suave">Round {round}/{rounds}</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (estilo === "led") {
+    return (
+      <div className="w-full max-w-4xl rounded-3xl border-4 border-black bg-black p-5 text-center shadow-2xl" style={{ boxShadow: `0 0 40px ${cor}55` }}>
+        <div className="flex items-center justify-between font-mono text-lg uppercase tracking-widest" style={{ color: cor }}>
+          <span>{rotulo}</span><span>R {round}/{rounds}</span>
+        </div>
+        <p className="font-mono font-bold leading-none" style={{ fontSize: tamanho, color: cor, textShadow: `0 0 18px ${cor}` }}>{tempo}</p>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10"><div className="h-full" style={{ width: `${progresso * 100}%`, background: cor, transition: "width 1s linear" }} /></div>
+      </div>
+    );
+  }
+
+  if (estilo === "minimo") {
+    return (
+      <div className="w-full max-w-3xl rounded-3xl bg-white p-6 text-center text-neutral-900 shadow-xl">
+        <p className="text-lg font-semibold uppercase tracking-wide text-neutral-500">{rotulo}{fase !== "fim" ? ` · round ${round} de ${rounds}` : ""}</p>
+        <p className="font-extralight leading-none tabular-nums" style={{ fontSize: tamanho }}>{tempo}</p>
+        <div className="mx-auto mt-3 h-1.5 w-2/3 rounded-full bg-neutral-200"><div className="h-full rounded-full" style={{ width: `${progresso * 100}%`, background: cor }} /></div>
+      </div>
+    );
+  }
+
+  // placar (padrão)
+  return (
+    <div className="flex flex-col items-center gap-2 text-center">
+      <p className="titulo font-extrabold leading-none" style={{ color: cor, fontSize: grande ? "min(8vw, 4rem)" : "2.5rem" }}>{rotulo}</p>
+      <p className="numero font-extrabold leading-none" style={{ fontSize: tamanho, color: cor }}>{tempo}</p>
+      {fase !== "fim" && <p className="numero text-2xl">Round {round} de {rounds}</p>}
+      {rodadas}
     </div>
   );
 }

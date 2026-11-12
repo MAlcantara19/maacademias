@@ -37,6 +37,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
     ? [
         { href: base, rotulo: "Início", icone: "🏠" },
         { href: `${base}/chamada`, rotulo: "Chamada", icone: "✅" },
+        { href: `${base}/qrcodes`, rotulo: "QR Codes", icone: "📱" },
         { href: `${base}/alunos`, rotulo: "Alunos", icone: "👥" },
         { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
@@ -75,6 +76,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
    .filter((i: any) => !(i.href.endsWith("/tecnicas") || i.href.endsWith("/estudar")) || ctx.academia.modulos?.tecnicas === true)
    .filter((i: any) => !i.href.endsWith("/feed") || liberado(plano, "feed") || liberado(plano, "galeria"))
    .filter((i: any) => !i.href.endsWith("/relatorio") || (ctx.admin && liberado(plano, "relatorio")))
+   .filter((i: any) => !i.href.endsWith("/config") || ctx.admin)
    .filter((i: any) => !(ctx.equipe && !ctx.admin && i.href.endsWith("/mensalidades") && !ctx.academia.professor_ve_mensalidades))
    .map((i: any) => (ctx.equipe && !ctx.admin && i.href.endsWith("/gestao") ? { ...i, rotulo: "Minhas turmas" } : i))
    .map((i: any) => (i.href.endsWith("/feed") && ctx.academia.modulos?.feed === false ? { ...i, rotulo: "Galeria", icone: "📁" } : i));

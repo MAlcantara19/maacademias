@@ -13,6 +13,8 @@ const FORMAS: Record<string, string> = { pix: "Pix", cartao: "Cartão", dinheiro
 
 export default function Mensalidades() {
   const ctx = useCtx();
+  // professor pode dar baixa se o admin liberou (só nos alunos dele: o banco garante)
+  const podeMexer = ctx.admin || (!!ctx.academia.professor_ve_mensalidades && !!ctx.academia.professor_mexe_mensalidades);
   const sb = supabaseNavegador();
   const base = `/${ctx.academia.slug}/app`;
   const hoje = hojeISO();
@@ -265,13 +267,13 @@ export default function Mensalidades() {
                 {s === "paga" ? (
                   <>
                     <Link href={`${base}/recibo/${c.id}`} className="btn-sec text-sm">Recibo</Link>
-                    {ctx.admin && <button className="text-sm text-suave underline" onClick={() => desfazer(c)}>desfazer</button>}
+                    {podeMexer && <button className="text-sm text-suave underline" onClick={() => desfazer(c)}>desfazer</button>}
                   </>
                 ) : (
                   <>
-                    {ctx.admin && <button className="btn text-sm" onClick={() => setBaixa({ ...c, valor: c.atrasada ? c.total_atualizado : c.valor })}>Dar baixa</button>}
+                    {podeMexer && <button className="btn text-sm" onClick={() => setBaixa({ ...c, valor: c.atrasada ? c.total_atualizado : c.valor })}>Dar baixa</button>}
                     {z && s !== "isenta" && <a href={z} target="_blank" className="btn-sec text-sm">Lembrar</a>}
-                    {ctx.admin && <button className="text-sm text-suave underline" onClick={() => isentar(c)}>{s === "isenta" ? "cobrar" : "isentar"}</button>}
+                    {podeMexer && <button className="text-sm text-suave underline" onClick={() => isentar(c)}>{s === "isenta" ? "cobrar" : "isentar"}</button>}
                   </>
                 )}
               </div>
