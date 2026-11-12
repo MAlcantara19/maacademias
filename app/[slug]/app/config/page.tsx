@@ -198,6 +198,7 @@ export default function Config() {
             <div><label className="rotulo">Aviso de aniversário (dias antes)</label><input type="number" className="campo" value={a.aviso_aniversario_dias} onChange={(e) => muda("aviso_aniversario_dias", e.target.value)} /></div>
           </div>
 
+          {liberado(a.plano, "mensalidades") && (<>
           <h3 className="pt-2 text-xl font-bold">Mensalidades e cobrança</h3>
           <div className="grid gap-3 sm:grid-cols-4">
             <div><label className="rotulo">Multa por atraso (%)</label><input type="number" step="0.1" className="campo" value={a.multa_pct ?? 0} onChange={(e) => muda("multa_pct", e.target.value)} /></div>
@@ -211,10 +212,12 @@ export default function Config() {
             <p className="text-xs text-suave sm:col-span-4">Juros pro rata: {a.juros_mes_pct || 0}% ao mês ÷ 30 por dia de atraso{a.juros_dias_uteis ? " (só dias úteis)" : ""}. A multa entra uma vez, no primeiro dia de atraso. Coloque 0 para não cobrar.</p>
           </div>
 
+          </>)}
+
           <h3 className="pt-2 text-xl font-bold">Automações</h3>
           <div className="grid gap-3 sm:grid-cols-4">
             <div><label className="rotulo">“Sentimos sua falta” após (dias)</label><input type="number" className="campo" value={a.reengajar_dias} onChange={(e) => muda("reengajar_dias", e.target.value)} /></div>
-            <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>
+            {liberado(a.plano, "peso") && <label className="flex items-center gap-2 text-sm sm:col-span-3"><input type="checkbox" checked={!!a.lembrete_peso_semanal} onChange={(e) => muda("lembrete_peso_semanal", e.target.checked)} /> Toda segunda, lembrar quem vai competir de registrar o peso</label>}
           </div>
 
           <p className="rounded-xl bg-painel2 p-3 text-sm">Plano atual: <b>{ROTULO_PLANO[a.plano] || "Base"}</b>. Para mudar de plano, fale com o suporte do MA Academias.</p>
@@ -311,10 +314,11 @@ export default function Config() {
           <p className="text-xs text-suave">Fotos do feed ficam {a.feed_retencao_dias || 30} dias e depois são apagadas para liberar espaço.</p>
 
           <h3 className="pt-2 text-xl font-bold">O que aparece no app</h3>
-          <p className="text-xs text-suave">Ligue só o que sua academia usa. O que tem 🔒 é de outro plano.</p>
+          <p className="text-xs text-suave">Ligue só o que sua academia usa. Funções de outros planos não aparecem para ninguém aqui.</p>
           <div className="flex flex-wrap gap-2">
             {MODULOS.map(([k, v]) => {
               const pode = liberado(a.plano, k);
+              if (!pode) return null;
               const on = pode && a.modulos?.[k] !== false;
               return (
                 <button key={k} className="chip py-2" disabled={!pode} title={pode ? "" : `Disponível no plano ${planoMinimoNome(k)}`}

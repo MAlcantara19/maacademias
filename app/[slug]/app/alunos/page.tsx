@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
+import { liberado } from "@/lib/planos";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { FAIXAS_ETARIAS, dataBR, dinheiro, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
@@ -93,11 +94,11 @@ function Lista() {
           {turmas.map((t) => <option key={t}>{t}</option>)}
         </select>
         <select className="campo" value={ordem} onChange={(e) => setOrdem(e.target.value)} aria-label="Ordenar">
-          {Object.entries(ORDENS).map(([k, v]) => <option key={k} value={k}>Ordenar: {v}</option>)}
+          {Object.entries(ORDENS).filter(([k]) => k !== "debito_atualizado" || liberado(ctx.academia.plano, "mensalidades")).map(([k, v]) => <option key={k} value={k}>Ordenar: {v}</option>)}
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ["atrasados", "💳 Mensalidade atrasada"], ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
+        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ...(liberado(ctx.academia.plano, "mensalidades") ? [["atrasados", "💳 Mensalidade atrasada"]] : []), ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
           <button key={k} onClick={() => setFiltro(k)} className="chip" style={filtro === k ? { borderColor: "var(--cor)", background: "var(--cor)" } : {}}>{v}</button>
         ))}
       </div>
@@ -121,7 +122,7 @@ function Lista() {
                   {a.dias_sem_vir != null && a.dias_sem_vir >= (ctx.academia.alerta_dias_sem_vir || 7) && a.ativo ? ` · ⚠️ ${a.dias_sem_vir} dias sem vir` : ""}
                   {a.afastado ? " · 🩹 afastado" : ""}
                   {a.pendencias_abertas > 0 ? ` · 📌 ${a.pendencias_abertas}` : ""}
-                  {a.mensalidades_atrasadas > 0 ? ` · 💳 ${a.mensalidades_atrasadas} atrasada(s), deve ${dinheiro(a.debito_atualizado)}` : ""}
+                  {liberado(ctx.academia.plano, "mensalidades") && a.mensalidades_atrasadas > 0 ? ` · 💳 ${a.mensalidades_atrasadas} atrasada(s), deve ${dinheiro(a.debito_atualizado)}` : ""}
                 </p>
                 <div className="mt-1.5 max-w-48"><Barra pct={a.frequencia_30d} /></div>
               </Link>

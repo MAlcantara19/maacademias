@@ -19,11 +19,13 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
 
   useEffect(() => {
     (async () => {
-      const { data } = await sb.from("turmas").select("id, nome, publico, modalidades(nome, cor), horarios(id, dia_semana, hora_inicio, hora_fim, tipo_treino)").eq("id", id).maybeSingle();
+      const [{ data }, { data: p }, { data: c }] = await Promise.all([
+        sb.from("turmas").select("id, nome, publico, whatsapp_grupo, modalidades(nome, cor), horarios(id, dia_semana, hora_inicio, hora_fim, tipo_treino)").eq("id", id).maybeSingle(),
+        sb.rpc("professor_da_turma", { p_turma: id }),
+        sb.rpc("colegas_da_turma", { p_turma: id }),
+      ]);
       setT(data);
-      const { data: p } = await sb.rpc("professor_da_turma", { p_turma: id });
       setProf(p?.[0] || null);
-      const { data: c } = await sb.rpc("colegas_da_turma", { p_turma: id });
       setColegas(c || []);
       const meu = (c || []).find((x: any) => ctx.meusAlunos.some((m) => m.id === x.membro_id));
       setMeuNaTurma(meu?.membro_id || null);
@@ -55,6 +57,12 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
           <p className="mt-2 flex items-center gap-2 text-sm"><Avatar foto={prof.foto_url} nome={prof.nome} tamanho={28} mostrarFaixa={false} /> Professor(a): <b>{prof.nome}</b></p>
         )}
       </div>
+
+      {t.whatsapp_grupo && (meuNaTurma || ctx.equipe) && (
+        <a href={t.whatsapp_grupo} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 rounded-2xl p-4 font-semibold text-white" style={{ background: "#25D366" }}>
+          💬 Entrar no grupo da turma no WhatsApp
+        </a>
+      )}
 
       {proxima && (
         <section className="rounded-2xl p-5 text-white" style={{ background: t.modalidades?.cor || "var(--cor)" }}>

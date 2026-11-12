@@ -3916,7 +3916,7 @@ update perfis p set user_id = u.id from auth.users u
 alter table academias add column if not exists plano text not null default 'essencial';
 alter table academias drop constraint if exists academias_plano_check;
 alter table academias add constraint academias_plano_check
-  check (plano in ('essencial','profissional','completo','fundador','social','exclusivo'));
+  check (plano in ('essencial','profissional','base','intermediario','completo','fundador','social','exclusivo'));
 
 -- Academias que já existem
 update academias set plano = 'completo'  where slug in ('academia-piloto', 'judo-clube-denis', 'clube-de-luta-exemplo') and plano = 'essencial';
@@ -4255,7 +4255,193 @@ $$;
 
 
 -- #####################################################################
--- PARTE 11 — ACADEMIAS PILOTO
+-- PARTE 11 — ATUALIZAÇÃO 08
+-- #####################################################################
+
+-- =====================================================================
+-- MA ACADEMIAS — ATUALIZAÇÃO 08
+-- Rode no SQL Editor. NÃO apaga dados.
+-- 1) Índices: deixam as buscas do banco bem mais rápidas
+-- 2) Link do grupo de WhatsApp em cada turma
+-- 3) Uma função só para montar o app (menos idas e voltas ao banco)
+-- =====================================================================
+
+-- ---------- 1) Índices ----------
+create index if not exists ix_membros_academia      on membros (academia_id, papel, ativo);
+create index if not exists ix_membros_perfil        on membros (perfil_id, ativo);
+create index if not exists ix_perfis_user           on perfis (user_id);
+create index if not exists ix_perfis_email          on perfis (lower(email));
+create index if not exists ix_responsaveis_resp     on responsaveis (responsavel_id);
+create index if not exists ix_responsaveis_dep      on responsaveis (dependente_id);
+create index if not exists ix_turmas_academia       on turmas (academia_id, ativa);
+create index if not exists ix_turmas_professor      on turmas (professor_id);
+create index if not exists ix_horarios_turma        on horarios (turma_id, dia_semana);
+create index if not exists ix_matriculas_membro     on matriculas (membro_id, status);
+create index if not exists ix_matriculas_turma      on matriculas (turma_id, status);
+create index if not exists ix_aulas_turma_data      on aulas (turma_id, data);
+create index if not exists ix_presencas_aula        on presencas (aula_id);
+create index if not exists ix_graduacoes_membro     on graduacoes (membro_id, data desc);
+create index if not exists ix_cobrancas_academia    on cobrancas (academia_id, competencia);
+create index if not exists ix_cobrancas_membro      on cobrancas (membro_id, status);
+create index if not exists ix_eventos_academia      on eventos (academia_id, inicio);
+create index if not exists ix_ausencias_membro      on ausencias (membro_id, de);
+create index if not exists ix_modalidades_academia  on modalidades (academia_id);
+create index if not exists ix_posts_academia        on posts (academia_id, criado_em desc);
+create index if not exists ix_post_midias_post      on post_midias (post_id);
+create index if not exists ix_quiz_membro           on quiz_resultados (membro_id, criado_em desc);
+create index if not exists ix_quiz_academia         on quiz_resultados (academia_id, criado_em);
+create index if not exists ix_historico_academia    on historico (academia_id, quando desc);
+create index if not exists ix_pre_checkins_membro   on pre_checkins (membro_id);
+create index if not exists ix_conquistas_academia   on conquistas (academia_id);
+create index if not exists ix_despesas_academia     on despesas (academia_id, data);
+create index if not exists ix_vocabulario_acad      on vocabulario (academia_id, lista, ordem);
+create index if not exists ix_inscricoes_evento     on inscricoes_evento (evento_id);
+create index if not exists ix_solicitacoes_academia on solicitacoes_cadastro (academia_id, status);
+
+-- ---------- 2) Grupo de WhatsApp da turma ----------
+alter table turmas add column if not exists whatsapp_grupo text;
+
+-- ---------- 3) Tudo que o app precisa para abrir, numa chamada só ----------
+create or replace function contexto_app(p_academia uuid)
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  with eu as (
+    select p.* from perfis p where p.user_id = auth.uid() limit 1
+  ),
+  deps as (
+    select r.dependente_id from responsaveis r where r.responsavel_id = (select id from eu)
+  )
+  select jsonb_build_object(
+    'perfil', (select to_jsonb(eu) from eu),
+    'master', sou_master(),
+    'meus', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'papel', m.papel, 'perfil_id', m.perfil_id))
+                        from membros m where m.academia_id = p_academia and m.ativo and m.perfil_id = (select id from eu)), '[]'::jsonb),
+    'dependentes', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'papel', m.papel, 'perfil_id', m.perfil_id,
+                                'nome', pf.nome, 'apelido', pf.apelido, 'foto_url', pf.foto_url))
+                        from membros m join perfis pf on pf.id = m.perfil_id
+                       where m.academia_id = p_academia and m.ativo and m.perfil_id in (select dependente_id from deps)), '[]'::jsonb),
+    'outras', coalesce((select jsonb_agg(distinct jsonb_build_object('slug', a.slug, 'nome', a.nome))
+                        from membros m join academias a on a.id = m.academia_id
+                       where m.ativo and a.id <> p_academia
+                         and (m.perfil_id = (select id from eu) or m.perfil_id in (select dependente_id from deps))), '[]'::jsonb),
+    'nao_lidas', (select count(*) from notificacoes n where n.perfil_id in (select meus_perfis()) and not n.lida)
+  )
+  where auth.uid() is not null;
+$$;
+
+
+-- #####################################################################
+-- PARTE 12 — ATUALIZAÇÃO 09
+-- #####################################################################
+
+-- =====================================================================
+-- MA ACADEMIAS — ATUALIZAÇÃO 09
+-- Rode no SQL Editor. NÃO apaga dados das academias de verdade.
+-- 1) Feed: miniatura de cada foto (carrega rápido e gasta menos internet)
+-- 2) Academias piloto SEM técnicas, exames e estudo (conteúdo é exclusivo)
+-- 3) Professores de muay thai e taekwondo do piloto com login de teste
+-- =====================================================================
+
+-- ---------- 1) Miniaturas no feed ----------
+alter table post_midias add column if not exists miniatura text;
+
+create or replace view feed_posts as
+select p.id, p.academia_id, p.autor_id, p.legenda, p.oculto, p.criado_em,
+       pf.nome as autor_nome, pf.apelido as autor_apelido, pf.foto_url as autor_foto,
+       coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'tipo', m.tipo, 'url', m.url, 'miniatura', m.miniatura, 'ordem', m.ordem) order by m.ordem)
+                   from post_midias m where m.post_id = p.id), '[]'::jsonb) as midias,
+       coalesce((select array_agg(c.membro_id) from curtidas c where c.post_id = p.id), '{}') as curtidas,
+       coalesce((select array_agg(coalesce(px.apelido, px.nome))
+                   from post_marcacoes pm join membros mx on mx.id = pm.membro_id
+                   join perfis px on px.id = mx.perfil_id
+                  where pm.post_id = p.id), '{}') as marcados
+  from posts p
+  join membros am on am.id = p.autor_id
+  join perfis pf on pf.id = am.perfil_id
+ where participo(p.academia_id)
+   and (not p.oculto or sou_equipe(p.academia_id));
+
+-- A limpeza diária também apaga as miniaturas
+create or replace function posts_vencidos()
+returns table (post_id uuid, academia_id uuid, urls text[])
+language sql stable security definer set search_path = public as $$
+  select p.id, p.academia_id,
+         array_remove(array_agg(m.url) || array_agg(m.miniatura), null)
+    from posts p
+    join academias a on a.id = p.academia_id
+    left join post_midias m on m.post_id = p.id
+   where p.criado_em < now() - make_interval(days => coalesce(a.feed_retencao_dias, 30))
+   group by p.id, p.academia_id;
+$$;
+
+-- ---------- 2) Pilotos sem técnicas/estudo ----------
+update academias set modulos = coalesce(modulos, '{}'::jsonb) || '{"tecnicas":false}'::jsonb
+ where slug like 'piloto-%' or slug = 'clube-de-luta-exemplo';
+delete from vocabulario     where academia_id in (select id from academias where slug like 'piloto-%');
+delete from desafios_dia    where academia_id in (select id from academias where slug like 'piloto-%');
+delete from tecnicas        where academia_id in (select id from academias where slug like 'piloto-%');
+delete from quiz_resultados where academia_id in (select id from academias where slug like 'piloto-%');
+
+-- ---------- 3) Logins de teste dos outros professores ----------
+update perfis set email = 'prof.muaythai.piloto@prof.com' where email = 'prof.muaythai.piloto@example.com';
+update perfis set email = 'prof.tkd.piloto@prof.com'      where email = 'prof.tkd.piloto@example.com';
+update perfis p set user_id = u.id from auth.users u
+ where p.user_id is null and lower(p.email) = lower(u.email)
+   and not exists (select 1 from perfis x where x.user_id = u.id);
+
+
+-- #####################################################################
+-- PARTE 13 — ATUALIZAÇÃO 10
+-- #####################################################################
+
+-- =====================================================================
+-- MA ACADEMIAS — ATUALIZAÇÃO 10
+-- Rode no SQL Editor. NÃO apaga dados das academias de verdade.
+-- O que o plano não inclui também fica desligado "por dentro":
+-- lembretes de peso, mensalidades automáticas, aviso de débito no check-in,
+-- check-in por QR (a partir do Intermediário) e facial (Completo).
+-- =====================================================================
+
+create or replace function nivel_plano(p text) returns int
+language sql immutable as $$
+  select case p when 'intermediario' then 2 when 'profissional' then 2
+                when 'completo' then 3 when 'fundador' then 3 when 'exclusivo' then 9
+                else 1 end;
+$$;
+
+create or replace function ajustar_ao_plano() returns trigger
+language plpgsql as $$
+begin
+  if nivel_plano(new.plano) < 2 then
+    new.lembrete_peso_semanal := false;
+    new.gerar_mensalidades_auto := false;
+    new.alerta_mensalidades_atrasadas := 9999;   -- sem aviso de débito no check-in
+    new.modos_chamada := array_remove(coalesce(new.modos_chamada, array['manual']), 'qr_fixo');
+  end if;
+  if nivel_plano(new.plano) < 3 then
+    new.modos_chamada := array_remove(coalesce(new.modos_chamada, array['manual']), 'facial');
+  end if;
+  if nivel_plano(new.plano) >= 2 and new.alerta_mensalidades_atrasadas = 9999 then
+    new.alerta_mensalidades_atrasadas := 2;      -- voltou para um plano com mensalidades
+  end if;
+  return new;
+end $$;
+drop trigger if exists trg_ajustar_ao_plano on academias;
+create trigger trg_ajustar_ao_plano before insert or update on academias
+for each row execute function ajustar_ao_plano();
+
+-- Aplica nas academias que já existem
+update academias set plano = plano;
+
+-- Piloto Base: sem dados de mensalidade (o plano não tem)
+delete from cobrancas   where academia_id in (select id from academias where slug = 'piloto-base');
+delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
+delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
+delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
+
+
+-- #####################################################################
+-- PARTE 14 — ACADEMIAS PILOTO
 -- #####################################################################
 
 -- =====================================================================
@@ -4293,6 +4479,8 @@ $$;
 --   aluno.piloto@aluno.com        → Aluno 01
 --   responsavel.piloto@resp.com  → responsável pela Criança 01 e 02
 --   prof.judo.piloto@prof.com     → professor de judô (só vê os alunos dele)
+--   prof.muaythai.piloto@prof.com → professora de muay thai
+--   prof.tkd.piloto@prof.com      → professor de taekwondo
 --   judo.piloto@aluno.com         → aluno de judô (Aluno 14)
 --   muaythai.piloto@aluno.com     → aluno de muay thai (Aluno 12)
 --   tkd.piloto@aluno.com          → aluno de taekwondo e muay thai (Aluno 15)
@@ -4300,10 +4488,25 @@ $$;
 -- =====================================================================
 
 -- ---------- Limpa o piloto anterior ----------
+-- Confere se as atualizações necessárias já foram rodadas
+do $$
+begin
+  if not exists (select 1 from pg_proc where proname = 'atividade_master') then
+    raise exception 'Rode antes o arquivo ATUALIZAR-06.sql (e os anteriores que faltarem).';
+  end if;
+  if not exists (select 1 from pg_proc where proname = 'colegas_da_turma') then
+    raise exception 'Rode antes o arquivo ATUALIZAR-07.sql.';
+  end if;
+  if not exists (select 1 from pg_proc where proname = 'ajustar_ao_plano') then
+    raise exception 'Rode antes os arquivos ATUALIZAR-08, 09 e 10.';
+  end if;
+end $$;
+
 delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
 delete from perfis where email like '%.piloto@example.com'
    or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
-                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com');
+                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com',
+                'prof.muaythai.piloto@prof.com','prof.tkd.piloto@prof.com');
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -4359,10 +4562,13 @@ begin
     true,
     '{"sobre":true,"propaganda":true,"calendario":true,"avisos":true,"ranking":true,
       "feed":true,"materiais":true,"mensalidades":true,"carteirinha":true,
-      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":true,"galeria":true}',
+      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":false,"galeria":true}',
     array['manual','qr_fixo','facial'], 'PILOTO-QR-' || upper(p_plano))
   returning id into ac;
-  execute 'update academias set plano = $1, tema = $2 where id = $3' using p_plano, p_tema, ac;
+  -- o plano decide o que fica ligado (o banco tira sozinho o que o plano não tem)
+  execute 'update academias set plano = $1, tema = $2, modos_chamada = array[''manual'',''qr_fixo'',''facial''],
+           lembrete_peso_semanal = true, gerar_mensalidades_auto = true, alerta_mensalidades_atrasadas = 2 where id = $3'
+    using p_plano, p_tema, ac;
 
   update academias set pix_chave = 'contato@example.com', pix_nome = upper(p_nome), pix_cidade = 'TRES RIOS'
    where id = ac;
@@ -4424,8 +4630,8 @@ begin
   adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@admin.com',        'M', '1985-05-10', 'admin');
   pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@prof.com',    'M', '1990-03-15', 'professor');
   pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@prof.com',    'M', '1992-08-20', 'professor');
-  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@example.com','F', '1994-11-02', 'professor');
-  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@example.com',     'M', '1988-01-25', 'professor');
+  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@prof.com','F', '1994-11-02', 'professor');
+  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@prof.com',     'M', '1988-01-25', 'professor');
   -- O admin também dá aula de jiu-jitsu (mostra que dá pra ter os dois papéis)
   pr_jj_admin := pil_pessoa(ac, 'Admin Piloto', 'admin.piloto@admin.com', 'M', '1985-05-10', 'professor');
 
@@ -4748,34 +4954,7 @@ begin
          (values ('Pena',58.5,1),('Leve',64,2),('Médio',69,3),('Pesado',null,4)) x(nome, lim, ord)
    where c.modalidade_id = mo_jj;
 
-  -- =================================================================
-  -- PROGRAMA DE FAIXA DO JUDÔ (EXEMPLO — ajuste ao programa da sua federação)
-  -- "faixa" = faixa que o aluno está disputando no exame
-  -- =================================================================
-  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, ordem) values
-    (ac, mo_judo, null, 'taiso', 'Aquecimento e ginástica', 'Taiso', 'Polichinelo, flexões, abdominais e deslocamentos (tai-sabaki).', 1),
-    (ac, mo_judo, null, 'ukemi', 'Queda para trás', 'Ushiro-ukemi', null, 1),
-    (ac, mo_judo, null, 'ukemi', 'Queda lateral', 'Yoko-ukemi', null, 2),
-    (ac, mo_judo, null, 'ukemi', 'Queda para frente', 'Mae-ukemi', null, 3),
-    (ac, mo_judo, null, 'ukemi', 'Rolamento para frente', 'Mae-mawari-ukemi', null, 4),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Varrida no pé que avança', 'De-ashi-harai', null, 1),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Roda no joelho', 'Hiza-guruma', null, 2),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Calço no pé puxando', 'Sasae-tsurikomi-ashi', null, 3),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Quadril flutuante', 'Uki-goshi', null, 4),
-    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização lateral pela gola', 'Kesa-gatame', null, 1),
-    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização pelo ombro', 'Kata-gatame', null, 2),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada externa', 'O-soto-gari', null, 1),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande quadril', 'O-goshi', null, 2),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada interna', 'O-uchi-gari', null, 3),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Projeção pelas costas', 'Seoi-nage', null, 4),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização pela cabeça', 'Kami-shiho-gatame', null, 1),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização lateral', 'Yoko-shiho-gatame', null, 2),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização montada', 'Tate-shiho-gatame', null, 3),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado normal', 'Nami-juji-jime', null, 1),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado invertido', 'Gyaku-juji-jime', null, 2),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento pela gola deslizante', 'Okuri-eri-jime', null, 3),
-    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço enroscada', 'Ude-garami', null, 1),
-    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço em cruz', 'Ude-hishigi-juji-gatame', null, 2);
+  -- (Técnicas, exames e estudo não entram nas pilotas: são conteúdo exclusivo de cada academia.)
 
   insert into regras_graduacao (modalidade_id, faixa, min_aulas, min_meses, idade_minima) values
     (mo_judo, 'Branca', 8, 2, null), (mo_judo, 'Azul', 40, 6, null),
@@ -5129,6 +5308,11 @@ end $$;
 select criar_piloto('piloto-completo',      'Piloto Completo',      'completo',      '#7c3aed', '{"modo":"escuro","fonte":"esportiva"}', true);
 select criar_piloto('piloto-intermediario', 'Piloto Intermediário', 'intermediario', '#0d9488', '{"modo":"escuro","fonte":"simples"}',   false);
 select criar_piloto('piloto-base',          'Piloto Base',          'base',          '#2563eb', '{"modo":"claro","fonte":"simples"}',    false);
+-- O plano Base não tem mensalidades: tira esses dados do Piloto Base
+delete from cobrancas   where academia_id in (select id from academias where slug = 'piloto-base');
+delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
+delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
+delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
 
 drop function criar_piloto(text, text, text, text, jsonb, boolean);
 drop function pil_pessoa(uuid, text, text, text, date, text);
@@ -5147,9 +5331,6 @@ select
 do $$
 declare v_ac uuid;
 begin
-  for v_ac in select id from academias where slug like 'piloto-%' loop
-    if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
-  end loop;
   if exists (select 1 from pg_proc where proname = 'gerar_desafios') then perform gerar_desafios(); end if;
   if exists (select 1 from pg_proc where proname = 'avaliar_conquistas') then perform avaliar_conquistas(); end if;
   update perfis p set user_id = u.id from auth.users u
@@ -5159,7 +5340,7 @@ end $$;
 
 
 -- #####################################################################
--- PARTE 12 — LIGAR LOGINS E MASTERS
+-- PARTE 15 — LIGAR LOGINS E MASTERS
 -- #####################################################################
 
 -- =====================================================================

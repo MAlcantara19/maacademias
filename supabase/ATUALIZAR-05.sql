@@ -9,7 +9,7 @@
 alter table academias add column if not exists plano text not null default 'essencial';
 alter table academias drop constraint if exists academias_plano_check;
 alter table academias add constraint academias_plano_check
-  check (plano in ('essencial','profissional','completo','fundador','social','exclusivo'));
+  check (plano in ('essencial','profissional','base','intermediario','completo','fundador','social','exclusivo'));
 
 -- Academias que já existem
 update academias set plano = 'completo'  where slug in ('academia-piloto', 'judo-clube-denis', 'clube-de-luta-exemplo') and plano = 'essencial';

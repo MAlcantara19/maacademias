@@ -46,7 +46,9 @@ export default function Feed() {
     const lista = data || [];
     setPosts(lista);
     // fotos privadas: gera links temporários de uma vez
-    const privadas = lista.flatMap((p: any) => p.midias).filter((m: any) => m.url.startsWith("privado:")).map((m: any) => m.url.slice(8));
+    // a lista mostra a miniatura (leve); a foto grande só carrega ao tocar/baixar
+    const privadas = lista.flatMap((p: any) => p.midias).map((m: any) => (m.tipo === "foto" && m.miniatura) || m.url)
+      .filter((u: string) => u?.startsWith("privado:")).map((u: string) => u.slice(8));
     if (privadas.length) {
       const { data: assinadas } = await sb.storage.from("privado").createSignedUrls(privadas, 3600);
       setUrls(Object.fromEntries((assinadas || []).map((a: any) => ["privado:" + a.path, a.signedUrl])));
@@ -78,7 +80,13 @@ export default function Feed() {
     for (const arq of Array.from(novo.arquivos as FileList)) {
       const caminho = `${ctx.academia.id}/feed/${postId}-${ordem}.${arq.name.split(".").pop()}`;
       const up = await sb.storage.from("privado").upload(caminho, await comprimir(arq));
-      if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, ordem: ordem++ });
+      let miniatura: string | null = null;
+      if (!up.error && arq.type.startsWith("image/")) {
+        const cm = `${ctx.academia.id}/feed/${postId}-${ordem}-p.jpg`;
+        const um = await sb.storage.from("privado").upload(cm, await comprimir(arq, 640, 0.7));
+        if (!um.error) miniatura = "privado:" + cm;
+      }
+      if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, miniatura, ordem: ordem++ });
     }
     if (novo.marcados?.length) await sb.from("post_marcacoes").insert(novo.marcados.map((m: string) => ({ post_id: postId, membro_id: m })));
     setEnviando(false); setNovo(null); carregar();
@@ -92,8 +100,16 @@ export default function Feed() {
     carregar();
   }
 
+  // foto grande (original): pede o link só quando precisa
+  async function original(m: any) {
+    if (!m.url.startsWith("privado:")) return m.url;
+    const { data } = await sb.storage.from("privado").createSignedUrl(m.url.slice(8), 3600);
+    return data?.signedUrl || "";
+  }
+  async function verGrande(m: any) { const u = await original(m); if (u) window.open(u, "_blank"); }
+
   async function baixar(m: any) {
-    const url = src(m.url);
+    const url = await original(m);
     if (!url) return;
     const blob = await (await fetch(url)).blob();
     const a = document.createElement("a");
@@ -170,7 +186,8 @@ export default function Feed() {
                   {m.tipo === "video"
                     ? <video src={src(m.url)} controls playsInline className="aspect-square w-full bg-black object-contain" />
                     // eslint-disable-next-line @next/next/no-img-element
-                    : <img src={src(m.url)} alt={p.legenda || "Foto do treino"} className="aspect-square w-full object-cover" />}
+                    : <img src={src(m.miniatura || m.url)} alt={p.legenda || "Foto do treino"} loading="lazy" decoding="async"
+                        onClick={() => verGrande(m)} className="aspect-square w-full cursor-zoom-in object-cover" />}
                   <button onClick={() => baixar(m)} className="absolute bottom-2 right-2 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white">⬇ Baixar</button>
                 </div>
               ))}

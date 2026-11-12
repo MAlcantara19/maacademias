@@ -50,13 +50,14 @@ export default function Inicio() {
       const eventos = comuns[1].data || [];
 
       if (ctx.equipe) {
-        const [mods, turmasCount, horariosCount, profsCount] = await Promise.all([
+        const contagens = Promise.all([
           sb.from("modalidades").select("id", { count: "exact", head: true }).eq("academia_id", acad),
           sb.from("turmas").select("id", { count: "exact", head: true }).eq("academia_id", acad),
           sb.from("horarios").select("id, turmas!inner(academia_id)", { count: "exact", head: true }).eq("turmas.academia_id", acad),
           sb.from("membros").select("id", { count: "exact", head: true }).eq("academia_id", acad).eq("papel", "professor"),
         ]);
-        const [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist, graduar] = await Promise.all([
+        // as duas levas de consultas vão juntas para o banco
+        const [[mods, turmasCount, horariosCount, profsCount], [resumo, aulasHoje, respondidas, ausencias, experimentais, painel, aniversarios, checklist, graduar]] = await Promise.all([contagens, Promise.all([
           sb.from("resumo_academia").select("*").eq("academia_id", acad).maybeSingle(),
           sb.from("horarios").select("*, turmas!inner(id, nome, academia_id, professor_id, modalidades(nome, cor))").eq("turmas.academia_id", acad).eq("dia_semana", dow).order("hora_inicio"),
           sb.from("pendencias").select("id", { count: "exact", head: true }).eq("academia_id", acad).eq("status", "respondida"),
@@ -66,7 +67,7 @@ export default function Inicio() {
           sb.from("proximos_aniversarios").select("*").eq("academia_id", acad).gte("proximo_aniversario", hoje).lte("proximo_aniversario", addDias(hoje, 7)).order("proximo_aniversario"),
           sb.from("checklist_campeonato").select("*").eq("academia_id", acad).gte("data_evento", new Date().toISOString()).order("data_evento").limit(1),
           sb.from("sugestoes_graduacao").select("*").eq("academia_id", acad).order("aulas_na_faixa", { ascending: false }),
-        ]);
+        ])]);
         const anivUnicos = Array.from(new Map((aniversarios.data || []).map((a: any) => [a.membro_id, a])).values());
         setD({
           avisos, eventos, resumo: resumo.data, aulasHoje: (aulasHoje.data || []).filter((h: any) => ctx.admin || h.turmas.professor_id === ctx.professorId),
@@ -117,7 +118,7 @@ export default function Inicio() {
       { titulo: "Tudo no menu", texto: "Campeonatos, pendências, calendário e o QR Code da parede ficam em “Mais”." },
     ] : [
       { titulo: "Bem-vindo!", texto: "Aqui você vê sua próxima aula, sua frequência e os avisos da academia." },
-      { titulo: "Seu perfil", texto: "Acompanhe sua faixa, seu peso e seu histórico. Avise quando for faltar." },
+      { titulo: "Seu perfil", texto: liberado(ctx.academia.plano, "peso") ? "Acompanhe sua faixa, seu peso e seu histórico. Avise quando for faltar." : "Veja sua faixa, suas turmas e há quanto tempo você treina." },
       { titulo: "Carteirinha", texto: "Sua carteirinha digital fica no app, pronta para mostrar ou baixar." },
     ]} />
   );

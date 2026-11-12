@@ -73,7 +73,8 @@ export default function Gestao() {
 
   // ---------- Turmas e horários ----------
   async function salvarTurma() {
-    const dados = { academia_id: acad, nome: form.nome, modalidade_id: form.modalidade_id, professor_id: form.professor_id || null, publico: form.publico || null, vagas: form.vagas ? Number(form.vagas) : null };
+    const dados = { academia_id: acad, nome: form.nome, modalidade_id: form.modalidade_id, professor_id: form.professor_id || null, publico: form.publico || null, vagas: form.vagas ? Number(form.vagas) : null,
+      whatsapp_grupo: form.whatsapp_grupo?.trim() || null };
     if (!dados.nome || !dados.modalidade_id) return setMsg("Preencha o nome e a modalidade.");
     const { error } = form.id ? await sb.from("turmas").update(dados).eq("id", form.id) : await sb.from("turmas").insert(dados);
     setMsg(error ? error.message : "Turma salva."); setForm(null); carregar();
@@ -173,6 +174,7 @@ export default function Gestao() {
               </select>
               <input className="campo" placeholder="Público (ex.: infantil, adulto)" value={form.publico || ""} onChange={(e) => f("publico", e.target.value)} />
               <input className="campo" type="number" placeholder="Vagas (opcional)" value={form.vagas || ""} onChange={(e) => f("vagas", e.target.value)} />
+              <input className="campo sm:col-span-2" placeholder="Link do grupo do WhatsApp da turma (opcional): https://chat.whatsapp.com/..." value={form.whatsapp_grupo || ""} onChange={(e) => f("whatsapp_grupo", e.target.value)} />
               <div className="flex gap-2"><button className="btn" onClick={salvarTurma}>Salvar</button><button className="btn-sec" onClick={() => setForm(null)}>Cancelar</button></div>
             </div>
           )}

@@ -193,7 +193,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <div className="mt-2 flex flex-wrap justify-center gap-1.5 sm:justify-start">
             {(() => { const t = x.conquistas?.find((c: any) => c.codigo === x.perfil?.titulo_escolhido); return t ? <span className="chip" style={{ borderColor: "var(--cor)" }}>{t.icone} {t.titulo}</span> : null; })()}
             {a.ativo && meses >= 1 && <span className="chip">🏠 {tempo} de academia</span>}
-            {ctx.equipe && a.debito_atualizado > 0 && <span className="chip border-erro text-erro">💳 deve {dinheiro(a.debito_atualizado)}</span>}
+            {ctx.equipe && liberado(ctx.academia.plano, "mensalidades") && a.debito_atualizado > 0 && <span className="chip border-erro text-erro">💳 deve {dinheiro(a.debito_atualizado)}</span>}
             {ctx.equipe && !a.tem_login && <span className="chip">🔑 sem login</span>}
           </div>
         </div>

@@ -72,7 +72,7 @@ export default function Vocabulario() {
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={() => setForm({ lista: "basica" })}>Nova palavra</button>
           <button className="btn-sec" onClick={() => setCsv("")}>Importar da folha</button>
-          {!lista.length && <button className="btn-sec" onClick={listaBase}>Carregar lista base</button>}
+          {!lista.length && ctx.master && <button className="btn-sec" onClick={listaBase}>Carregar lista base</button>}
           {ctx.admin && lista.length > 0 && <button className="btn-sec" onClick={abrirCopia}>Copiar para outra academia</button>}
         </div>
       </div>

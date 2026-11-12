@@ -33,6 +33,8 @@
 --   aluno.piloto@aluno.com        → Aluno 01
 --   responsavel.piloto@resp.com  → responsável pela Criança 01 e 02
 --   prof.judo.piloto@prof.com     → professor de judô (só vê os alunos dele)
+--   prof.muaythai.piloto@prof.com → professora de muay thai
+--   prof.tkd.piloto@prof.com      → professor de taekwondo
 --   judo.piloto@aluno.com         → aluno de judô (Aluno 14)
 --   muaythai.piloto@aluno.com     → aluno de muay thai (Aluno 12)
 --   tkd.piloto@aluno.com          → aluno de taekwondo e muay thai (Aluno 15)
@@ -40,10 +42,25 @@
 -- =====================================================================
 
 -- ---------- Limpa o piloto anterior ----------
+-- Confere se as atualizações necessárias já foram rodadas
+do $$
+begin
+  if not exists (select 1 from pg_proc where proname = 'atividade_master') then
+    raise exception 'Rode antes o arquivo ATUALIZAR-06.sql (e os anteriores que faltarem).';
+  end if;
+  if not exists (select 1 from pg_proc where proname = 'colegas_da_turma') then
+    raise exception 'Rode antes o arquivo ATUALIZAR-07.sql.';
+  end if;
+  if not exists (select 1 from pg_proc where proname = 'ajustar_ao_plano') then
+    raise exception 'Rode antes os arquivos ATUALIZAR-08, 09 e 10.';
+  end if;
+end $$;
+
 delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
 delete from perfis where email like '%.piloto@example.com'
    or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
-                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com');
+                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com',
+                'prof.muaythai.piloto@prof.com','prof.tkd.piloto@prof.com');
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -99,10 +116,13 @@ begin
     true,
     '{"sobre":true,"propaganda":true,"calendario":true,"avisos":true,"ranking":true,
       "feed":true,"materiais":true,"mensalidades":true,"carteirinha":true,
-      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":true,"galeria":true}',
+      "campeonatos":true,"aula_experimental":true,"feedback":true,"ia":true,"tecnicas":false,"galeria":true}',
     array['manual','qr_fixo','facial'], 'PILOTO-QR-' || upper(p_plano))
   returning id into ac;
-  execute 'update academias set plano = $1, tema = $2 where id = $3' using p_plano, p_tema, ac;
+  -- o plano decide o que fica ligado (o banco tira sozinho o que o plano não tem)
+  execute 'update academias set plano = $1, tema = $2, modos_chamada = array[''manual'',''qr_fixo'',''facial''],
+           lembrete_peso_semanal = true, gerar_mensalidades_auto = true, alerta_mensalidades_atrasadas = 2 where id = $3'
+    using p_plano, p_tema, ac;
 
   update academias set pix_chave = 'contato@example.com', pix_nome = upper(p_nome), pix_cidade = 'TRES RIOS'
    where id = ac;
@@ -164,8 +184,8 @@ begin
   adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@admin.com',        'M', '1985-05-10', 'admin');
   pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@prof.com',    'M', '1990-03-15', 'professor');
   pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@prof.com',    'M', '1992-08-20', 'professor');
-  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@example.com','F', '1994-11-02', 'professor');
-  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@example.com',     'M', '1988-01-25', 'professor');
+  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@prof.com','F', '1994-11-02', 'professor');
+  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@prof.com',     'M', '1988-01-25', 'professor');
   -- O admin também dá aula de jiu-jitsu (mostra que dá pra ter os dois papéis)
   pr_jj_admin := pil_pessoa(ac, 'Admin Piloto', 'admin.piloto@admin.com', 'M', '1985-05-10', 'professor');
 
@@ -488,34 +508,7 @@ begin
          (values ('Pena',58.5,1),('Leve',64,2),('Médio',69,3),('Pesado',null,4)) x(nome, lim, ord)
    where c.modalidade_id = mo_jj;
 
-  -- =================================================================
-  -- PROGRAMA DE FAIXA DO JUDÔ (EXEMPLO — ajuste ao programa da sua federação)
-  -- "faixa" = faixa que o aluno está disputando no exame
-  -- =================================================================
-  insert into tecnicas (academia_id, modalidade_id, faixa, grupo, nome, nome_original, descricao, ordem) values
-    (ac, mo_judo, null, 'taiso', 'Aquecimento e ginástica', 'Taiso', 'Polichinelo, flexões, abdominais e deslocamentos (tai-sabaki).', 1),
-    (ac, mo_judo, null, 'ukemi', 'Queda para trás', 'Ushiro-ukemi', null, 1),
-    (ac, mo_judo, null, 'ukemi', 'Queda lateral', 'Yoko-ukemi', null, 2),
-    (ac, mo_judo, null, 'ukemi', 'Queda para frente', 'Mae-ukemi', null, 3),
-    (ac, mo_judo, null, 'ukemi', 'Rolamento para frente', 'Mae-mawari-ukemi', null, 4),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Varrida no pé que avança', 'De-ashi-harai', null, 1),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Roda no joelho', 'Hiza-guruma', null, 2),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Calço no pé puxando', 'Sasae-tsurikomi-ashi', null, 3),
-    (ac, mo_judo, 'Azul', 'nage-waza', 'Quadril flutuante', 'Uki-goshi', null, 4),
-    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização lateral pela gola', 'Kesa-gatame', null, 1),
-    (ac, mo_judo, 'Azul', 'osaekomi-waza', 'Imobilização pelo ombro', 'Kata-gatame', null, 2),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada externa', 'O-soto-gari', null, 1),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande quadril', 'O-goshi', null, 2),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Grande ceifada interna', 'O-uchi-gari', null, 3),
-    (ac, mo_judo, 'Amarela', 'nage-waza', 'Projeção pelas costas', 'Seoi-nage', null, 4),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização pela cabeça', 'Kami-shiho-gatame', null, 1),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização lateral', 'Yoko-shiho-gatame', null, 2),
-    (ac, mo_judo, 'Amarela', 'osaekomi-waza', 'Imobilização montada', 'Tate-shiho-gatame', null, 3),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado normal', 'Nami-juji-jime', null, 1),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento cruzado invertido', 'Gyaku-juji-jime', null, 2),
-    (ac, mo_judo, 'Laranja', 'shime-waza', 'Estrangulamento pela gola deslizante', 'Okuri-eri-jime', null, 3),
-    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço enroscada', 'Ude-garami', null, 1),
-    (ac, mo_judo, 'Laranja', 'kansetsu-waza', 'Chave de braço em cruz', 'Ude-hishigi-juji-gatame', null, 2);
+  -- (Técnicas, exames e estudo não entram nas pilotas: são conteúdo exclusivo de cada academia.)
 
   insert into regras_graduacao (modalidade_id, faixa, min_aulas, min_meses, idade_minima) values
     (mo_judo, 'Branca', 8, 2, null), (mo_judo, 'Azul', 40, 6, null),
@@ -869,6 +862,11 @@ end $$;
 select criar_piloto('piloto-completo',      'Piloto Completo',      'completo',      '#7c3aed', '{"modo":"escuro","fonte":"esportiva"}', true);
 select criar_piloto('piloto-intermediario', 'Piloto Intermediário', 'intermediario', '#0d9488', '{"modo":"escuro","fonte":"simples"}',   false);
 select criar_piloto('piloto-base',          'Piloto Base',          'base',          '#2563eb', '{"modo":"claro","fonte":"simples"}',    false);
+-- O plano Base não tem mensalidades: tira esses dados do Piloto Base
+delete from cobrancas   where academia_id in (select id from academias where slug = 'piloto-base');
+delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
+delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
+delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
 
 drop function criar_piloto(text, text, text, text, jsonb, boolean);
 drop function pil_pessoa(uuid, text, text, text, date, text);
@@ -887,9 +885,6 @@ select
 do $$
 declare v_ac uuid;
 begin
-  for v_ac in select id from academias where slug like 'piloto-%' loop
-    if exists (select 1 from pg_proc where proname = 'semear_vocabulario') then execute 'select semear_vocabulario($1)' using v_ac; end if;
-  end loop;
   if exists (select 1 from pg_proc where proname = 'gerar_desafios') then perform gerar_desafios(); end if;
   if exists (select 1 from pg_proc where proname = 'avaliar_conquistas') then perform avaliar_conquistas(); end if;
   update perfis p set user_id = u.id from auth.users u

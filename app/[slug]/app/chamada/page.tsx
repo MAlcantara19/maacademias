@@ -11,6 +11,7 @@ import { Tour } from "@/components/Tour";
 import { minhasTurmas } from "@/lib/turmas";
 import { liberado } from "@/lib/planos";
 import { reconhecer, rostosDaFoto } from "@/lib/rosto";
+import { enfileirar, enviarFila, lerFila } from "@/lib/filaChamada";
 
 function Chamada() {
   const ctx = useCtx();
@@ -25,6 +26,29 @@ function Chamada() {
   const [aula, setAula] = useState<any>(null);
   const [alunos, setAlunos] = useState<any[]>([]);
   const [presentes, setPresentes] = useState<Map<string, any>>(new Map());
+  const presentesRef = useRef<Map<string, any>>(new Map());
+  useEffect(() => { presentesRef.current = presentes; }, [presentes]);
+  const [naFila, setNaFila] = useState(0);
+  const [online, setOnline] = useState(true);
+
+  // Sem internet: guarda no aparelho e manda quando voltar
+  useEffect(() => {
+    const enviar = async () => { setOnline(navigator.onLine); setNaFila(await enviarFila()); };
+    setNaFila(lerFila().length); setOnline(navigator.onLine); enviar();
+    const off = () => setOnline(false);
+    window.addEventListener("online", enviar); window.addEventListener("offline", off);
+    const t = setInterval(enviar, 30000);
+    return () => { window.removeEventListener("online", enviar); window.removeEventListener("offline", off); clearInterval(t); };
+  }, []);
+  function chaveAula() {
+    const h = horariosDoDia.find((x: any) => x.id === horarioId);
+    return h ? { turma_id: turmaId, horario_id: h.id, data, hora_inicio: h.hora_inicio, hora_fim: h.hora_fim, tipo_treino: h.tipo_treino } : null;
+  }
+  function guardar(tipo: "marcar" | "desmarcar", membroId: string) {
+    const k = chaveAula();
+    if (!k) return;
+    setNaFila(enfileirar({ tipo, aula: k, membro_id: membroId, confirmado_por: ctx.membroId }));
+  }
   const [obs, setObs] = useState("");
   const [nomes, setNomes] = useState<Record<string, string[]>>({});
   const [perfisDe, setPerfisDe] = useState<Record<string, string>>({});
@@ -66,7 +90,12 @@ function Chamada() {
     setAula(null); setPresentes(new Map()); setMsg("");
     const h = horariosDoDia.find((x: any) => x.id === horarioId);
     (async () => {
-      const { data: lista } = await sb.rpc("alertas_chamada", { p_turma: turmaId, p_data: data });
+      const [{ data: lista }, pcRes, plRes, aRes] = await Promise.all([
+        sb.rpc("alertas_chamada", { p_turma: turmaId, p_data: data }),
+        h ? sb.from("pre_checkins").select("membro_id").eq("horario_id", h.id).eq("data", data) : Promise.resolve({ data: [] as any[] }),
+        sb.from("planos_aula").select("*").eq("turma_id", turmaId).eq("data", data).limit(1),
+        h ? sb.from("aulas").select("*").eq("turma_id", turmaId).eq("data", data).eq("hora_inicio", h.hora_inicio).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
       setAlunos(lista || []);
       // nomes e apelidos para a chamada por voz
       const ids = (lista || []).map((x: any) => x.membro_id);
@@ -75,14 +104,10 @@ function Chamada() {
         setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
         setPerfisDe(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.perfil_id])));
       }
-      if (h) {
-        const { data: pc } = await sb.from("pre_checkins").select("membro_id").eq("horario_id", h.id).eq("data", data);
-        setVao(new Set((pc || []).map((x: any) => x.membro_id)));
-      } else setVao(new Set());
-      const { data: pl } = await sb.from("planos_aula").select("*").eq("turma_id", turmaId).eq("data", data).limit(1);
-      setPlano(pl?.[0] || null);
+      setVao(new Set(((pcRes as any).data || []).map((x: any) => x.membro_id)));
+      setPlano((plRes as any).data?.[0] || null);
       if (!h) return;
-      const { data: a } = await sb.from("aulas").select("*").eq("turma_id", turmaId).eq("data", data).eq("hora_inicio", h.hora_inicio).maybeSingle();
+      const a: any = (aRes as any).data;
       if (a) {
         setAula(a); setObs(a.observacao || "");
         const { data: pres } = await sb.from("presencas").select("*").eq("aula_id", a.id);
@@ -93,6 +118,7 @@ function Chamada() {
 
   async function garantirAula() {
     if (aula) return aula;
+    if (!navigator.onLine) return null;
     const h = horariosDoDia.find((x: any) => x.id === horarioId);
     if (!h) { setMsg("Escolha um horário desta turma para o dia."); return null; }
     const { data: a, error } = await sb.from("aulas").upsert(
@@ -105,17 +131,17 @@ function Chamada() {
   }
 
   async function alternar(membroId: string) {
+    const novo = new Map(presentesRef.current);
+    const tirar = novo.has(membroId);
+    if (tirar) novo.delete(membroId); else novo.set(membroId, { membro_id: membroId, metodo: "manual" });
+    presentesRef.current = novo;
+    setPresentes(novo); // a tela muda na hora, com ou sem internet
     const a = await garantirAula();
-    if (!a) return;
-    const novo = new Map(presentes);
-    if (novo.has(membroId)) {
-      novo.delete(membroId); setPresentes(novo);
-      await sb.from("presencas").delete().eq("aula_id", a.id).eq("membro_id", membroId);
-    } else {
-      const p = { aula_id: a.id, membro_id: membroId, metodo: "manual", confirmado_por: ctx.membroId };
-      novo.set(membroId, p); setPresentes(novo);
-      await sb.from("presencas").insert(p);
-    }
+    if (!a) return guardar(tirar ? "desmarcar" : "marcar", membroId);
+    const r = tirar
+      ? await sb.from("presencas").delete().eq("aula_id", a.id).eq("membro_id", membroId)
+      : await sb.from("presencas").upsert({ aula_id: a.id, membro_id: membroId, metodo: "manual", confirmado_por: ctx.membroId }, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
+    if (r.error) guardar(tirar ? "desmarcar" : "marcar", membroId);
   }
 
   // ---------- Chamada por voz ----------
@@ -140,14 +166,19 @@ function Chamada() {
   }
 
   async function marcarVarios(ids: string[]) {
-    const a = await garantirAula();
-    if (!a) return;
-    const novos = ids.filter((id) => !presentes.has(id));
+    // usa a lista ATUAL de presentes (a voz pode repetir nomes: marca uma vez só)
+    const novos = ids.filter((id) => !presentesRef.current.has(id));
     if (!novos.length) return;
+    const atual = new Map(presentesRef.current);
+    novos.forEach((id) => atual.set(id, { membro_id: id, metodo: "manual" }));
+    presentesRef.current = atual;
+    setPresentes(atual);
+    setPorVoz((v) => Array.from(new Set([...v, ...novos])));
+    const a = await garantirAula();
+    if (!a) { novos.forEach((id) => guardar("marcar", id)); return; }
     const linhas = novos.map((id) => ({ aula_id: a.id, membro_id: id, metodo: "manual", confirmado_por: ctx.membroId }));
-    await sb.from("presencas").upsert(linhas, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
-    setPresentes((atual) => new Map([...atual, ...linhas.map((l) => [l.membro_id, l] as [string, any])]));
-    setPorVoz((v) => [...v, ...novos]);
+    const r = await sb.from("presencas").upsert(linhas, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
+    if (r.error) novos.forEach((id) => guardar("marcar", id));
   }
 
   function alternarVoz() {
@@ -171,12 +202,17 @@ function Chamada() {
   useEffect(() => () => { ouvindoRef.current = false; rec.current?.stop(); }, []);
 
   async function todos() {
+    const ids = alunos.filter((x) => !presentesRef.current.has(x.membro_id)).map((x) => x.membro_id);
+    if (!ids.length) return;
+    const atual = new Map(presentesRef.current);
+    ids.forEach((id) => atual.set(id, { membro_id: id, metodo: "manual" }));
+    presentesRef.current = atual;
+    setPresentes(atual);
     const a = await garantirAula();
-    if (!a) return;
-    const faltam = alunos.filter((x) => !presentes.has(x.membro_id)).map((x) => ({ aula_id: a.id, membro_id: x.membro_id, metodo: "manual", confirmado_por: ctx.membroId }));
-    if (!faltam.length) return;
-    await sb.from("presencas").insert(faltam);
-    setPresentes(new Map([...presentes, ...faltam.map((f) => [f.membro_id, f] as [string, any])]));
+    if (!a) { ids.forEach((id) => guardar("marcar", id)); return; }
+    const faltam = ids.map((id) => ({ aula_id: a.id, membro_id: id, metodo: "manual", confirmado_por: ctx.membroId }));
+    const r = await sb.from("presencas").upsert(faltam, { onConflict: "aula_id,membro_id", ignoreDuplicates: true });
+    if (r.error) ids.forEach((id) => guardar("marcar", id));
   }
 
   // ---------- Chamada por reconhecimento facial ----------
@@ -233,7 +269,13 @@ function Chamada() {
     for (const arq of Array.from(arquivos)) {
       const caminho = `${ctx.academia.id}/feed/${postId}-${ordem}.${arq.name.split(".").pop()}`;
       const up = await sb.storage.from("privado").upload(caminho, await comprimir(arq));
-      if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: arq.type.startsWith("video") ? "video" : "foto", url: "privado:" + caminho, ordem: ordem++ });
+      let miniatura: string | null = null;
+      if (!up.error) {
+        const cm = `${ctx.academia.id}/feed/${postId}-${ordem}-p.jpg`;
+        const um = await sb.storage.from("privado").upload(cm, await comprimir(arq, 640, 0.7));
+        if (!um.error) miniatura = "privado:" + cm;
+      }
+      if (!up.error) await sb.from("post_midias").insert({ post_id: postId, tipo: "foto", url: "privado:" + caminho, miniatura, ordem: ordem++ });
     }
     if (presentes.size) await sb.from("post_marcacoes").insert(Array.from(presentes.keys()).map((m) => ({ post_id: postId, membro_id: m })));
     setMsg(`📸 Foto postada no feed com ${presentes.size} aluno(s) marcados.`);
@@ -285,6 +327,11 @@ function Chamada() {
         </div>
       </div>
 
+      {(!online || naFila > 0) && (
+        <p className="rounded-xl p-3 text-sm font-semibold" style={{ background: "color-mix(in srgb, var(--color-alerta) 20%, transparent)" }}>
+          {!online ? "📴 Sem internet: pode continuar a chamada, " : "⏳ "}{naFila ? `${naFila} marcação(ões) guardada(s) no aparelho` : "as marcações ficam guardadas"} e vão para o sistema sozinhas quando a internet voltar.
+        </p>
+      )}
       {horariosDoDia.length > 0 && (
         <div className="sticky top-[60px] z-10 flex items-center justify-between gap-3 rounded-2xl bg-painel p-4 lg:top-2">
           <p className="numero text-3xl font-bold">
@@ -336,7 +383,7 @@ function Chamada() {
         <div className="rounded-2xl border-2 border-erro bg-painel p-4">
           <p className="font-semibold">🎤 Ouvindo… fale o nome ou apelido dos alunos</p>
           <p className="text-sm text-suave">Ouvi: “{ouvido || "…"}”</p>
-          {porVoz.length > 0 && <p className="mt-1 text-sm text-ok">Marcados por voz: {porVoz.map((id) => alunos.find((a) => a.membro_id === id)?.nome).join(", ")}</p>}
+          {porVoz.length > 0 && <p className="mt-1 text-sm text-ok">✓ Marcados por voz ({porVoz.length}): {porVoz.map((id) => { const a = alunos.find((x) => x.membro_id === id); return a?.apelido || a?.nome; }).join(", ")}</p>}
         </div>
       )}
       {plano && (

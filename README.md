@@ -107,3 +107,29 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Página "Minhas turmas" (`/turmas`) e página de cada turma (horários, professor, próxima aula com "vou nessa aula" e colegas).
 - Feed: Base e Intermediário só fotos (até 4 por post); Completo aceita vídeo de até 30 segundos (máx. 25 MB).
 - Demonstração (`/demo?plano=...`) mostra o motivo exato quando não abre.
+
+## Atualização 08 (velocidade)
+
+- Índices no banco para as buscas mais usadas.
+- O app abre com uma consulta só (`contexto_app`) em vez de nove.
+- O proxy só confere o login nas páginas que precisam (as públicas abrem direto).
+- `vercel.json` coloca o servidor em São Paulo (`gru1`), perto do Supabase.
+- Telas de carregamento instantâneas e páginas visitadas guardadas por alguns segundos.
+- Link do grupo de WhatsApp em cada turma (Turmas e equipe → editar turma).
+
+## Atualização 09
+
+- Feed com miniaturas (a foto grande só abre ao tocar).
+- Pilotos sem técnicas, exames e estudo (conteúdo exclusivo de cada academia).
+- Chamada por voz sem repetir nomes; chamada funciona sem internet (envia quando voltar).
+- Botão de modo claro/escuro para cada pessoa (no menu).
+- Demonstração com escolha de perfil: admin, professor (4 lutas), aluno (4 lutas) e responsável.
+  Todos usam a mesma senha (NEXT_PUBLIC_DEMO_SENHA). Para igualar as senhas, use `supabase/senhas-demo.sql`.
+
+## Atualização 10
+
+- O que o plano não inclui some para todo mundo (aluno, professor e admin) e fica desligado também no banco
+  (lembrete de peso, mensalidades automáticas, aviso de débito no check-in, QR no Base, facial fora do Completo).
+- Piloto Base sem dados de mensalidade.
+- Tablet (a partir de 768 px) já usa o menu lateral completo.
+- Demonstração em dois aparelhos: o QR em `/demo` abre o celular já como o perfil escolhido.

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ProvedorCtx, type Ctx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
@@ -17,6 +17,18 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
   const path = usePathname();
   const router = useRouter();
   const [mais, setMais] = useState(false);
+  // Modo claro/escuro escolhido pela pessoa (vale só neste aparelho); "" = o da academia
+  const [meuTema, setMeuTema] = useState("");
+  useEffect(() => { try { setMeuTema(localStorage.getItem("ma_tema") || ""); } catch { /* */ } }, []);
+  const modo = meuTema || ctx.academia.tema?.modo || "escuro";
+  function trocarTema() {
+    const prox = modo === "escuro" ? "claro" : "escuro";
+    setMeuTema(prox);
+    try { localStorage.setItem("ma_tema", prox); } catch { /* */ }
+  }
+  const BotaoTema = ({ className = "" }: { className?: string }) => (
+    <button onClick={trocarTema} className={className} aria-label="Trocar modo claro/escuro">{modo === "escuro" ? "☀️ Modo claro" : "🌙 Modo escuro"}</button>
+  );
   const base = `/${ctx.academia.slug}/app`;
 
   const plano = ctx.academia.plano;
@@ -83,14 +95,14 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
 
   return (
     <ProvedorCtx value={ctx}>
-      <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto lg:flex"
-        data-modo={ctx.academia.tema?.modo || "escuro"} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
+      <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto md:flex"
+        data-modo={modo} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
         {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
         <AceiteTermos />
         <Contrato ctx={ctx} />
         {!ctx.equipe && <BotaoWhats numero={ctx.academia.whatsapp} acima texto={`Oi! Sou aluno(a) da ${ctx.academia.nome}.`} rotulo={`Falar com a ${ctx.academia.nome}`} />}
         {/* Lateral (computador) */}
-        <aside className="nao-imprimir sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-linha bg-painel p-4 lg:flex">
+        <aside className="nao-imprimir sticky top-0 hidden h-dvh w-60 shrink-0 lg:w-64 flex-col border-r border-linha bg-painel p-4 md:flex">
           <Link href={`/${ctx.academia.slug}`} className="titulo text-2xl font-extrabold">{ctx.academia.nome}</Link>
           <Faixa cor={cor} graus={2} altura={8} className="mb-2 mt-2" />
           {outras.length > 0 && (
@@ -113,13 +125,14 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
             <p className="text-suave">{ctx.papeis.map((p) => ({ admin: "Admin", professor: "Professor", aluno: "Aluno", responsavel: "Responsável" } as any)[p]).join(" · ")}</p>
             {ctx.equipe && <button onClick={() => verComo("primeiro")} className="mt-2 block text-suave underline">👁️ Ver como aluno</button>}
             {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
+            <BotaoTema className="mt-1 block text-suave underline" />
             <button onClick={sair} className="mt-1 block text-suave underline">Sair</button>
           </div>
         </aside>
 
         {/* Topo (celular) */}
         <div className="flex-1">
-          <header className="nao-imprimir sticky top-0 z-20 flex items-center justify-between border-b border-linha bg-fundo/95 px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+          <header className="nao-imprimir sticky top-0 z-20 flex items-center justify-between border-b border-linha bg-fundo/95 px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur md:hidden">
             <Link href={base} className="titulo truncate text-xl font-extrabold">{ctx.academia.nome}</Link>
             <Link href={`${base}/notificacoes`} className="relative p-1 text-xl" aria-label="Notificações">
               🔔{naoLidas > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-erro px-1.5 text-[10px] text-white">{naoLidas}</span>}
@@ -132,11 +145,11 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
               <button className="underline" onClick={() => verComo("")}>Voltar para a minha visão</button>
             </div>
           )}
-          <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 lg:px-8 lg:pb-12 lg:pt-8">{children}</main>
+          <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 md:px-6 md:pb-12 md:pt-6 lg:px-8 lg:pt-8">{children}</main>
         </div>
 
         {/* Menu de baixo (celular) */}
-        <nav className="nao-imprimir fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-linha bg-painel pb-[env(safe-area-inset-bottom)] lg:hidden">
+        <nav className="nao-imprimir fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-linha bg-painel pb-[env(safe-area-inset-bottom)] md:hidden">
           {principais.map((i) => (
             <Link key={i.href} href={i.href} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${ativo(i.href) ? "text-texto" : "text-suave"}`}>
               <span className="text-xl" aria-hidden>{i.icone}</span>{i.rotulo.split(" ")[0]}
@@ -149,7 +162,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         </nav>
 
         {mais && (
-          <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setMais(false)}>
+          <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setMais(false)}>
             <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-painel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
               <div className="grid grid-cols-3 gap-3">
                 {itens.slice(4).map((i) => (
@@ -164,6 +177,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
                 </div>
               )}
               {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
+              <BotaoTema className="btn-sec mt-2 w-full" />
               <button onClick={sair} className="btn-sec mt-2 w-full">Sair</button>
             </div>
           </div>

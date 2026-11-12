@@ -57,7 +57,12 @@ export async function proxy(request: NextRequest) {
     resposta = NextResponse.next({ request });
   }
 
-  // 2) Mantém a sessão do Supabase renovada
+  // 2) Páginas públicas (início, página da academia, planos…) não precisam de login: segue direto
+  const precisaSessao = /\/app(\/|$)/.test(pathname) || /\/(checkin|cadastro)(\/|$)/.test(pathname) ||
+    ["/login", "/auth", "/master", "/minha-conta", "/demo"].some((p) => pathname.startsWith(p));
+  if (!precisaSessao) return resposta;
+
+  // 3) Mantém a sessão do Supabase renovada
   const supabase = createServerClient(
     SUPABASE_URL,
     SUPABASE_CHAVE,
@@ -74,7 +79,7 @@ export async function proxy(request: NextRequest) {
     }
   );
   try {
-    await supabase.auth.getUser();
+    await supabase.auth.getClaims(); // confere/renova o login (sem ida ao servidor quando possível)
   } catch {
     // se o Supabase estiver fora do ar, o site continua abrindo
   }
