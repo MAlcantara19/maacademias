@@ -5,14 +5,33 @@ import { toPng } from "html-to-image";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { abrirAnexo, dataBR, hojeISO } from "@/lib/util";
-import { Faixa } from "@/components/Faixa";
-import { QR } from "@/components/QR";
+import { CartaoAluno, MODELOS_CARTAO, VersoCartao, type ConfigCartao } from "@/components/CartaoAluno";
+import { liberado } from "@/lib/planos";
 
 function Carteirinha() {
   const ctx = useCtx();
   const sb = supabaseNavegador();
   const params = useSearchParams();
   const cartao = useRef<HTMLDivElement>(null);
+  const verso = useRef<HTMLDivElement>(null);
+  const [cfg, setCfg] = useState<ConfigCartao>(ctx.academia.carteirinha || {});
+  const [editando, setEditando] = useState(false);
+  const plano = ctx.academia.plano;
+  const podeModelos = liberado(plano, "carteirinha_modelos");
+  const podeCompleta = liberado(plano, "carteirinha_completa");
+  // o que o plano não tem não vale, mesmo que esteja salvo
+  const cfgValida: ConfigCartao = {
+    ...cfg,
+    modelo: podeModelos ? cfg.modelo : "classico",
+    cor: podeModelos ? cfg.cor : undefined,
+    nascimento: podeModelos ? cfg.nascimento : true, desde: podeModelos ? cfg.desde : true, modalidade: podeModelos ? cfg.modalidade : true, qr: podeModelos ? cfg.qr : true,
+    fundo_foto: podeCompleta && cfg.fundo_foto, verso: podeCompleta && cfg.verso,
+  };
+  async function salvarModelo() {
+    const { error } = await sb.from("academias").update({ carteirinha: cfg }).eq("id", ctx.academia.id);
+    setMsg(error ? error.message : "Modelo da carteirinha salvo para todos os alunos.");
+    if (!error) setEditando(false);
+  }
   const [opcoes, setOpcoes] = useState<any[]>(ctx.meusAlunos);
   const [alunoId, setAlunoId] = useState(params.get("aluno") || ctx.meusAlunos[0]?.id || "");
   const [p, setP] = useState<any>(null);
@@ -39,15 +58,18 @@ function Carteirinha() {
 
   const ativa = cartoes.find((c) => c.tipo === "academia" && c.ativa);
 
-  async function gerarImagem() {
-    if (!cartao.current) return null;
-    return toPng(cartao.current, { pixelRatio: 3, cacheBust: true });
+  async function gerarImagem(el = cartao.current) {
+    if (!el) return null;
+    return toPng(el, { pixelRatio: 3, cacheBust: true });
   }
   async function baixar() {
-    const url = await gerarImagem();
-    if (!url) return;
-    const a = document.createElement("a");
-    a.href = url; a.download = `carteirinha-${(p?.nome || "aluno").replace(/\s+/g, "-").toLowerCase()}-${ano}.png`; a.click();
+    const nome = (p?.nome || "aluno").replace(/\s+/g, "-").toLowerCase();
+    for (const [el, lado] of [[cartao.current, "frente"], [cfgValida.verso ? verso.current : null, "verso"]] as const) {
+      const url = await gerarImagem(el);
+      if (!url) continue;
+      const a = document.createElement("a");
+      a.href = url; a.download = `carteirinha-${nome}-${ano}${cfgValida.verso ? `-${lado}` : ""}.png`; a.click();
+    }
   }
   async function salvarHistorico() {
     const url = await gerarImagem();
@@ -100,43 +122,67 @@ function Carteirinha() {
       {p && (
         <>
           {/* O cartão */}
-          <div className="overflow-x-auto">
-            <div ref={cartao} className="relative w-[340px] overflow-hidden rounded-2xl text-white sm:w-[428px]"
-              style={{ aspectRatio: "85.6 / 54", background: `linear-gradient(135deg, #121a36 0%, #121a36 55%, ${cor} 140%)`, fontFamily: "Barlow, sans-serif" }}>
-              <div className="flex h-full flex-col p-4">
-                <div className="flex items-center justify-between">
-                  <span style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="text-lg font-extrabold leading-none">{ctx.academia.nome}</span>
-                  <span className="numero text-sm font-bold opacity-80">{ano}</span>
-                </div>
-                <div className="mt-3 flex flex-1 gap-3">
-                  <div className="h-[86px] w-[70px] shrink-0 overflow-hidden rounded-lg bg-white/10" style={{ boxShadow: `0 0 0 3px ${p.cor_faixa || "#ffffff55"}` }}>
-                    {p.foto
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={p.foto} alt="" crossOrigin="anonymous" className="h-full w-full object-cover" />
-                      : <div className="flex h-full items-center justify-center text-3xl opacity-60">🥋</div>}
-                  </div>
-                  <div className="min-w-0 flex-1 text-[11px] leading-tight">
-                    <p style={{ fontFamily: "'Barlow Condensed', sans-serif" }} className="truncate text-xl font-bold leading-none">{p.nome}</p>
-                    <p className="mt-1 opacity-80">{p.faixa ? `Faixa ${p.faixa.toLowerCase()}${p.grau ? ` · ${p.grau}º grau` : ""}` : "—"}</p>
-                    <p className="opacity-80">{p.faixa_modalidade || (p.modalidades || []).join(", ")}</p>
-                    <p className="opacity-80">Nasc. {dataBR(p.nascimento)}</p>
-                    <p className="opacity-80">Aluno desde {dataBR(p.aluno_desde)}</p>
-                  </div>
-                  <div className="shrink-0 self-end"><QR texto={ativa?.codigo || p.membro_id} tamanho={64} /></div>
-                </div>
-                <Faixa cor={p.cor_faixa || cor} graus={p.grau || 0} altura={9} className="mt-2" />
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-4 overflow-x-auto">
+            <CartaoAluno ref={cartao} academia={ctx.academia} p={p} cfg={cfgValida} ano={ano} codigo={ativa?.codigo || p.membro_id} />
+            {cfgValida.verso && <VersoCartao ref={verso} academia={ctx.academia} cfg={cfgValida} ano={ano} />}
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button className="btn" onClick={baixar}>Baixar imagem</button>
             {ctx.equipe && <button className="btn-sec" onClick={salvarHistorico}>Salvar {ano} no histórico</button>}
+            {ctx.admin && <button className="btn-sec" onClick={() => setEditando(!editando)}>🎨 Personalizar modelo</button>}
             <label className="btn-sec cursor-pointer">Trocar foto da carteirinha
               <input type="file" accept="image/*" className="hidden" onChange={(e) => trocarFoto(e.target.files?.[0])} />
             </label>
           </div>
           {msg && <p className="text-sm text-suave">{msg}</p>}
+
+          {editando && ctx.admin && (
+            <section className="space-y-4 rounded-2xl border border-linha bg-painel p-4">
+              <h2 className="text-2xl font-bold">Modelo da carteirinha</h2>
+              <p className="text-sm text-suave">Vale para todos os alunos. A prévia acima muda na hora.</p>
+
+              {podeModelos ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {MODELOS_CARTAO.map((m) => (
+                    <button key={m.id} onClick={() => setCfg({ ...cfg, modelo: m.id })} className="rounded-xl border-2 p-3 text-left"
+                      style={{ borderColor: (cfg.modelo || "classico") === m.id ? "var(--cor)" : "var(--color-linha)" }}>
+                      <span className="block font-semibold">{m.nome}</span><span className="text-xs text-suave">{m.texto}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-suave">Modelo: Clássico.</p>}
+
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={cfg.logo !== false} onChange={(e) => setCfg({ ...cfg, logo: e.target.checked })} /> Mostrar a logo</label>
+                {podeModelos && ([["nascimento", "Nascimento"], ["desde", "Aluno desde"], ["modalidade", "Modalidade"], ["qr", "QR Code"]] as const).map(([k, r]) => (
+                  <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={(cfg as any)[k] !== false} onChange={(e) => setCfg({ ...cfg, [k]: e.target.checked })} /> {r}</label>
+                ))}
+                {podeModelos && <label className="flex items-center gap-2">Cor <input type="color" value={cfg.cor || ctx.academia.cores?.primaria || "#7c3aed"} onChange={(e) => setCfg({ ...cfg, cor: e.target.value })} /></label>}
+              </div>
+              <input className="campo" maxLength={60} placeholder="Frase no rodapé (opcional), ex.: Disciplina dentro e fora do tatame" value={cfg.frase || ""} onChange={(e) => setCfg({ ...cfg, frase: e.target.value })} />
+
+              {podeCompleta && (
+                <div className="space-y-2 rounded-xl bg-painel2 p-3 text-sm">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.fundo_foto} onChange={(e) => setCfg({ ...cfg, fundo_foto: e.target.checked })} /> Usar a foto de capa da academia no fundo</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.verso} onChange={(e) => setCfg({ ...cfg, verso: e.target.checked })} /> Gerar o verso (contatos e regras)</label>
+                  {cfg.verso && <textarea className="campo min-h-20" maxLength={240} placeholder="Texto do verso (regras, recado…)" value={cfg.verso_texto || ""} onChange={(e) => setCfg({ ...cfg, verso_texto: e.target.value })} />}
+                </div>
+              )}
+
+              <details className="rounded-xl bg-painel2 p-3 text-sm">
+                <summary className="cursor-pointer font-semibold">📐 Tamanhos ideais das imagens</summary>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-suave">
+                  <li><b className="text-texto">Logo:</b> quadrada, PNG com fundo transparente, de 512 × 512 a 1000 × 1000 px. Na carteirinha ela ocupa um quadradinho; desenho simples aparece melhor que texto miúdo.</li>
+                  <li><b className="text-texto">Foto do aluno:</b> em pé (3 × 4), rosto centralizado, pelo menos 600 × 800 px.</li>
+                  <li><b className="text-texto">Foto de capa (fundo):</b> 1600 × 600 px, sem texto (fica escurecida atrás dos dados).</li>
+                  <li><b className="text-texto">Carteirinha baixada:</b> sai em alta (cerca de 1280 × 810 px), boa para gráfica em PVC no tamanho de cartão de crédito (85,6 × 54 mm).</li>
+                </ul>
+              </details>
+
+              <div className="flex gap-2"><button className="btn" onClick={salvarModelo}>Salvar modelo</button><button className="btn-sec" onClick={() => { setCfg(ctx.academia.carteirinha || {}); setEditando(false); }}>Cancelar</button></div>
+            </section>
+          )}
 
           {/* Federação */}
           <section className="rounded-2xl bg-painel p-4">

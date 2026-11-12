@@ -17,9 +17,9 @@ export const MINIMO: Record<string, number> = {
   // Intermediário (2)
   chamada_voz: 2, chamada_qr: 2, mensalidades: 2, recibo: 2, despesas: 2, peso: 2, aviso_falta: 2,
   ranking: 2, relatorio: 2, campeonatos: 2, historico_graduacao: 2, backup: 2, contrato: 2, propaganda: 2,
-  certificado: 2,
+  certificado: 2, carteirinha_modelos: 2, qr_pix: 2,
   // Completo (3)
-  chamada_facial: 3, totem: 3, feed_video: 3, campeonatos_completo: 3, titulos: 3, indicacoes: 3, pix_automatico: 3,
+  chamada_facial: 3, totem: 3, feed_video: 3, carteirinha_completa: 3, campeonatos_completo: 3, titulos: 3, indicacoes: 3, pix_automatico: 3,
 };
 
 export function liberado(plano: string | undefined | null, funcao: string) {

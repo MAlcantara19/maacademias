@@ -18,25 +18,67 @@ export default function Cronometro() {
   const escolherEstilo = (e: string) => { setEstilo(e); try { localStorage.setItem("ma_crono_estilo", e); } catch { /* */ } };
   const audio = useRef<AudioContext | null>(null);
 
-  function bipe(freq = 880, dur = 0.25, vezes = 1) {
+  const [som, setSom] = useState({ tipo: "bipe", volume: 0.7 });
+  useEffect(() => { try { const x = JSON.parse(localStorage.getItem("ma_crono_som") || "null"); if (x) setSom(x); } catch { /* */ } }, []);
+  const mudarSom = (x: any) => { const n = { ...som, ...x }; setSom(n); try { localStorage.setItem("ma_crono_som", JSON.stringify(n)); } catch { /* */ } };
+
+  function ctxAudio() { audio.current ||= new AudioContext(); return audio.current; }
+  // bipe simples (contagem regressiva e estilo "Bipe")
+  function bipe(freq = 880, dur = 0.25, vezes = 1, vol = som.volume) {
     try {
-      audio.current ||= new AudioContext();
+      const ac = ctxAudio();
       for (let i = 0; i < vezes; i++) {
-        const o = audio.current.createOscillator(), g = audio.current.createGain();
-        o.frequency.value = freq; o.connect(g); g.connect(audio.current.destination);
-        const t = audio.current.currentTime + i * (dur + 0.12);
-        g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = freq; o.connect(g); g.connect(ac.destination);
+        const t = ac.currentTime + i * (dur + 0.12);
+        g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
         o.start(t); o.stop(t + dur);
       }
     } catch { /* sem áudio */ }
+  }
+  // apito de árbitro: som agudo com vibração
+  function apito(dur = 0.6, vezes = 1) {
+    try {
+      const ac = ctxAudio();
+      for (let i = 0; i < vezes; i++) {
+        const t = ac.currentTime + i * (dur + 0.15);
+        const o = ac.createOscillator(), lfo = ac.createOscillator(), lg = ac.createGain(), g = ac.createGain();
+        o.type = "square"; o.frequency.value = 2900; lfo.frequency.value = 30; lg.gain.value = 180;
+        lfo.connect(lg); lg.connect(o.frequency); o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * som.volume + 0.0001, t + 0.03);
+        g.gain.setValueAtTime(0.22 * som.volume + 0.0001, t + dur - 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.start(t); lfo.start(t); o.stop(t + dur); lfo.stop(t + dur);
+      }
+    } catch { /* */ }
+  }
+  // gongo: grave e longo
+  function gongo(vezes = 1) {
+    try {
+      const ac = ctxAudio();
+      for (let i = 0; i < vezes; i++) {
+        const t = ac.currentTime + i * 1.2;
+        [110, 220.5, 331, 523].forEach((f, k) => {
+          const o = ac.createOscillator(), g = ac.createGain();
+          o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+          g.gain.setValueAtTime((0.5 / (k + 1)) * som.volume + 0.0001, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 3);
+          o.start(t); o.stop(t + 3);
+        });
+      }
+    } catch { /* */ }
+  }
+  function tocar(momento: "inicio" | "pausa" | "fim") {
+    const vezes = momento === "inicio" ? 1 : momento === "pausa" ? 2 : 3;
+    if (som.tipo === "apito") apito(momento === "inicio" ? 0.8 : 0.4, vezes);
+    else if (som.tipo === "gongo") gongo(momento === "fim" ? 2 : 1);
+    else if (som.tipo === "bipe") bipe(momento === "inicio" ? 1000 : momento === "pausa" ? 500 : 400, momento === "inicio" ? 0.5 : 0.35, vezes);
   }
 
   function irPara(f: Fase, r = round) {
     setFase(f); setRound(r);
     if (f === "preparar") setResta(cfg.preparar);
-    if (f === "luta") { setResta(cfg.luta); bipe(1000, 0.5); if (cfg.voz) falar("Hajime"); }
-    if (f === "descanso") { setResta(cfg.descanso); bipe(500, 0.35, 2); if (cfg.voz) falar("Matte"); }
-    if (f === "fim") { bipe(400, 0.6, 3); if (cfg.voz) falar("Soremade"); }
+    if (f === "luta") { setResta(cfg.luta); tocar("inicio"); if (cfg.voz) falar("Hajime"); }
+    if (f === "descanso") { setResta(cfg.descanso); tocar("pausa"); if (cfg.voz) falar("Matte"); }
+    if (f === "fim") { tocar("fim"); if (cfg.voz) falar("Soremade"); }
   }
 
   useEffect(() => {
@@ -47,8 +89,8 @@ export default function Cronometro() {
 
   useEffect(() => {
     if (fase === "parado" || fase === "fim") return;
-    if (resta === 10 && fase === "luta") bipe(700, 0.15);
-    if (resta > 0 && resta <= 3) bipe(660, 0.1);
+    if (som.tipo !== "mudo" && resta === 10 && fase === "luta") bipe(700, 0.15, 1, som.volume * 0.6);
+    if (som.tipo !== "mudo" && resta > 0 && resta <= 3) bipe(660, 0.1, 1, som.volume * 0.6);
     if (resta > 0) return;
     if (fase === "preparar") irPara("luta", 1);
     else if (fase === "luta") round >= cfg.rounds ? irPara("fim") : irPara("descanso");
@@ -89,7 +131,17 @@ export default function Cronometro() {
               <button key={n as string} className="chip py-2" onClick={() => setCfg({ ...cfg, rounds: r as number, luta: l as number, descanso: d as number })}>{n}</button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cfg.voz} onChange={(e) => setCfg({ ...cfg, voz: e.target.checked })} /> Falar “Hajime” e “Matte”</label>
+          <div className="space-y-3 rounded-2xl bg-painel p-4">
+            <p className="font-semibold">Som</p>
+            <div className="flex flex-wrap gap-2">
+              {[["bipe", "🔔 Bipe"], ["apito", "🎵 Apito"], ["gongo", "🥁 Gongo"], ["mudo", "🔇 Sem som"]].map(([k, r]) => (
+                <button key={k} className="chip py-2" onClick={() => { mudarSom({ tipo: k }); setTimeout(() => { if (k === "apito") apito(0.5); else if (k === "gongo") gongo(); else if (k === "bipe") bipe(1000, 0.4); }, 50); }}
+                  style={som.tipo === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
+              ))}
+            </div>
+            <label className="flex items-center gap-3 text-sm">🔈 <input type="range" min={0.1} max={1} step={0.1} value={som.volume} className="flex-1" onChange={(e) => mudarSom({ volume: Number(e.target.value) })} /> 🔊</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cfg.voz} onChange={(e) => setCfg({ ...cfg, voz: e.target.checked })} /> Falar “Hajime”, “Matte” e “Sore-made” junto</label>
+          </div>
           <button className="btn w-full py-5 text-2xl" onClick={comecar}>▶ Começar</button>
         </>
       )}

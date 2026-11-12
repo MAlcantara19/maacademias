@@ -141,3 +141,10 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Técnicas progressivas e meta de estudo só aparecem quando o estudo está ligado.
 - Cronômetro com 4 estilos (Placar, Anel, Painel LED, Minimalista), na tela normal com botão de tela cheia.
 - Cabeçalhos de segurança (next.config.ts), só no site publicado.
+
+## Atualização 12
+
+- Carteirinha personalizável (Carteirinha → 🎨 Personalizar modelo, só admin):
+  Base = clássica com logo e frase; Intermediário = 4 modelos, cor e campos; Completo = foto de fundo e verso.
+- QR Codes: plaquinha do Pix (Intermediário em diante), download em SVG e guia da placa 3D.
+- Cronômetro: som bipe, apito, gongo ou mudo, com volume, e voz opcional.
