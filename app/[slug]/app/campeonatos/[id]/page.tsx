@@ -97,7 +97,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
           <p className="numero text-3xl font-bold">{ck.prontos} de {ck.atletas} atletas prontos</p>
           <div className="mt-2"><Barra pct={ck.pct_prontos} cor="var(--color-ok)" /></div>
           <p className="mt-2 text-sm text-suave">
-            {ck.sem_carteirinha > 0 && `🪪 ${ck.sem_carteirinha} sem carteirinha · `}
+            {ck.sem_carteirinha > 0 && `💳 ${ck.sem_carteirinha} sem carteirinha · `}
             {ck.peso_desatualizado > 0 && `⚖️ ${ck.peso_desatualizado} com peso desatualizado · `}
             {ck.acima_do_peso > 0 && `🔺 ${ck.acima_do_peso} acima do peso · `}
             {ck.com_documento_pendente > 0 && `📄 ${ck.com_documento_pendente} com documento pendente`}

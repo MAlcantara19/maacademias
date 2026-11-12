@@ -1,4 +1,5 @@
 "use client";
+import { liberado } from "@/lib/planos";
 import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -7,11 +8,25 @@ import { dataHoraBR } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Galeria } from "./Galeria";
 
-const LIMITE_MB = 45;
+const LIMITE_MB = 25;      // vídeo
+const MAX_ARQUIVOS = 4;    // por post
+const MAX_SEGUNDOS = 30;   // duração do vídeo
+
+// Duração de um vídeo escolhido (em segundos)
+function duracao(arq: File): Promise<number> {
+  return new Promise((ok) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => { URL.revokeObjectURL(v.src); ok(v.duration || 0); };
+    v.onerror = () => ok(0);
+    v.src = URL.createObjectURL(arq);
+  });
+}
 
 // Feed da academia: fotos e vídeos dos treinos, curtidas, marcações e download
 export default function Feed() {
   const ctx = useCtx();
+  const podeVideo = liberado(ctx.academia.plano, "feed_video");
   const sb = supabaseNavegador();
   const [posts, setPosts] = useState<any[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -46,9 +61,15 @@ export default function Feed() {
   const src = (u: string) => (u.startsWith("privado:") ? urls[u] : u);
 
   async function publicar() {
-    if (!novo?.arquivos?.length) return setMsg("Escolha pelo menos uma foto ou vídeo.");
-    const grande = Array.from(novo.arquivos as FileList).find((f) => f.size > LIMITE_MB * 1024 * 1024);
-    if (grande) return setMsg(`O arquivo ${grande.name} passa de ${LIMITE_MB} MB. Envie um vídeo mais curto.`);
+    if (!novo?.arquivos?.length) return setMsg("Escolha pelo menos uma foto.");
+    const lista = Array.from(novo.arquivos as FileList);
+    if (lista.length > MAX_ARQUIVOS) return setMsg(`Escolha no máximo ${MAX_ARQUIVOS} fotos por post.`);
+    const videos = lista.filter((f) => f.type.startsWith("video/"));
+    if (videos.length && !podeVideo) return setMsg("Neste plano o feed é só de fotos. Vídeos, mande no grupo da turma. 😉");
+    for (const v of videos) {
+      if (v.size > LIMITE_MB * 1024 * 1024) return setMsg(`O vídeo ${v.name} passa de ${LIMITE_MB} MB.`);
+      if ((await duracao(v)) > MAX_SEGUNDOS + 1) return setMsg(`Vídeos de até ${MAX_SEGUNDOS} segundos. Corte o vídeo e tente de novo.`);
+    }
     setEnviando(true); setMsg("");
     const postId = crypto.randomUUID();
     const r = await sb.from("posts").insert({ id: postId, academia_id: ctx.academia.id, autor_id: eu, legenda: novo.legenda || null });
@@ -107,8 +128,8 @@ export default function Feed() {
 
       {novo && (
         <section className="space-y-3 rounded-2xl border border-linha bg-painel p-4">
-          <label className="btn-sec w-full cursor-pointer">📷 {novo.arquivos?.length ? `${novo.arquivos.length} arquivo(s) escolhido(s)` : "Escolher fotos ou vídeos"}
-            <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => setNovo({ ...novo, arquivos: e.target.files })} />
+          <label className="btn-sec w-full cursor-pointer">📷 {novo.arquivos?.length ? `${novo.arquivos.length} arquivo(s) escolhido(s)` : podeVideo ? `Escolher fotos ou vídeo (até ${MAX_SEGUNDOS} s)` : `Escolher fotos (até ${MAX_ARQUIVOS})`}
+            <input type="file" accept={podeVideo ? "image/*,video/*" : "image/*"} multiple className="hidden" onChange={(e) => setNovo({ ...novo, arquivos: e.target.files })} />
           </label>
           <textarea className="campo min-h-20" placeholder="Legenda (ex.: Treino pesado de hoje! 💪)" onChange={(e) => setNovo({ ...novo, legenda: e.target.value })} />
           <p className="rotulo">Marcar quem aparece</p>

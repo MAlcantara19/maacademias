@@ -441,7 +441,8 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             {x.matriculas?.map((m: any) => (
               <li key={m.turma_id} className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {m.turmas?.nome} <span className="text-sm text-suave">desde {dataBR(m.desde)}{m.ate ? ` até ${dataBR(m.ate)}` : ""}</span>
+                  <Link href={`${base}/turmas/${m.turma_id}`} className="font-semibold underline-offset-2 hover:underline">{m.turmas?.nome} →</Link>{" "}
+                  <span className="text-sm text-suave">desde {dataBR(m.desde)}{m.ate ? ` até ${dataBR(m.ate)}` : ""}</span>
                   {(m.turmas?.horarios || []).length > 0 && (
                     <span className="block text-xs text-suave">
                       🕒 {[...(m.turmas.horarios || [])].sort((p: any, q: any) => p.dia_semana - q.dia_semana || p.hora_inicio.localeCompare(q.hora_inicio))

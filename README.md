@@ -101,3 +101,9 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Painel master: `/master/calendario` (todas as datas) e `/master/atividade` (o que foi feito + erros).
 - Limpeza diária das fotos do feed: `vercel.json` chama `/api/limpar-feed`.
   Precisa das variáveis `SUPABASE_SECRET_KEY` e `CRON_SECRET` (qualquer senha longa) na Vercel.
+
+## Atualização 07
+
+- Página "Minhas turmas" (`/turmas`) e página de cada turma (horários, professor, próxima aula com "vou nessa aula" e colegas).
+- Feed: Base e Intermediário só fotos (até 4 por post); Completo aceita vídeo de até 30 segundos (máx. 25 MB).
+- Demonstração (`/demo?plano=...`) mostra o motivo exato quando não abre.

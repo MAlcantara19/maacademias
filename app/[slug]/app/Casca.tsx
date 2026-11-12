@@ -47,11 +47,12 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
       ]
     : [
         { href: base, rotulo: "Início", icone: "🏠" },
+        { href: `${base}/turmas`, rotulo: "Turmas", icone: "👥" },
+        { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "💳", m: "carteirinha" },
         { href: `${base}/meu`, rotulo: ctx.meusAlunos.length > 1 || !ctx.meusAlunos[0]?.eu ? "Meus atletas" : "Meu perfil", icone: "🥋" },
-        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
         { href: `${base}/feed`, rotulo: "Feed", icone: "📸", m: "feed" },
+        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
-        { href: `${base}/carteirinha`, rotulo: "Carteirinha", icone: "🪪", m: "carteirinha" },
         { href: `${base}/tecnicas`, rotulo: "Matéria da faixa", icone: "📚" },
         { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/mensalidades`, rotulo: "Mensalidades", icone: "💳", m: "mensalidades" },

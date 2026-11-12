@@ -97,7 +97,7 @@ function Lista() {
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ["atrasados", "💳 Mensalidade atrasada"], ["sem_carteirinha", "🪪 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
+        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ["atrasados", "💳 Mensalidade atrasada"], ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
           <button key={k} onClick={() => setFiltro(k)} className="chip" style={filtro === k ? { borderColor: "var(--cor)", background: "var(--cor)" } : {}}>{v}</button>
         ))}
       </div>

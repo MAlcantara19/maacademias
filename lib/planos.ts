@@ -19,7 +19,7 @@ export const MINIMO: Record<string, number> = {
   ranking: 2, relatorio: 2, campeonatos: 2, historico_graduacao: 2, backup: 2, contrato: 2, propaganda: 2,
   certificado: 2,
   // Completo (3)
-  chamada_facial: 3, totem: 3, campeonatos_completo: 3, titulos: 3, indicacoes: 3, pix_automatico: 3,
+  chamada_facial: 3, totem: 3, feed_video: 3, campeonatos_completo: 3, titulos: 3, indicacoes: 3, pix_automatico: 3,
 };
 
 export function liberado(plano: string | undefined | null, funcao: string) {
@@ -51,7 +51,7 @@ export const PLANOS = [
     id: "completo", nome: "Completo", preco: 79, slugDemo: "piloto-completo", destaque: false,
     frase: "Para quem quer o máximo de tecnologia.",
     itens: ["Tudo do Intermediário", "Chamada por reconhecimento facial", "Modo totem (tablet na recepção)",
-      "Campeonatos completos: pesagem, lembretes e ficha em PDF", "Títulos e temporadas por semestre", "Indique um amigo",
+      "Campeonatos completos: pesagem, lembretes e ficha em PDF", "Vídeos curtos no feed (até 30 s)", "Títulos e temporadas por semestre", "Indique um amigo",
       "Baixa automática do Pix (em breve)"],
   },
 ] as const;

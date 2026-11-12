@@ -14,7 +14,7 @@ const RECURSOS = [
   ["💳", "Mensalidades com Pix", "QR Code com o valor certo, comprovante pelo app e recibo numerado."],
   ["👀", "Ninguém some sem você saber", "Alerta de aluno sumido, aniversários da turma e pendências na hora da chamada."],
   ["📸", "Feed do treino", "Fotos e vídeos só para quem é da academia, com marcação e download para o Instagram."],
-  ["🪪", "Carteirinha digital", "Com foto, faixa e QR. Histórico por ano e carteirinha da federação guardada no app."],
+  ["💳", "Carteirinha digital", "Com foto, faixa e QR. Histórico por ano e carteirinha da federação guardada no app."],
   ["🌐", "Página da academia", "Horários, professores, mapa, aula experimental e cadastro online. Pode ter domínio próprio."],
 ];
 

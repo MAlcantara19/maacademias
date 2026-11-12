@@ -390,7 +390,7 @@ function Chamada() {
             <button className="btn-sec text-sm" onClick={salvarObs}>Salvar anotação</button>
             {ctx.academia.modulos?.feed !== false && (
               <label className="btn-sec cursor-pointer text-sm">📷 Foto do treino → feed
-                <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => fotoDoTreino(e.target.files)} />
+                <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => fotoDoTreino(e.target.files)} />
               </label>
             )}
           </div>
