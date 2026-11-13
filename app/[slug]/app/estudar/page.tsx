@@ -356,6 +356,7 @@ export default function Estudar() {
             <EscolhaVoz />
             <button className="btn-sec text-sm" onClick={() => setTatame(true)}>⛶ Modo tatame (tela cheia)</button>
           </div>
+          {!filtradas.length && <p className="rounded-xl bg-painel p-3 text-sm text-alerta">Nenhuma palavra nesse filtro. Troque a lista (60 palavras / Ampliada / Todas) ou a categoria.</p>}
           <Tatame ativo={tatame} onSair={() => setTatame(false)}>
             <RodaSorteio grande={tatame}
               itens={filtradas.map((p) => ({ id: p.id, rotulo: modo === "roleta-palavra" ? p.termo : p.significado, cor: corCategoria(p.categoria) }))}

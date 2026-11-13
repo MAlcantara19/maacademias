@@ -148,3 +148,8 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
   Base = clássica com logo e frase; Intermediário = 4 modelos, cor e campos; Completo = foto de fundo e verso.
 - QR Codes: plaquinha do Pix (Intermediário em diante), download em SVG e guia da placa 3D.
 - Cronômetro: som bipe, apito, gongo ou mudo, com volume, e voz opcional.
+
+## Atualização 13 (correção)
+
+- Corrige "infinite recursion detected in policy for relation perfis" ao cadastrar aluno/professor.
+- Menu "Mais" do celular com rolagem e botão de fechar.

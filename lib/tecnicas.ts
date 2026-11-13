@@ -31,7 +31,7 @@ export const CLASSIFICACOES: Record<string, string> = {
 export const CORES_CATEGORIA: Record<string, string> = {
   Etiqueta: "#2563eb", "Dojô": "#7c3aed", Arbitragem: "#dc2626", Fundamentos: "#16a34a", Treino: "#f97316",
   "Técnicas": "#0d9488", "História": "#78350f", "Princípios": "#ca8a04", "Direções": "#475569",
-  "Palavras das técnicas": "#db2777", "Corpo e judogi": "#0891b2", "Números": "#111111",
+  "Palavras das técnicas": "#db2777", "Corpo e judogi": "#0891b2", "Números": "#64748b",
 };
 export const corCategoria = (c?: string | null) => (c && CORES_CATEGORIA[c]) || "#64748b";
 

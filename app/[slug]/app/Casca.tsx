@@ -165,7 +165,11 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
 
         {mais && (
           <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setMais(false)}>
-            <div className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-painel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto overscroll-contain rounded-t-3xl bg-painel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky -top-5 z-10 -mx-5 -mt-5 mb-3 flex items-center justify-between bg-painel px-5 pb-2 pt-4">
+                <span className="mx-auto h-1.5 w-12 rounded-full bg-linha" aria-hidden />
+                <button className="absolute right-4 top-3 rounded-full bg-painel2 px-3 py-1 text-sm" onClick={() => setMais(false)} aria-label="Fechar menu">✕</button>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 {itens.slice(4).map((i) => (
                   <Link key={i.href} href={i.href} onClick={() => setMais(false)} className="flex flex-col items-center gap-1 rounded-2xl bg-painel2 p-4 text-center text-sm">
