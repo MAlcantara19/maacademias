@@ -11,6 +11,7 @@ import { Barra } from "@/components/Grafico";
 import { ComparaPeso } from "@/components/ComparaPeso";
 import { CadastroRosto } from "@/components/CadastroRosto";
 import { MeusCampeonatos } from "@/components/MeusCampeonatos";
+import { FichaSaude } from "@/components/FichaSaude";
 import { liberado } from "@/lib/planos";
 import { DIAS, hora } from "@/lib/util";
 
@@ -325,6 +326,13 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <Bloco titulo="Chamada por foto">
             <CadastroRosto perfilId={a.perfil_id} academiaId={ctx.academia.id} nome={a.nome} podeEditar={ctx.equipe || meu} />
           </Bloco>
+        )}
+
+        {(ctx.equipe || meu) && (
+          <details className="rounded-2xl bg-painel p-4" open={(x.perfil?.saude?.condicoes || []).length > 0}>
+            <summary className="cursor-pointer text-xl font-bold">⚕️ Ficha de saúde</summary>
+            <div className="mt-3"><FichaSaude perfilId={a.perfil_id} saude={x.perfil?.saude} podeEditar={podeEditar} onSalvo={carregar} /></div>
+          </details>
         )}
 
         <Bloco titulo="🏅 Campeonatos">

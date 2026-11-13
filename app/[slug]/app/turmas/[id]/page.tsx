@@ -16,6 +16,10 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
   const [prof, setProf] = useState<any>(null);
   const [colegas, setColegas] = useState<any[]>([]);
   const [meuNaTurma, setMeuNaTurma] = useState<string | null>(null);
+  const [freq, setFreq] = useState<any[]>([]);
+  const [recado, setRecado] = useState<any>(null);
+  const [textoRecado, setTextoRecado] = useState("");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -29,8 +33,29 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
       setColegas(c || []);
       const meu = (c || []).find((x: any) => ctx.meusAlunos.some((m) => m.id === x.membro_id));
       setMeuNaTurma(meu?.membro_id || null);
+      if (ctx.equipe) sb.rpc("presenca_turma", { p_turma: id }).then(({ data: f }) => setFreq(f || []));
     })();
   }, [id]); // eslint-disable-line
+
+  // recado da próxima aula
+  useEffect(() => {
+    if (!t) return;
+    const hj = hojeISO();
+    const ag = new Date().toLocaleTimeString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const ps: any[] = [];
+    (t.horarios || []).forEach((h: any) => { for (let k = 0; k < 7; k++) { const d = addDias(hj, k); if (new Date(d + "T12:00:00").getDay() === h.dia_semana && (d > hj || h.hora_fim > ag)) ps.push(d); } });
+    ps.sort();
+    if (!ps[0]) return;
+    sb.from("recados_aula").select("*").eq("turma_id", id).eq("data", ps[0]).maybeSingle().then(({ data }) => { setRecado(data || { data: ps[0] }); setTextoRecado(data?.texto || ""); });
+  }, [t?.id]); // eslint-disable-line
+  async function salvarRecado() {
+    if (!recado) return;
+    const r = textoRecado.trim()
+      ? await sb.from("recados_aula").upsert({ academia_id: ctx.academia.id, turma_id: id, data: recado.data, texto: textoRecado.trim(), criado_por: ctx.membroId }, { onConflict: "turma_id,data" })
+      : await sb.from("recados_aula").delete().eq("turma_id", id).eq("data", recado.data);
+    setMsg(r.error ? r.error.message : textoRecado.trim() ? "Recado salvo. Os alunos recebem na véspera, às 18h." : "Recado apagado.");
+    setRecado({ ...recado, texto: textoRecado.trim() || null });
+  }
 
   if (!t) return <p className="text-suave">Carregando…</p>;
 
@@ -46,6 +71,7 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
   });
   proximas.sort((a, b) => (a.dia + a.hora_inicio).localeCompare(b.dia + b.hora_inicio));
   const proxima = proximas[0];
+  const diaProx = proxima?.dia;
 
   return (
     <div className="space-y-5">
@@ -69,9 +95,38 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
           <p className="text-sm opacity-90">Próxima aula</p>
           <p className="numero text-3xl font-bold">{proxima.dia === hoje ? "Hoje" : DIAS[proxima.dia_semana]} · {hora(proxima.hora_inicio)}</p>
           {proxima.tipo_treino && <p>Treino {proxima.tipo_treino}</p>}
+          {recado?.texto && <p className="mt-2 rounded-lg bg-black/20 p-2 text-sm">📌 {recado.texto}</p>}
           {meuNaTurma && ctx.academia.modulos?.pre_checkin !== false && (
             <PreCheckin academiaId={ctx.academia.id} horarioId={proxima.id} data={proxima.dia} membroId={meuNaTurma} claro />
           )}
+        </section>
+      )}
+
+      {ctx.equipe && recado && (
+        <section className="space-y-2 rounded-2xl bg-painel p-4">
+          <h2 className="text-xl font-bold">📌 Recado para a próxima aula ({String(recado.data).split("-").reverse().slice(0, 2).join("/")})</h2>
+          <textarea className="campo min-h-16" placeholder="Ex.: Amanhã tem prova de faixa — tragam a faixa e a carteirinha. / Tragam a ficha do campeonato." value={textoRecado} onChange={(e) => setTextoRecado(e.target.value)} />
+          <div className="flex items-center gap-2"><button className="btn text-sm" onClick={salvarRecado}>Salvar recado</button>{msg && <span className="text-sm text-suave">{msg}</span>}</div>
+          <p className="text-xs text-suave">Na véspera às 18h: os alunos (e responsáveis) recebem o recado e você recebe quantos confirmaram presença.</p>
+        </section>
+      )}
+
+      {ctx.equipe && freq.length > 0 && (
+        <section className="rounded-2xl bg-painel p-4">
+          <h2 className="mb-1 text-xl font-bold">📊 Presença nas últimas aulas</h2>
+          <p className="mb-3 text-sm text-suave">Média: <b>{Math.round(freq.reduce((s2, f) => s2 + (f.matriculados ? (100 * f.presentes) / f.matriculados : 0), 0) / freq.length)}%</b> da turma por aula</p>
+          <div className="flex h-36 items-end gap-1 overflow-x-auto">
+            {freq.map((f) => {
+              const pct = f.matriculados ? Math.round((100 * f.presentes) / f.matriculados) : 0;
+              return (
+                <div key={f.data} className="flex min-w-[18px] flex-1 flex-col items-center gap-1" title={`${String(f.data).split("-").reverse().join("/")}: ${f.presentes} de ${f.matriculados}`}>
+                  <span className="text-[10px] text-suave">{f.presentes}</span>
+                  <div className="w-full rounded-t" style={{ height: `${Math.max(4, pct)}%`, background: pct >= 70 ? "var(--color-ok)" : pct >= 40 ? "var(--color-alerta)" : "var(--color-erro)" }} />
+                  <span className="text-[9px] text-suave">{String(f.data).slice(8, 10)}/{String(f.data).slice(5, 7)}</span>
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 

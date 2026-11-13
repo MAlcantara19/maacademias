@@ -51,7 +51,8 @@ export default function ListaPresenca() {
     <div className="space-y-4">
       <div className="nao-imprimir flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-4xl font-extrabold">Lista de presença</h1>
-        <button className="btn" onClick={() => window.print()}>Imprimir / PDF</button>
+        <button className="btn" onClick={() => window.print()}>📄 Baixar PDF / Imprimir</button>
+        <span className="text-xs text-suave">Para PDF, escolha “Salvar como PDF” na janela de impressão.</span>
       </div>
       <div className="nao-imprimir flex flex-wrap gap-2">
         <select className="campo w-auto" value={turmaId} onChange={(e) => setTurmaId(e.target.value)} aria-label="Turma">

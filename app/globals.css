@@ -110,3 +110,36 @@ h1, h2, h3, .titulo {
 [data-fonte="simples"] h1 { font-size: 1.9rem; line-height: 1.15; }
 [data-fonte="simples"] h2 { font-size: 1.25rem; line-height: 1.25; }
 [data-fonte="simples"] .numero { font-family: var(--font-corpo); font-weight: 700; }
+
+/* Placar de judô: efeito de vitória */
+@keyframes cair-confete { 0% { transform: translateY(-10vh) rotate(0); opacity: 1; } 100% { transform: translateY(110vh) rotate(720deg); opacity: .9; } }
+@keyframes pulsar-vitoria { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.confete { position: absolute; top: 0; width: 12px; height: 18px; border-radius: 3px; animation: cair-confete 2.6s linear infinite; }
+.vitoria { animation: pulsar-vitoria 1.2s ease-in-out infinite; }
+
+/* Efeitos de tela */
+@keyframes efeito-cair { 0% { transform: translateY(-8vh) rotate(0); } 100% { transform: translateY(108vh) rotate(540deg); } }
+@keyframes efeito-subir { 0% { transform: translateY(10vh); opacity: 0; } 15% { opacity: .9; } 100% { transform: translateY(-110vh); opacity: .9; } }
+@keyframes efeito-brilhar { 0%, 100% { opacity: .1; transform: scale(.7); } 50% { opacity: .9; transform: scale(1.1); } }
+@keyframes efeito-flutuar { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-30px) rotate(180deg); } }
+.efeito-cair { animation: efeito-cair linear infinite; }
+.efeito-subir { animation: efeito-subir linear infinite; }
+.efeito-brilhar { animation: efeito-brilhar ease-in-out infinite; }
+.efeito-flutuar { animation: efeito-flutuar ease-in-out infinite; }
+@keyframes abertura-sumir { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes abertura-girar { 0% { transform: scale(.4) rotate(-180deg); opacity: 0; } 50% { transform: scale(1.08) rotate(10deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+.abertura { animation: abertura-sumir 1.6s ease forwards; }
+.abertura-logo { animation: abertura-girar .9s cubic-bezier(.2,.8,.2,1) forwards; }
+@media (prefers-reduced-motion: reduce) { .efeito-cair, .efeito-subir, .efeito-brilhar, .efeito-flutuar, .abertura, .abertura-logo { animation: none !important; } }
+
+/* Mais fontes por academia */
+[data-fonte="moderna"] h1, [data-fonte="moderna"] h2, [data-fonte="moderna"] h3, [data-fonte="moderna"] .titulo {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 800; letter-spacing: -0.02em;
+}
+[data-fonte="classica"] h1, [data-fonte="classica"] h2, [data-fonte="classica"] h3, [data-fonte="classica"] .titulo {
+  font-family: Georgia, "Times New Roman", serif; font-weight: 700; letter-spacing: 0;
+}
+[data-fonte="arredondada"] h1, [data-fonte="arredondada"] h2, [data-fonte="arredondada"] h3, [data-fonte="arredondada"] .titulo {
+  font-family: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, sans-serif; font-weight: 800; letter-spacing: -0.01em;
+}
+[data-fonte="moderna"] h1, [data-fonte="classica"] h1, [data-fonte="arredondada"] h1 { font-size: 1.9rem; line-height: 1.15; }

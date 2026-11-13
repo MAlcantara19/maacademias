@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { falar } from "@/lib/fala";
 import { Tatame } from "@/components/Tatame";
+import { PlacarTelao, TelaVitoria, mmss, NOME, type Estado, type Lado } from "@/components/PlacarTelao";
+import { supabaseNavegador } from "@/lib/supabase/client";
+import { QR } from "@/components/QR";
 
 // Placar de luta de judô (regras IJF 2025):
 // - Ippon encerra; 2 waza-ari = ippon (waza-ari awasete ippon); yuko não soma.
@@ -11,15 +14,6 @@ import { Tatame } from "@/components/Tatame";
 // - Osaekomi: 5–9 s yuko, 10–19 s waza-ari, 20 s ippon (no Golden Score, 5 s já encerra).
 // - Visão do árbitro: AZUL à esquerda, BRANCO à direita.
 
-type Lado = "azul" | "branco";
-type Atleta = { nome: string; yuko: number; waza: number; shido: number };
-type Estado = {
-  duracao: number; resta: number; golden: boolean; gs: number; correndo: boolean;
-  azul: Atleta; branco: Atleta;
-  osae: { lado: Lado; seg: number } | null;
-  fim: { lado: Lado | null; motivo: string } | null;
-};
-
 const novo = (duracao: number, nomes?: { azul: string; branco: string }): Estado => ({
   duracao, resta: duracao, golden: false, gs: 0, correndo: false,
   azul: { nome: nomes?.azul || "", yuko: 0, waza: 0, shido: 0 },
@@ -27,8 +21,7 @@ const novo = (duracao: number, nomes?: { azul: string; branco: string }): Estado
   osae: null, fim: null,
 });
 const outro = (l: Lado): Lado => (l === "azul" ? "branco" : "azul");
-const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-const NOME: Record<Lado, string> = { azul: "AZUL", branco: "BRANCO" };
+
 
 const FALAS = [["hajime", "Hajime"], ["matte", "Matte"], ["osaekomi", "Osaekomi"], ["toketa", "Toketa"], ["soremade", "Sore-made"]] as const;
 type Fala = (typeof FALAS)[number][0];
@@ -210,39 +203,6 @@ export function PlacarJudo({ voz = true }: { voz?: boolean }) {
     );
   };
 
-  // Placar estilo TV (IJF): branco em cima, azul embaixo, relógio grande à direita
-  const olimpico = () => {
-    const linha = (l: Lado) => {
-      const a = e[l], azul = l === "azul";
-      return (
-        <div className="flex items-stretch" style={{ background: azul ? "#1d4ed8" : "#f8fafc", color: azul ? "#fff" : "#0f172a" }}>
-          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-            {e.osae?.lado === l && <span className="rounded-md px-2 py-1 text-sm font-extrabold" style={{ background: "#facc15", color: "#111" }}>{e.osae.seg}s</span>}
-            <span className="truncate font-extrabold uppercase" style={{ fontSize: tela ? "min(5vw, 3.2rem)" : "1.6rem" }}>{a.nome || NOME[l]}</span>
-          </div>
-          <div className="flex items-center gap-1 px-2">
-            {[0, 1, 2].map((i) => i < a.shido && <span key={i} className="h-10 w-7 rounded" style={{ background: a.shido >= 3 ? "#dc2626" : "#facc15", height: tela ? "min(6vw, 4rem)" : "2.5rem", width: tela ? "min(4vw, 2.6rem)" : "1.75rem" }} />)}
-          </div>
-          {[["W", a.waza], ["Y", a.yuko]].map(([r, v]) => (
-            <div key={r as string} className="flex w-[18%] flex-col items-center justify-center border-l" style={{ borderColor: azul ? "#ffffff33" : "#0f172a22" }}>
-              <span className="numero font-extrabold leading-none" style={{ fontSize: tela ? "min(9vw, 6rem)" : "3rem" }}>{v as number}</span>
-              <span className="text-[10px] font-bold opacity-70">{r === "W" ? "WAZA-ARI" : "YUKO"}</span>
-            </div>
-          ))}
-        </div>
-      );
-    };
-    return (
-      <div className="flex overflow-hidden rounded-2xl shadow-2xl" style={{ background: "#0b0f1d" }}>
-        <div className="flex-1 divide-y divide-black">{linha("branco")}{linha("azul")}</div>
-        <div className="flex w-[30%] flex-col items-center justify-center px-2 text-white">
-          {e.golden && <span className="text-xs font-bold tracking-widest" style={{ color: "#facc15" }}>GOLDEN SCORE</span>}
-          <span className="numero font-extrabold leading-none" style={{ fontSize: tela ? "min(11vw, 8rem)" : "3.5rem", color: e.golden ? "#facc15" : e.correndo ? "#fff" : "#ef4444" }}>{e.golden ? `+${mmss(e.gs)}` : mmss(e.resta)}</span>
-          {e.osae && <span className="mt-1 rounded px-2 text-sm font-bold" style={{ background: "#facc15", color: "#111" }}>OSAEKOMI {e.osae.seg}s</span>}
-        </div>
-      </div>
-    );
-  };
   // botões compactos de cada atleta (no modo olímpico, ficam embaixo do placar)
   const controles = (l: Lado) => {
     const azul = l === "azul";
@@ -257,6 +217,23 @@ export function PlacarJudo({ voz = true }: { voz?: boolean }) {
       </div>
     );
   };
+
+  // ---------- Transmitir para outra tela (tablet/TV) em tempo real ----------
+  const [sala, setSala] = useState<string | null>(null);
+  const [telas, setTelas] = useState(0);
+  const canal = useRef<any>(null);
+  function transmitir() {
+    const codigo = String(Math.floor(1000 + Math.random() * 9000));
+    const sb = supabaseNavegador();
+    const ch = sb.channel(`placar-${codigo}`, { config: { broadcast: { self: false }, presence: { key: "arbitro" } } });
+    ch.on("broadcast", { event: "pedir" }, () => ch.send({ type: "broadcast", event: "estado", payload: ref.current }))
+      .on("presence", { event: "sync" }, () => setTelas(Object.keys(ch.presenceState()).filter((k) => k !== "arbitro").length))
+      .subscribe((st: string) => { if (st === "SUBSCRIBED") ch.track({ papel: "arbitro" }); });
+    canal.current = ch; setSala(codigo);
+  }
+  function pararTransmissao() { canal.current?.unsubscribe(); canal.current = null; setSala(null); setTelas(0); }
+  useEffect(() => { if (canal.current) canal.current.send({ type: "broadcast", event: "estado", payload: e }); }, [e]);
+  useEffect(() => () => { canal.current?.unsubscribe(); }, []);
 
   const vencedor = e.fim?.lado;
   return (
@@ -277,10 +254,23 @@ export function PlacarJudo({ voz = true }: { voz?: boolean }) {
           {([["arbitro", "👨‍⚖️ Lado a lado (árbitro)"], ["olimpico", "📺 Olímpico (telão)"]] as const).map(([k, r]) => (
             <button key={k} className="chip" onClick={() => mudarLayout(k)} style={layout === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
           ))}
+          {sala
+            ? <button className="chip" style={{ background: "#16a34a", borderColor: "#16a34a", color: "#fff" }} onClick={pararTransmissao}>📡 Transmitindo · sala {sala} · {telas} tela(s) — parar</button>
+            : <button className="chip" onClick={transmitir}>📡 Transmitir para tablet/TV</button>}
           <span className="font-semibold">Voz fala:</span>
           {FALAS.map(([k, r]) => (
             <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={falas[k]} onChange={(x) => mudarFala(k, x.target.checked)} /> {r}</label>
           ))}
+        </div>
+      )}
+      {sala && !tela && (
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-painel p-4">
+          <QR texto={`${typeof window !== "undefined" ? window.location.origin : ""}/placar/${sala}`} tamanho={130} />
+          <div className="space-y-1 text-sm">
+            <p className="text-lg font-bold">Sala {sala}</p>
+            <p>No tablet ou na TV, aponte a câmera para o QR ou abra <b>{typeof window !== "undefined" ? window.location.host : ""}/placar/{sala}</b>.</p>
+            <p className="text-suave">Você comanda daqui (celular) e o placar aparece lá na hora. Deixe esta tela aberta.</p>
+          </div>
         </div>
       )}
       <Tatame ativo={tela} onSair={() => setTela(false)}>
@@ -300,7 +290,7 @@ export function PlacarJudo({ voz = true }: { voz?: boolean }) {
           </div>
           {layout === "olimpico" ? (
             <>
-              {olimpico()}
+              <PlacarTelao e={e} grande={tela} />
               <div className="grid gap-2 sm:grid-cols-2">{controles("azul")}{controles("branco")}</div>
             </>
           ) : (
@@ -319,28 +309,12 @@ export function PlacarJudo({ voz = true }: { voz?: boolean }) {
         </div>
       </Tatame>
 
-      {e.fim && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 overflow-hidden p-6 text-center"
-          style={{ background: vencedor === "azul" ? "#1d4ed8" : vencedor === "branco" ? "#f8fafc" : "#334155", color: vencedor === "branco" ? "#0f172a" : "#fff" }}
-          onClick={() => setE((x) => ({ ...x, fim: null }))}>
-          {Array.from({ length: 24 }).map((_, i) => (
-            <span key={i} className="confete" style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 8) * 0.25}s`, background: ["#facc15", "#dc2626", "#16a34a", "#ffffff", "#0f172a"][i % 5] }} />
-          ))}
-          <p className="text-2xl font-bold tracking-widest opacity-80">SORE-MADE</p>
-          <p className="vitoria titulo font-extrabold leading-none" style={{ fontSize: "min(16vw, 8rem)" }}>
-            {vencedor ? `VITÓRIA DO ${NOME[vencedor]}` : "EMPATE"}
-          </p>
-          {vencedor && e[vencedor].nome && <p className="text-3xl font-bold">{e[vencedor].nome}</p>}
-          <p className="text-xl">{e.fim.motivo}</p>
-          <p className="numero text-lg opacity-80">
-            Azul {e.azul.waza}W {e.azul.yuko}Y {e.azul.shido}S · Branco {e.branco.waza}W {e.branco.yuko}Y {e.branco.shido}S
-          </p>
-          <div className="mt-4 flex gap-2" onClick={(x) => x.stopPropagation()}>
-            <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={desfazer}>↩️ Desfazer</button>
-            <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => { setPilha([]); setE(novo(e.duracao)); }}>🔄 Nova luta</button>
-          </div>
+      <TelaVitoria e={e} onFechar={() => setE((x) => ({ ...x, fim: null }))}>
+        <div className="mt-4 flex gap-2" onClick={(x) => x.stopPropagation()}>
+          <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={desfazer}>↩️ Desfazer</button>
+          <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => { setPilha([]); setE(novo(e.duracao)); }}>🔄 Nova luta</button>
         </div>
-      )}
+      </TelaVitoria>
     </div>
   );
 }

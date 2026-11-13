@@ -9,6 +9,7 @@ import { FAIXAS_ETARIAS, dataBR, dinheiro, primeiroNome, whatsapp } from "@/lib/
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { NovoAluno } from "./NovoAluno";
+import { ImportarAlunos } from "./ImportarAlunos";
 import { Solicitacoes } from "./Solicitacoes";
 import { TrazerAlunos } from "./TrazerAlunos";
 
@@ -29,6 +30,7 @@ function Lista() {
   const [filtro, setFiltro] = useState("");
   const [ordem, setOrdem] = useState(params.get("ordem") || "nome");
   const [novo, setNovo] = useState(false);
+  const [importar, setImportar] = useState(false);
   const [trazer, setTrazer] = useState(false);
 
   async function carregar() {
@@ -74,11 +76,13 @@ function Lista() {
         <div className="flex flex-wrap gap-2">
           <button className="btn-sec" onClick={() => setTrazer(true)}>Trazer de outra academia</button>
           <button className="btn" onClick={() => setNovo(true)}>Cadastrar aluno</button>
+          <button className="btn-sec" onClick={() => setImportar(true)}>📥 Importar planilha</button>
         </div>
       </div>
 
       <Solicitacoes onAprovar={carregar} />
       {novo && <NovoAluno onFechar={() => { setNovo(false); carregar(); }} />}
+      {importar && <ImportarAlunos onFechar={() => { setImportar(false); carregar(); }} />}
       {trazer && <TrazerAlunos jaAqui={todos.map((a) => a.perfil_id)} onFechar={() => { setTrazer(false); carregar(); }} />}
 
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">

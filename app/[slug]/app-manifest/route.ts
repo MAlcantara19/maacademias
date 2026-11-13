@@ -26,6 +26,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     theme_color: cor,
     lang: "pt-BR",
     icons: icones,
+    // atalhos: segure o ícone do app
+    shortcuts: [
+      { name: "Minha carteirinha", short_name: "Carteirinha", url: `/${slug}/app/carteirinha`, icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "Minhas turmas", short_name: "Turmas", url: `/${slug}/app/turmas`, icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "Chamada", short_name: "Chamada", url: `/${slug}/app/chamada`, icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+    ],
   };
   return new NextResponse(JSON.stringify(manifesto), {
     headers: { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=3600" },

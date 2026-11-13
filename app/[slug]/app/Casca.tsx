@@ -11,6 +11,7 @@ import { liberado } from "@/lib/planos";
 import { BotaoWhats } from "@/components/BotaoWhats";
 import { AceiteTermos } from "@/components/AceiteTermos";
 import { InstalarApp } from "@/components/InstalarApp";
+import { AberturaLogo, EfeitosTela, efeitoDaTemporada } from "@/components/EfeitosTela";
 import { EstiloFaixaCtx } from "@/lib/estiloFaixa";
 import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
 
@@ -38,6 +39,19 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
     setMeuTema(prox);
     try { localStorage.setItem("ma_tema", prox); } catch { /* */ }
   }
+  // efeitos de tela: o da academia (ou da temporada) — cada pessoa pode desligar
+  const tema = ctx.academia.tema || {};
+  const efeito = (tema.efeito_temporada && efeitoDaTemporada()) || tema.efeito || "nenhum";
+  const [efeitosOff, setEfeitosOff] = useState(false);
+  useEffect(() => { try { setEfeitosOff(localStorage.getItem("ma_efeitos") === "off"); } catch { /* */ } }, []);
+  function alternarEfeitos() {
+    const off = !efeitosOff; setEfeitosOff(off);
+    try { localStorage.setItem("ma_efeitos", off ? "off" : "on"); } catch { /* */ }
+    window.dispatchEvent(new Event("ma-efeitos"));
+  }
+  const BotaoEfeitos = ({ className = "" }: { className?: string }) => efeito === "nenhum" ? null : (
+    <button onClick={alternarEfeitos} className={className}>{efeitosOff ? "✨ Ligar efeitos" : "✨ Desligar efeitos"}</button>
+  );
   const BotaoTema = ({ className = "" }: { className?: string }) => (
     <button onClick={trocarTema} className={className} aria-label="Trocar modo claro/escuro">{modo === "escuro" ? "☀️ Modo claro" : "🌙 Modo escuro"}</button>
   );
@@ -51,7 +65,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         { href: `${base}/chamada`, rotulo: "Chamada", icone: "✅" },
         { href: `${base}/qrcodes`, rotulo: "QR Codes", icone: "📱" },
         { href: `${base}/alunos`, rotulo: "Alunos", icone: "👥" },
-        { href: `${base}/ranking`, rotulo: "Ranking", icone: "🏆", m: "ranking" },
+        { href: `${base}/ranking`, rotulo: "Ranking", icone: "📊", m: "ranking" },
+        { href: `${base}/recordes`, rotulo: "Recordes", icone: "🏆" },
         { href: `${base}/calendario`, rotulo: "Calendário", icone: "📅" },
         { href: `${base}/campeonatos`, rotulo: "Campeonatos", icone: "🥇", m: "campeonatos" },
         { href: `${base}/feed`, rotulo: "Feed", icone: "📸", m: "feed" },
@@ -64,6 +79,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
         { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
         { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/cronometro`, rotulo: "Cronômetro", icone: "⏱️" },
+        { href: `${base}/recordes`, rotulo: "Recordes", icone: "🏆" },
         { href: `${base}/totem`, rotulo: "Modo totem", icone: "📟", m: "totem" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },
         { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
@@ -113,6 +129,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
       <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto md:flex"
         data-modo={modo} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
         {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
+        <EfeitosTela tipo={efeito} logo={ctx.academia.logo_url} />
+        {tema.abertura && <AberturaLogo logo={ctx.academia.logo_url} nome={ctx.academia.nome} cor={cor} />}
         <AceiteTermos />
         <Contrato ctx={ctx} />
         {!ctx.equipe && <BotaoWhats numero={ctx.academia.whatsapp} acima texto={`Oi! Sou aluno(a) da ${ctx.academia.nome}.`} rotulo={`Falar com a ${ctx.academia.nome}`} />}
@@ -142,6 +160,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
             {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
             <InstalarApp className="mt-1 block text-suave underline" />
             <BotaoTema className="mt-1 block text-suave underline" />
+            <BotaoEfeitos className="mt-1 block text-suave underline" />
             <button onClick={sair} className="mt-1 block text-suave underline">Sair</button>
           </div>
         </aside>
@@ -199,6 +218,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
               {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
               <InstalarApp className="btn mt-2 w-full" />
               <BotaoTema className="btn-sec mt-2 w-full" />
+              <BotaoEfeitos className="btn-sec mt-2 w-full" />
               <button onClick={sair} className="btn-sec mt-2 w-full">Sair</button>
             </div>
           </div>

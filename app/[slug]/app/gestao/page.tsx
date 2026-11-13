@@ -197,6 +197,7 @@ export default function Gestao() {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      <a className="btn text-sm" href={`/${ctx.academia.slug}/app/turmas/${t.id}`}>📊 Abrir turma</a>
                       <button className="btn-sec text-sm" onClick={() => setForm({ tipo: "turma", ...t })}>Editar</button>
                       <button className="btn-sec text-sm" onClick={() => alternarTurma(t)}>{t.ativa ? "Desativar" : "Ativar"}</button>
                     </div>

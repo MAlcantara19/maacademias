@@ -172,3 +172,16 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Ícone e nome do app = logo e nome da academia quando instalado dentro dela.
 - Placar de judô: escolher o que a voz fala; modo "Olímpico (telão)".
 - Aviso "Hoje tem aniversário!" com parabéns no WhatsApp; recibo no WhatsApp depois de dar baixa.
+
+## Atualização 15 (banco) / pacote 16
+
+- Placar transmitido em tempo real: o celular comanda e o tablet/TV mostra (Cronômetro → Luta → 📡 Transmitir; a tela abre /placar/SALA).
+- Personalização: 5 letras para os títulos, efeitos de tela (neve, confete, estrelas, folhas, logo, temporadas)
+  e abertura com a logo; cada pessoa pode desligar os efeitos no menu.
+- Importar alunos de planilha (.xlsx, .csv ou colar do Excel/Google Planilhas), com modelo.
+- Ficha de saúde (anamnese) na ficha do aluno.
+- Mural de recordes com exercícios criados pela academia (tempo, quantidade, pontos).
+- Turma: recado para a próxima aula + aviso na véspera (18h) + gráfico de presença.
+- Carteirinha como papel de parede da tela de bloqueio; atalhos ao segurar o ícone do app.
+- Master: liberar/desligar o conteúdo de judô do Dojô (técnicas, palavras, roletas, quiz) por academia.
+- Curiosidades do judô nas roletas do Dojô.

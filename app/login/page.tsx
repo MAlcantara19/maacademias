@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useState } from "react";
+import { InstalarApp } from "@/components/InstalarApp";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -100,6 +101,7 @@ export default function Login() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-5 py-10">
       <Link href="/" className="mb-10 text-sm text-suave">← Academias</Link>
       <Suspense><FormLogin /></Suspense>
+      <div className="mt-6 flex justify-center"><InstalarApp /></div>
       <p className="mt-8 text-center text-xs text-suave">Ao entrar, você concorda com os <a className="underline" href="/termos">Termos de Uso</a> e a <a className="underline" href="/privacidade">Política de Privacidade</a>.</p>
     </main>
   );

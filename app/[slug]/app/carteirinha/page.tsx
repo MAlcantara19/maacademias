@@ -7,6 +7,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { abrirAnexo, dataBR, hojeISO } from "@/lib/util";
 import { CartaoAluno, MODELOS_CARTAO, VersoCartao, type ConfigCartao } from "@/components/CartaoAluno";
 import { liberado } from "@/lib/planos";
+import { QR } from "@/components/QR";
 
 function Carteirinha() {
   const ctx = useCtx();
@@ -14,6 +15,8 @@ function Carteirinha() {
   const params = useSearchParams();
   const cartao = useRef<HTMLDivElement>(null);
   const verso = useRef<HTMLDivElement>(null);
+  const fundoTela = useRef<HTMLDivElement>(null);
+  const [gerandoFundo, setGerandoFundo] = useState(false);
   const [cfg, setCfg] = useState<ConfigCartao>(ctx.academia.carteirinha || {});
   const [editando, setEditando] = useState(false);
   const plano = ctx.academia.plano;
@@ -62,6 +65,18 @@ function Carteirinha() {
     if (!el) return null;
     return toPng(el, { pixelRatio: 3, cacheBust: true });
   }
+  // Papel de parede da tela de bloqueio: carteirinha + QR grande, no tamanho do celular
+  async function papelDeParede() {
+    setGerandoFundo(true);
+    await new Promise((r) => setTimeout(r, 300));
+    const url = fundoTela.current ? await toPng(fundoTela.current, { pixelRatio: 3, cacheBust: true }) : null;
+    setGerandoFundo(false);
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url; a.download = `tela-de-bloqueio-${(p?.apelido || p?.nome || "aluno").split(" ")[0].toLowerCase()}.png`; a.click();
+    setMsg("Imagem baixada! No celular: Galeria → abra a imagem → ⋮ → Definir como papel de parede → Tela de bloqueio.");
+  }
+
   async function baixar() {
     const nome = (p?.nome || "aluno").replace(/\s+/g, "-").toLowerCase();
     for (const [el, lado] of [[cartao.current, "frente"], [cfgValida.verso ? verso.current : null, "verso"]] as const) {
@@ -121,6 +136,22 @@ function Carteirinha() {
 
       {p && (
         <>
+          {/* Papel de parede (fica fora da tela; só aparece na imagem gerada) */}
+          {gerandoFundo && (
+            <div style={{ position: "fixed", left: -10000, top: 0 }}>
+              <div ref={fundoTela} className="flex flex-col items-center justify-between p-6 text-white"
+                style={{ width: 360, height: 780, background: `linear-gradient(180deg, #0b0f1d 0%, ${ctx.academia.cores?.primaria || "#7c3aed"} 160%)`, fontFamily: "Barlow, sans-serif" }}>
+                <div className="h-40" />
+                <div className="flex flex-col items-center gap-4">
+                  <div style={{ transform: "scale(.82)" }}><CartaoAluno academia={ctx.academia} p={p} cfg={{ ...cfgValida, qr: false }} ano={ano} codigo={ativa?.codigo || p.membro_id} /></div>
+                  <div className="rounded-2xl bg-white p-3"><QR texto={ativa?.codigo || p.membro_id} tamanho={170} /></div>
+                  <p className="text-sm opacity-80">Mostre este QR na recepção</p>
+                </div>
+                <p className="text-xs opacity-60">{ctx.academia.nome} · {ano}</p>
+              </div>
+            </div>
+          )}
+
           {/* O cartão */}
           <div className="flex flex-wrap gap-4 overflow-x-auto">
             <CartaoAluno ref={cartao} academia={ctx.academia} p={p} cfg={cfgValida} ano={ano} codigo={ativa?.codigo || p.membro_id} />
@@ -129,6 +160,7 @@ function Carteirinha() {
 
           <div className="flex flex-wrap gap-2">
             <button className="btn" onClick={baixar}>Baixar imagem</button>
+            <button className="btn-sec" onClick={papelDeParede} disabled={gerandoFundo}>{gerandoFundo ? "Gerando…" : "📱 Papel de parede (tela de bloqueio)"}</button>
             {ctx.equipe && <button className="btn-sec" onClick={salvarHistorico}>Salvar {ano} no histórico</button>}
             {ctx.admin && <button className="btn-sec" onClick={() => setEditando(!editando)}>🎨 Personalizar modelo</button>}
             <label className="btn-sec cursor-pointer">Trocar foto da carteirinha

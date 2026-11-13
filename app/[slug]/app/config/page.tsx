@@ -6,6 +6,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Backup } from "@/components/Backup";
 import { Faixa } from "@/components/Faixa";
+import { EFEITOS } from "@/components/EfeitosTela";
 import { ROTULO_PLANO, liberado, planoMinimoNome } from "@/lib/planos";
 
 const MODULOS: [string, string][] = [
@@ -226,6 +227,25 @@ export default function Config() {
             })}
           </div>
           <p className="text-xs text-suave">Vale para o app e para a página pública. A cor da academia continua a mesma.</p>
+
+          <h3 className="pt-2 text-xl font-bold">Letra dos títulos</h3>
+          <div className="flex flex-wrap gap-2">
+            {([["esportiva", "Esportiva", "'Barlow Condensed', sans-serif"], ["simples", "Simples", "Barlow, sans-serif"], ["moderna", "Moderna", "system-ui, sans-serif"], ["classica", "Clássica", "Georgia, serif"], ["arredondada", "Arredondada", "ui-rounded, Nunito, sans-serif"]] as const).map(([k, r, ff]) => (
+              <button key={k} className="chip py-2 text-base" style={{ fontFamily: ff, fontWeight: 800, ...((a.tema?.fonte || "esportiva") === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}) }}
+                onClick={() => muda("tema", { ...(a.tema || {}), fonte: k })}>{r}</button>
+            ))}
+          </div>
+
+          <h3 className="pt-2 text-xl font-bold">Efeitos de tela</h3>
+          <div className="flex flex-wrap gap-2">
+            {EFEITOS.map((x) => (
+              <button key={x.id} className="chip" onClick={() => muda("tema", { ...(a.tema || {}), efeito: x.id })}
+                style={(a.tema?.efeito || "nenhum") === x.id ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{x.nome}</button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tema?.efeito_temporada} onChange={(e) => muda("tema", { ...(a.tema || {}), efeito_temporada: e.target.checked })} /> Trocar sozinho nas datas especiais (Natal, Ano-novo, Carnaval, Junina, Dia das Crianças)</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!a.tema?.abertura} onChange={(e) => muda("tema", { ...(a.tema || {}), abertura: e.target.checked })} /> Abertura com a logo girando ao abrir o app</label>
+          <p className="text-xs text-suave">Os efeitos são leves e não atrapalham o toque. Cada pessoa pode desligar no menu (✨ Desligar efeitos); quem usa “reduzir movimento” no celular não vê.</p>
 
           <h3 className="pt-2 text-xl font-bold">Graus na faixa</h3>
           <div className="grid gap-2 sm:grid-cols-3">

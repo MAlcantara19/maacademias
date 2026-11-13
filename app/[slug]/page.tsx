@@ -8,6 +8,7 @@ import { Faixa } from "@/components/Faixa";
 import { Avatar } from "@/components/Avatar";
 import { FormExperimental } from "./FormExperimental";
 import { BotaoWhats } from "@/components/BotaoWhats";
+import { EfeitosTela, efeitoDaTemporada } from "@/components/EfeitosTela";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -218,6 +219,7 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
         </section>
       </main>
 
+      <EfeitosTela tipo={(academia.tema?.efeito_temporada && efeitoDaTemporada()) || academia.tema?.efeito || "nenhum"} logo={academia.logo_url} />
       <BotaoWhats numero={academia.whatsapp} acima={modulo(academia, "aula_experimental")} texto={`Olá! Vi o site da ${academia.nome} e quero saber mais.`} rotulo={`Falar com a ${academia.nome}`} />
 
       {/* Barra fixa no celular */}

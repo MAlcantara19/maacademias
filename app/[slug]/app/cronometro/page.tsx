@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Tatame } from "@/components/Tatame";
 import { falar } from "@/lib/fala";
+import { PlacarJudo } from "@/components/PlacarJudo";
 
 type Fase = "parado" | "preparar" | "luta" | "descanso" | "fim";
 
@@ -13,6 +14,7 @@ export default function Cronometro() {
   const [resta, setResta] = useState(0);
   const [pausado, setPausado] = useState(false);
   const [tela, setTela] = useState(false);
+  const [modo, setModo] = useState<"rounds" | "luta">("rounds");
   const [estilo, setEstilo] = useState("placar");
   useEffect(() => { try { setEstilo(localStorage.getItem("ma_crono_estilo") || "placar"); } catch { /* */ } }, []);
   const escolherEstilo = (e: string) => { setEstilo(e); try { localStorage.setItem("ma_crono_estilo", e); } catch { /* */ } };
@@ -117,7 +119,12 @@ export default function Cronometro() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-4xl font-extrabold">Cronômetro de randori</h1>
+      <h1 className="text-4xl font-extrabold">Cronômetro</h1>
+      <div className="flex gap-1 rounded-2xl bg-painel p-1">
+        <button onClick={() => setModo("rounds")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "rounds" ? "bg-painel2" : "text-suave"}`}>⏱️ Rounds (treino)</button>
+        <button onClick={() => setModo("luta")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "luta" ? "bg-painel2" : "text-suave"}`}>🥋 Luta com placar</button>
+      </div>
+      {modo === "luta" ? <PlacarJudo voz={cfg.voz} /> : (<>
       {fase === "parado" && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -175,6 +182,7 @@ export default function Cronometro() {
           </div>
         )}
       </Tatame>
+      </>)}
     </div>
   );
 }

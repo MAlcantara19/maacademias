@@ -27,7 +27,7 @@ export default function Master() {
     if (!m) return;
     const [{ data: r }, { data: ac }, { data: cal }, { data: uso }] = await Promise.all([
       sb.rpc("resumo_master"),
-      sb.from("academias").select("id, cores, dominio, cidade, no_diretorio, plano, feed_retencao_dias"),
+      sb.from("academias").select("id, slug, cores, dominio, cidade, no_diretorio, plano, feed_retencao_dias, modulos"),
       sb.rpc("calendario_master", { p_dias: 45 }),
       sb.rpc("uso_armazenamento"),
     ]);
@@ -73,6 +73,19 @@ export default function Master() {
     const preco = PRECO_PLANO[plano] ?? 0;
     if (preco > 0) await sb.from("plataforma_contratos").upsert({ academia_id: a.academia_id, valor_mensal: preco, dia_vencimento: a.plataforma_dia || 10, ativo: true });
     setMsg(`${a.nome} agora está no plano ${ROTULO_PLANO[plano]}.`); carregar();
+  }
+  // conteúdo exclusivo de judô (Dojô Alcântara): só o master libera
+  async function conteudo(a: any, liberar: boolean) {
+    if (liberar) {
+      if (!confirm(`Liberar as técnicas, palavras, roletas e quiz do Dojô Alcântara para ${a.nome}?`)) return;
+      const { data, error } = await sb.rpc("master_liberar_conteudo", { p_destino: a.academia_id });
+      setMsg(error ? error.message : `${a.nome}: ${data}.`);
+    } else {
+      const apagar = confirm(`Desligar o conteúdo de judô em ${a.nome}.\n\nOK = desligar e APAGAR as técnicas/palavras de lá\nCancelar = só desligar (o conteúdo fica guardado)`);
+      const { error } = await sb.rpc("master_desligar_conteudo", { p_destino: a.academia_id, p_apagar: apagar });
+      setMsg(error ? error.message : `${a.nome}: conteúdo desligado.`);
+    }
+    carregar();
   }
   async function alternar(id: string, campo: string, valor: boolean) { await sb.from("academias").update({ [campo]: !valor }).eq("id", id); carregar(); }
 
@@ -183,6 +196,12 @@ export default function Master() {
                       <button className="text-xs underline" onClick={() => setEditar({ id: a.academia_id })}>💼 Definir quanto esta academia paga para você</button>
                     )}
                   </div>
+                  {x.slug !== "dojo-alcantara" && (
+                    <div className="flex items-center justify-between gap-2 rounded-xl bg-painel2 p-2 text-xs">
+                      <span>📦 Conteúdo de judô (Dojô): <b>{x.modulos?.tecnicas ? "liberado" : "não liberado"}</b></span>
+                      <button className="btn-sec px-2 py-1 text-xs" onClick={() => conteudo(a, !x.modulos?.tecnicas)}>{x.modulos?.tecnicas ? "Desligar" : "Liberar"}</button>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     <Link href={`/${a.slug}/app`} className="btn text-sm">Abrir app</Link>
                     <Link href={`/${a.slug}`} className="btn-sec text-sm">Página</Link>
