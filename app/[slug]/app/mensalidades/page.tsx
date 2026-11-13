@@ -23,6 +23,7 @@ export default function Mensalidades() {
   const [planos, setPlanos] = useState<any[]>([]);
   const [semPlano, setSemPlano] = useState<any[]>([]);
   const [baixa, setBaixa] = useState<any>(null);
+  const [reciboZap, setReciboZap] = useState<any>(null);
   const [novoPlano, setNovoPlano] = useState<any>(null);
   const [filtro, setFiltro] = useState("todas");
   const [msg, setMsg] = useState("");
@@ -91,10 +92,19 @@ export default function Mensalidades() {
   }
 
   async function darBaixa() {
-    const { error } = await sb.from("cobrancas").update({
+    const { data: paga, error } = await sb.from("cobrancas").update({
       status: "paga", pago_em: baixa.pago_em || hoje, valor_pago: Number(baixa.valor_pago || baixa.valor), forma: baixa.forma || "pix", registrado_por: ctx.membroId,
-    }).eq("id", baixa.id);
+    }).eq("id", baixa.id).select("recibo_numero, competencia, valor_pago, pago_em").maybeSingle();
     setMsg(error ? error.message : "Pagamento registrado. O recibo já está disponível.");
+    if (!error && paga) {
+      // recibo pronto para mandar no WhatsApp
+      const [ano, mes] = String(paga.competencia).split("-");
+      const nome = baixa.membros?.perfis?.apelido || primeiroNome(baixa.membros?.perfis?.nome);
+      setReciboZap({
+        numero: baixa.membros?.perfis?.telefone || "",
+        texto: `✅ Recibo nº ${paga.recibo_numero} — ${ctx.academia.nome}\n\nRecebemos de ${baixa.membros?.perfis?.nome || nome} o valor de ${dinheiro(paga.valor_pago)} referente à mensalidade de ${MESES[Number(mes) - 1]}/${ano}, pago em ${dataBR(paga.pago_em)}.\n\nObrigado! 🥋`,
+      });
+    }
     setBaixa(null); carregar();
   }
   async function desfazer(c: any) {
@@ -137,7 +147,16 @@ export default function Mensalidades() {
     return (
       <div className="space-y-4">
         <h1 className="text-4xl font-extrabold">Mensalidades</h1>
-        {msg && <p className="text-sm text-suave">{msg}</p>}
+        {reciboZap && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-painel p-3 text-sm">
+          <span>🧾 Mandar o recibo para o aluno?</span>
+          <span className="flex gap-2">
+            <a className="btn text-sm" target="_blank" href={`https://wa.me/${String(reciboZap.numero).replace(/\D/g, "")}?text=${encodeURIComponent(reciboZap.texto)}`} onClick={() => setTimeout(() => setReciboZap(null), 500)}>Mandar no WhatsApp</a>
+            <button className="btn-sec text-sm" onClick={() => setReciboZap(null)}>Agora não</button>
+          </span>
+        </div>
+      )}
+      {msg && <p className="text-sm text-suave">{msg}</p>}
         {pix && (
           <section className="flex flex-col items-center gap-3 rounded-2xl bg-painel p-5 text-center">
             <h2 className="text-2xl font-bold">Pagar {dinheiro(pix.c.total_atualizado || pix.c.valor)} com Pix</h2>

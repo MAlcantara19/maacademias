@@ -50,6 +50,7 @@ function Lista() {
         (filtro === "sumidos" && (a.dias_sem_vir ?? 0) >= (ctx.academia.alerta_dias_sem_vir || 7) && !a.afastado) ||
         (filtro === "atrasados" && a.mensalidades_atrasadas > 0) ||
         (filtro === "nunca_entrou" && a.tem_login && a.nunca_entrou) ||
+        (filtro === "incompleto" && (!a.nascimento || !a.whatsapp)) ||
         (filtro === "pendencias" && a.pendencias_abertas > 0) ||
         (filtro === "sem_login" && !a.tem_login) ||
         (filtro === "afastados" && a.afastado) ||
@@ -98,7 +99,7 @@ function Lista() {
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ...(liberado(ctx.academia.plano, "mensalidades") ? [["atrasados", "💳 Mensalidade atrasada"]] : []), ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"]].map(([k, v]) => (
+        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ...(liberado(ctx.academia.plano, "mensalidades") ? [["atrasados", "💳 Mensalidade atrasada"]] : []), ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"], ["incompleto", "📝 Cadastro incompleto"]].map(([k, v]) => (
           <button key={k} onClick={() => setFiltro(k)} className="chip" style={filtro === k ? { borderColor: "var(--cor)", background: "var(--cor)" } : {}}>{v}</button>
         ))}
       </div>

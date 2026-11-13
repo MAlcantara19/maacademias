@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { Backup } from "@/components/Backup";
+import { Faixa } from "@/components/Faixa";
 import { ROTULO_PLANO, liberado, planoMinimoNome } from "@/lib/planos";
 
 const MODULOS: [string, string][] = [
@@ -73,6 +74,7 @@ export default function Config() {
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
       reengajar_dias: Number(a.reengajar_dias), lembrete_peso_semanal: !!a.lembrete_peso_semanal,
       professor_ve_mensalidades: !!a.professor_ve_mensalidades, professor_mexe_mensalidades: !!a.professor_ve_mensalidades && !!a.professor_mexe_mensalidades,
+      estilo_grau: a.estilo_grau || "barra",
       tema: a.tema || {}, modos_chamada: a.modos_chamada || ["manual"], tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
       contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
@@ -224,6 +226,18 @@ export default function Config() {
             })}
           </div>
           <p className="text-xs text-suave">Vale para o app e para a página pública. A cor da academia continua a mesma.</p>
+
+          <h3 className="pt-2 text-xl font-bold">Graus na faixa</h3>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {([["barra", "Ponteira preta", "Graus brancos na ponta preta (jiu-jitsu)"], ["branco", "Graus brancos", "Listras brancas na faixa, sem ponteira (judô)"], ["colorido", "Cor da próxima faixa", "Listras na cor da próxima faixa (judô)"]] as const).map(([k, t, d]) => (
+              <button key={k} onClick={() => muda("estilo_grau", k)} className="space-y-2 rounded-xl border-2 p-3 text-left"
+                style={{ borderColor: (a.estilo_grau || "barra") === k ? "var(--cor)" : "var(--color-linha)" }}>
+                <span className="block font-semibold">{(a.estilo_grau || "barra") === k ? "✓ " : ""}{t}</span>
+                <Faixa cor="#1d4ed8" graus={2} altura={12} estilo={k} />
+                <span className="block text-xs text-suave">{d}</span>
+              </button>
+            ))}
+          </div>
 
           <h3 className="pt-2 text-xl font-bold">Banners da página pública</h3>
           <p className="text-xs text-suave">Aparecem no topo da página quando a função “Propagandas” está ligada (lá embaixo).</p>

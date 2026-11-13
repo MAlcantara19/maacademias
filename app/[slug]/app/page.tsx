@@ -6,6 +6,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, NENHUM, hora, hojeISO, addDias, dataBR, dataHoraBR, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { PreCheckin } from "@/components/PreCheckin";
+import { AniversarioDoDia } from "@/components/AniversarioDoDia";
 import { liberado } from "@/lib/planos";
 import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
@@ -129,6 +130,7 @@ export default function Inicio() {
     <div className="space-y-5">
       {tour}
       <h1 className="text-4xl font-extrabold">Olá, {primeiroNome(ctx.perfil?.apelido || ctx.perfil?.nome)}!</h1>
+          <AniversarioDoDia academia={ctx.academia} equipe={ctx.equipe} />
 
       {ctx.equipe ? (
         <>

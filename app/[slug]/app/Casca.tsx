@@ -10,6 +10,9 @@ import { Contrato } from "@/components/Contrato";
 import { liberado } from "@/lib/planos";
 import { BotaoWhats } from "@/components/BotaoWhats";
 import { AceiteTermos } from "@/components/AceiteTermos";
+import { InstalarApp } from "@/components/InstalarApp";
+import { EstiloFaixaCtx } from "@/lib/estiloFaixa";
+import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
@@ -17,6 +20,15 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
   const path = usePathname();
   const router = useRouter();
   const [mais, setMais] = useState(false);
+  // cores das faixas da academia (para os graus coloridos do judô)
+  const [coresFaixas, setCoresFaixas] = useState<string[][]>([]);
+  useEffect(() => {
+    sbFaixa().from("modalidades").select("cores_graduacoes").eq("academia_id", ctx.academia.id)
+      .then(({ data }) => setCoresFaixas((data || []).map((m: any) => m.cores_graduacoes || [])));
+  }, [ctx.academia.id]);
+
+  // lembra a última academia aberta (o app instalado abre direto nela)
+  useEffect(() => { try { localStorage.setItem("ma_ultima_academia", ctx.academia.slug); } catch { /* */ } }, [ctx.academia.slug]);
   // Modo claro/escuro escolhido pela pessoa (vale só neste aparelho); "" = o da academia
   const [meuTema, setMeuTema] = useState("");
   useEffect(() => { try { setMeuTema(localStorage.getItem("ma_tema") || ""); } catch { /* */ } }, []);
@@ -97,6 +109,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
 
   return (
     <ProvedorCtx value={ctx}>
+    <EstiloFaixaCtx.Provider value={{ estilo: ctx.academia.estilo_grau || "barra", cores: coresFaixas }}>
       <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo text-texto md:flex"
         data-modo={modo} data-fonte={ctx.academia.tema?.fonte || "esportiva"}>
         {!vendoComo && <BoasVindas perfil={ctx.perfil} academia={ctx.academia} equipe={ctx.equipe} />}
@@ -127,6 +140,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
             <p className="text-suave">{ctx.papeis.map((p) => ({ admin: "Admin", professor: "Professor", aluno: "Aluno", responsavel: "Responsável" } as any)[p]).join(" · ")}</p>
             {ctx.equipe && <button onClick={() => verComo("primeiro")} className="mt-2 block text-suave underline">👁️ Ver como aluno</button>}
             {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
+            <InstalarApp className="mt-1 block text-suave underline" />
             <BotaoTema className="mt-1 block text-suave underline" />
             <button onClick={sair} className="mt-1 block text-suave underline">Sair</button>
           </div>
@@ -183,12 +197,14 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
                 </div>
               )}
               {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
+              <InstalarApp className="btn mt-2 w-full" />
               <BotaoTema className="btn-sec mt-2 w-full" />
               <button onClick={sair} className="btn-sec mt-2 w-full">Sair</button>
             </div>
           </div>
         )}
       </div>
+    </EstiloFaixaCtx.Provider>
     </ProvedorCtx>
   );
 }

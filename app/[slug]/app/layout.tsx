@@ -5,6 +5,17 @@ import { supabaseServidor } from "@/lib/supabase/server";
 import { buscarAcademia, corDa } from "@/lib/academia";
 import { Casca } from "./Casca";
 
+// Cada academia instala com o próprio nome e a própria logo
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const a: any = await buscarAcademia(slug);
+  return {
+    manifest: `/${slug}/app-manifest`,
+    ...(a?.logo_url ? { icons: { apple: a.logo_url } } : {}),
+    appleWebApp: { capable: true, title: a?.nome || "MA Academias" },
+  };
+}
+
 export default async function LayoutApp({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const academia = await buscarAcademia(slug);

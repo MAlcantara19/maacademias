@@ -1,0 +1,346 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { falar } from "@/lib/fala";
+import { Tatame } from "@/components/Tatame";
+
+// Placar de luta de judô (regras IJF 2025):
+// - Ippon encerra; 2 waza-ari = ippon (waza-ari awasete ippon); yuko não soma.
+// - Fim do tempo: vence quem tem mais waza-ari; empate, mais yuko; empate, Golden Score.
+// - Golden Score: a primeira pontuação vence; shido não decide (só o 3º, hansoku-make).
+// - 3 shidos = hansoku-make (o outro vence).
+// - Osaekomi: 5–9 s yuko, 10–19 s waza-ari, 20 s ippon (no Golden Score, 5 s já encerra).
+// - Visão do árbitro: AZUL à esquerda, BRANCO à direita.
+
+type Lado = "azul" | "branco";
+type Atleta = { nome: string; yuko: number; waza: number; shido: number };
+type Estado = {
+  duracao: number; resta: number; golden: boolean; gs: number; correndo: boolean;
+  azul: Atleta; branco: Atleta;
+  osae: { lado: Lado; seg: number } | null;
+  fim: { lado: Lado | null; motivo: string } | null;
+};
+
+const novo = (duracao: number, nomes?: { azul: string; branco: string }): Estado => ({
+  duracao, resta: duracao, golden: false, gs: 0, correndo: false,
+  azul: { nome: nomes?.azul || "", yuko: 0, waza: 0, shido: 0 },
+  branco: { nome: nomes?.branco || "", yuko: 0, waza: 0, shido: 0 },
+  osae: null, fim: null,
+});
+const outro = (l: Lado): Lado => (l === "azul" ? "branco" : "azul");
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+const NOME: Record<Lado, string> = { azul: "AZUL", branco: "BRANCO" };
+
+const FALAS = [["hajime", "Hajime"], ["matte", "Matte"], ["osaekomi", "Osaekomi"], ["toketa", "Toketa"], ["soremade", "Sore-made"]] as const;
+type Fala = (typeof FALAS)[number][0];
+
+export function PlacarJudo({ voz = true }: { voz?: boolean }) {
+  // o que a voz fala (padrão: só Hajime e Sore-made) e o jeito do placar — lembrados no aparelho
+  const [falas, setFalas] = useState<Record<Fala, boolean>>({ hajime: true, matte: false, osaekomi: false, toketa: false, soremade: true });
+  const [layout, setLayout] = useState<"arbitro" | "olimpico">("arbitro");
+  useEffect(() => {
+    try {
+      const f = JSON.parse(localStorage.getItem("ma_placar_falas") || "null"); if (f) setFalas(f);
+      const l = localStorage.getItem("ma_placar_layout"); if (l === "olimpico" || l === "arbitro") setLayout(l);
+    } catch { /* */ }
+  }, []);
+  const mudarFala = (k: Fala, v: boolean) => { const n = { ...falas, [k]: v }; setFalas(n); try { localStorage.setItem("ma_placar_falas", JSON.stringify(n)); } catch { /* */ } };
+  const mudarLayout = (l: "arbitro" | "olimpico") => { setLayout(l); try { localStorage.setItem("ma_placar_layout", l); } catch { /* */ } };
+  const falasRef = useRef(falas); falasRef.current = falas;
+  const diz = (k: Fala, texto: string) => { if (voz && falasRef.current[k]) falar(texto); };
+  const [e, setE] = useState<Estado>(novo(240));
+  const [pilha, setPilha] = useState<Estado[]>([]);
+  const [tela, setTela] = useState(false);
+  const ref = useRef(e);
+  ref.current = e;
+  const audio = useRef<AudioContext | null>(null);
+
+  function som(freq: number, dur: number, vezes = 1) {
+    try {
+      audio.current ||= new AudioContext();
+      const ac = audio.current;
+      for (let i = 0; i < vezes; i++) {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = freq; o.connect(g); g.connect(ac.destination);
+        const t = ac.currentTime + i * (dur + 0.1);
+        g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        o.start(t); o.stop(t + dur);
+      }
+    } catch { /* sem áudio */ }
+  }
+
+  // guarda o estado anterior para "Desfazer"
+  function aplicar(f: (x: Estado) => Estado) {
+    setPilha((p) => [...p.slice(-40), ref.current]);
+    setE((x) => verificar(f(structuredClone(x))));
+  }
+  function desfazer() {
+    setPilha((p) => { if (!p.length) return p; setE(p[p.length - 1]); return p.slice(0, -1); });
+  }
+
+  // decide se a luta acabou
+  function verificar(x: Estado): Estado {
+    if (x.fim) return x;
+    for (const l of ["azul", "branco"] as Lado[]) {
+      if (x[l].shido >= 3) return encerrar(x, outro(l), `Hansoku-make do ${NOME[l]} (3º shido)`);
+      if (x[l].waza >= 2) return encerrar(x, l, "Waza-ari awasete ippon");
+    }
+    return x;
+  }
+  function encerrar(x: Estado, lado: Lado | null, motivo: string): Estado {
+    x.fim = { lado, motivo }; x.correndo = false; x.osae = null;
+    return x;
+  }
+  // fim do tempo normal (sem imobilização em andamento)
+  function fimDoTempo(x: Estado): Estado {
+    const a = x.azul, b = x.branco;
+    if (a.waza !== b.waza) return encerrar(x, a.waza > b.waza ? "azul" : "branco", "Vitória por waza-ari");
+    if (a.yuko !== b.yuko) return encerrar(x, a.yuko > b.yuko ? "azul" : "branco", "Vitória por yuko");
+    x.golden = true; x.correndo = false;
+    diz("soremade", "Sore made");
+    return x;
+  }
+
+  function pontuar(l: Lado, tipo: "ippon" | "waza" | "yuko" | "shido" | "hansoku") {
+    if (e.fim) return;
+    aplicar((x) => {
+      if (tipo === "ippon") return encerrar(x, l, "Ippon");
+      if (tipo === "hansoku") return encerrar(x, outro(l), `Hansoku-make direto do ${NOME[l]}`);
+      if (tipo === "shido") { x[l].shido++; return x; }
+      if (tipo === "waza") { x[l].waza++; if (x.golden && x[l].waza < 2) return encerrar(x, l, "Waza-ari no Golden Score"); return x; }
+      x[l].yuko++;
+      if (x.golden) return encerrar(x, l, "Yuko no Golden Score");
+      return x;
+    });
+    if (tipo !== "shido") som(tipo === "ippon" ? 1200 : 900, 0.25);
+  }
+
+  function osaekomi(l: Lado) {
+    if (e.fim) return;
+    aplicar((x) => { x.osae = { lado: l, seg: 0 }; x.correndo = true; return x; });
+    diz("osaekomi", "Osaekomi");
+  }
+  // toketa: dá a pontuação pelo tempo de imobilização
+  function toketa() {
+    aplicar((x) => {
+      if (!x.osae) return x;
+      const { lado, seg } = x.osae;
+      x.osae = null;
+      if (seg >= 10) { x[lado].waza++; if (x.golden && x[lado].waza < 2) return encerrar(x, lado, "Waza-ari no Golden Score (osaekomi)"); }
+      else if (seg >= 5) { x[lado].yuko++; if (x.golden) return encerrar(x, lado, "Yuko no Golden Score (osaekomi)"); }
+      const v = verificar(x);
+      if (!v.fim && !v.golden && v.resta <= 0) return fimDoTempo(v);
+      return v;
+    });
+    diz("toketa", "Toketa");
+  }
+
+  // relógio
+  useEffect(() => {
+    const t = setInterval(() => {
+      const x = ref.current;
+      if (x.fim || (!x.correndo && !x.osae)) return;
+      setE((y0) => {
+        const y = structuredClone(y0);
+        if (y.fim) return y;
+        if (y.osae) {
+          y.osae.seg++;
+          const { lado, seg } = y.osae;
+          if (seg >= 20) { som(1200, 0.6); return encerrar(y, lado, "Ippon (osaekomi 20 s)"); }
+          if (y.golden && seg >= 5) { y[lado].yuko++; som(900, 0.5); return encerrar(y, lado, "Yuko no Golden Score (osaekomi 5 s)"); }
+          if (seg >= 10 && y[lado].waza === 1) { y[lado].waza++; som(1200, 0.6); return encerrar(y, lado, "Waza-ari awasete ippon (osaekomi)"); }
+        }
+        if (y.correndo) {
+          if (y.golden) y.gs++;
+          else if (y.resta > 0) {
+            y.resta--;
+            if (y.resta === 0) {
+              som(400, 0.8, 2);
+              if (!y.osae) return fimDoTempo(y);
+              // com osaekomi correndo, o tempo para mas a imobilização continua
+            }
+          }
+        }
+        return y;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []); // eslint-disable-line
+
+  function hajimeMatte() {
+    if (e.fim) return;
+    const vai = !e.correndo;
+    setE((x) => ({ ...x, correndo: vai && (x.golden || x.resta > 0) }));
+    if (vai) diz("hajime", "Hajime"); else diz("matte", "Matte");
+  }
+
+  // efeito de fim de luta
+  useEffect(() => { if (e.fim) diz("soremade", "Sore made"); }, [!!e.fim]); // eslint-disable-line
+
+  // função (não componente) para o campo de nome não perder o foco a cada segundo
+  const painel = (l: Lado) => {
+    const a = e[l], azul = l === "azul";
+    const fundo = azul ? "#1d4ed8" : "#f8fafc", texto = azul ? "#fff" : "#0f172a";
+    return (
+      <div className="flex flex-1 flex-col gap-3 rounded-3xl p-4" style={{ background: fundo, color: texto, outline: e.osae?.lado === l ? "4px solid #facc15" : undefined }}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold tracking-widest">{NOME[l]}</span>
+          <input value={a.nome} placeholder="Nome do atleta" onChange={(x) => setE((y) => ({ ...y, [l]: { ...y[l], nome: x.target.value } }))}
+            className="w-full min-w-0 rounded-lg bg-transparent px-2 py-1 text-right text-sm font-semibold outline-none placeholder:opacity-50" style={{ color: texto, border: `1px solid ${azul ? "#ffffff55" : "#0f172a33"}` }} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
+          <div><p className="numero text-6xl font-extrabold leading-none" style={{ fontSize: tela ? "min(14vw, 9rem)" : undefined }}>{a.waza}</p><p className="text-xs font-semibold opacity-80">WAZA-ARI</p></div>
+          <div><p className="numero text-6xl font-extrabold leading-none opacity-90" style={{ fontSize: tela ? "min(14vw, 9rem)" : undefined }}>{a.yuko}</p><p className="text-xs font-semibold opacity-80">YUKO</p></div>
+        </div>
+        <div className="flex h-8 items-center justify-center gap-1.5" aria-label={`${a.shido} shido`}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="h-8 w-6 rounded" style={{ background: i < a.shido ? (a.shido >= 3 ? "#dc2626" : "#facc15") : azul ? "#ffffff22" : "#0f172a15", border: azul ? "1px solid #ffffff44" : "1px solid #0f172a22" }} />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {([["yuko", "+ Yuko"], ["waza", "+ Waza-ari"], ["ippon", "IPPON"], ["shido", "Shido"]] as const).map(([t, r]) => (
+            <button key={t} disabled={!!e.fim} onClick={() => pontuar(l, t)} className="rounded-xl py-3 text-base font-bold disabled:opacity-40"
+              style={{ background: t === "ippon" ? (azul ? "#fff" : "#1d4ed8") : t === "shido" ? "#facc15" : azul ? "#ffffff26" : "#0f172a12", color: t === "ippon" ? (azul ? "#1d4ed8" : "#fff") : t === "shido" ? "#111" : texto }}>{r}</button>
+          ))}
+          <button disabled={!!e.fim || !!e.osae} onClick={() => osaekomi(l)} className="col-span-2 rounded-xl py-3 font-bold disabled:opacity-40"
+            style={{ background: azul ? "#ffffff26" : "#0f172a12" }}>🤼 Osaekomi</button>
+          <button disabled={!!e.fim} onClick={() => confirm(`Hansoku-make direto do ${NOME[l]}?`) && pontuar(l, "hansoku")} className="col-span-2 rounded-lg py-1.5 text-xs font-semibold opacity-80 disabled:opacity-40"
+            style={{ border: "1px solid #dc2626", color: azul ? "#fecaca" : "#b91c1c" }}>Hansoku-make direto</button>
+        </div>
+      </div>
+    );
+  };
+
+  // Placar estilo TV (IJF): branco em cima, azul embaixo, relógio grande à direita
+  const olimpico = () => {
+    const linha = (l: Lado) => {
+      const a = e[l], azul = l === "azul";
+      return (
+        <div className="flex items-stretch" style={{ background: azul ? "#1d4ed8" : "#f8fafc", color: azul ? "#fff" : "#0f172a" }}>
+          <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+            {e.osae?.lado === l && <span className="rounded-md px-2 py-1 text-sm font-extrabold" style={{ background: "#facc15", color: "#111" }}>{e.osae.seg}s</span>}
+            <span className="truncate font-extrabold uppercase" style={{ fontSize: tela ? "min(5vw, 3.2rem)" : "1.6rem" }}>{a.nome || NOME[l]}</span>
+          </div>
+          <div className="flex items-center gap-1 px-2">
+            {[0, 1, 2].map((i) => i < a.shido && <span key={i} className="h-10 w-7 rounded" style={{ background: a.shido >= 3 ? "#dc2626" : "#facc15", height: tela ? "min(6vw, 4rem)" : "2.5rem", width: tela ? "min(4vw, 2.6rem)" : "1.75rem" }} />)}
+          </div>
+          {[["W", a.waza], ["Y", a.yuko]].map(([r, v]) => (
+            <div key={r as string} className="flex w-[18%] flex-col items-center justify-center border-l" style={{ borderColor: azul ? "#ffffff33" : "#0f172a22" }}>
+              <span className="numero font-extrabold leading-none" style={{ fontSize: tela ? "min(9vw, 6rem)" : "3rem" }}>{v as number}</span>
+              <span className="text-[10px] font-bold opacity-70">{r === "W" ? "WAZA-ARI" : "YUKO"}</span>
+            </div>
+          ))}
+        </div>
+      );
+    };
+    return (
+      <div className="flex overflow-hidden rounded-2xl shadow-2xl" style={{ background: "#0b0f1d" }}>
+        <div className="flex-1 divide-y divide-black">{linha("branco")}{linha("azul")}</div>
+        <div className="flex w-[30%] flex-col items-center justify-center px-2 text-white">
+          {e.golden && <span className="text-xs font-bold tracking-widest" style={{ color: "#facc15" }}>GOLDEN SCORE</span>}
+          <span className="numero font-extrabold leading-none" style={{ fontSize: tela ? "min(11vw, 8rem)" : "3.5rem", color: e.golden ? "#facc15" : e.correndo ? "#fff" : "#ef4444" }}>{e.golden ? `+${mmss(e.gs)}` : mmss(e.resta)}</span>
+          {e.osae && <span className="mt-1 rounded px-2 text-sm font-bold" style={{ background: "#facc15", color: "#111" }}>OSAEKOMI {e.osae.seg}s</span>}
+        </div>
+      </div>
+    );
+  };
+  // botões compactos de cada atleta (no modo olímpico, ficam embaixo do placar)
+  const controles = (l: Lado) => {
+    const azul = l === "azul";
+    return (
+      <div className="grid grid-cols-6 gap-1 rounded-2xl p-2" style={{ background: azul ? "#1d4ed8" : "#e2e8f0", color: azul ? "#fff" : "#0f172a" }}>
+        <span className="col-span-6 text-xs font-bold">{NOME[l]}{e[l].nome ? ` · ${e[l].nome}` : ""}</span>
+        {([["yuko", "Y"], ["waza", "W"], ["ippon", "IPPON"], ["shido", "S"]] as const).map(([t, r]) => (
+          <button key={t} disabled={!!e.fim} onClick={() => pontuar(l, t)} className={`rounded-lg py-2 text-sm font-bold disabled:opacity-40 ${t === "ippon" ? "col-span-2" : ""}`}
+            style={{ background: t === "shido" ? "#facc15" : azul ? "#ffffff26" : "#ffffff", color: t === "shido" ? "#111" : undefined }}>{r}</button>
+        ))}
+        <button disabled={!!e.fim || !!e.osae} onClick={() => osaekomi(l)} className="col-span-6 rounded-lg py-1.5 text-sm font-bold disabled:opacity-40" style={{ background: azul ? "#ffffff26" : "#ffffff" }}>🤼 Osaekomi</button>
+      </div>
+    );
+  };
+
+  const vencedor = e.fim?.lado;
+  return (
+    <div className="space-y-4">
+      {!tela && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-suave">Tempo:</span>
+          {[120, 180, 240].map((s) => (
+            <button key={s} className="chip" disabled={e.correndo} onClick={() => { setPilha([]); setE(novo(s, { azul: e.azul.nome, branco: e.branco.nome })); }}
+              style={e.duracao === s ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{mmss(s)}</button>
+          ))}
+          <span className="text-xs text-suave">Visão do árbitro: azul à esquerda, branco à direita (regra IJF).</span>
+        </div>
+      )}
+      {!tela && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-painel p-3 text-sm">
+          <span className="font-semibold">Placar:</span>
+          {([["arbitro", "👨‍⚖️ Lado a lado (árbitro)"], ["olimpico", "📺 Olímpico (telão)"]] as const).map(([k, r]) => (
+            <button key={k} className="chip" onClick={() => mudarLayout(k)} style={layout === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
+          ))}
+          <span className="font-semibold">Voz fala:</span>
+          {FALAS.map(([k, r]) => (
+            <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={falas[k]} onChange={(x) => mudarFala(k, x.target.checked)} /> {r}</label>
+          ))}
+        </div>
+      )}
+      <Tatame ativo={tela} onSair={() => setTela(false)}>
+        <div className="w-full max-w-5xl space-y-3">
+          <div className={`flex flex-wrap items-center justify-center gap-3 rounded-3xl bg-painel p-3 text-center ${layout === "olimpico" ? "hidden" : ""}`}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-suave">{e.golden ? "Golden Score" : "Tempo"}</p>
+              <p className="numero font-extrabold leading-none" style={{ fontSize: tela ? "min(12vw, 7rem)" : "3.5rem", color: e.golden ? "#facc15" : undefined }}>{e.golden ? `+${mmss(e.gs)}` : mmss(e.resta)}</p>
+            </div>
+            {e.osae && (
+              <div className="rounded-2xl px-4 py-2" style={{ background: "#facc15", color: "#111" }}>
+                <p className="text-xs font-bold">OSAEKOMI · {NOME[e.osae.lado]}</p>
+                <p className="numero text-4xl font-extrabold leading-none">{e.osae.seg}s</p>
+                <p className="text-[11px]">{e.osae.seg >= 10 ? "waza-ari" : e.osae.seg >= 5 ? "yuko" : "—"}</p>
+              </div>
+            )}
+          </div>
+          {layout === "olimpico" ? (
+            <>
+              {olimpico()}
+              <div className="grid gap-2 sm:grid-cols-2">{controles("azul")}{controles("branco")}</div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {painel("azul")}
+              {painel("branco")}
+            </div>
+          )}
+          <div className="flex flex-wrap justify-center gap-2">
+            <button className="btn px-8 py-4 text-xl" disabled={!!e.fim} onClick={hajimeMatte}>{e.correndo ? "✋ Matte" : "▶ Hajime"}</button>
+            {e.osae && <button className="btn-sec px-6 py-4 text-xl" onClick={toketa}>Toketa</button>}
+            <button className="btn-sec px-4 py-4" disabled={!pilha.length} onClick={desfazer}>↩️ Desfazer</button>
+            {!tela && <button className="btn-sec px-4 py-4" onClick={() => setTela(true)}>⛶ Tela cheia</button>}
+            <button className="btn-sec px-4 py-4" onClick={() => { if (confirm("Começar uma luta nova?")) { setPilha([]); setE(novo(e.duracao)); } }}>🔄 Nova luta</button>
+          </div>
+        </div>
+      </Tatame>
+
+      {e.fim && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 overflow-hidden p-6 text-center"
+          style={{ background: vencedor === "azul" ? "#1d4ed8" : vencedor === "branco" ? "#f8fafc" : "#334155", color: vencedor === "branco" ? "#0f172a" : "#fff" }}
+          onClick={() => setE((x) => ({ ...x, fim: null }))}>
+          {Array.from({ length: 24 }).map((_, i) => (
+            <span key={i} className="confete" style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 8) * 0.25}s`, background: ["#facc15", "#dc2626", "#16a34a", "#ffffff", "#0f172a"][i % 5] }} />
+          ))}
+          <p className="text-2xl font-bold tracking-widest opacity-80">SORE-MADE</p>
+          <p className="vitoria titulo font-extrabold leading-none" style={{ fontSize: "min(16vw, 8rem)" }}>
+            {vencedor ? `VITÓRIA DO ${NOME[vencedor]}` : "EMPATE"}
+          </p>
+          {vencedor && e[vencedor].nome && <p className="text-3xl font-bold">{e[vencedor].nome}</p>}
+          <p className="text-xl">{e.fim.motivo}</p>
+          <p className="numero text-lg opacity-80">
+            Azul {e.azul.waza}W {e.azul.yuko}Y {e.azul.shido}S · Branco {e.branco.waza}W {e.branco.yuko}Y {e.branco.shido}S
+          </p>
+          <div className="mt-4 flex gap-2" onClick={(x) => x.stopPropagation()}>
+            <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={desfazer}>↩️ Desfazer</button>
+            <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => { setPilha([]); setE(novo(e.duracao)); }}>🔄 Nova luta</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

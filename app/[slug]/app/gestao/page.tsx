@@ -5,6 +5,8 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, dataBR, hora, primeiroNome, whatsapp } from "@/lib/util";
 import { Faixa } from "@/components/Faixa";
 import { Avatar } from "@/components/Avatar";
+import { Equipe } from "./Equipe";
+import { SeletorGraduacao } from "@/components/SeletorGraduacao";
 
 const CORES_PADRAO: Record<string, string> = {
   branca: "#f5f5f5", branco: "#f5f5f5", cinza: "#9ca3af", amarela: "#facc15", amarelo: "#facc15", laranja: "#f97316",
@@ -34,7 +36,7 @@ export default function Gestao() {
     const [m, t, p, a] = await Promise.all([
       sb.from("modalidades").select("*").eq("academia_id", acad).order("ordem"),
       sb.from("turmas").select("*, horarios(*)").eq("academia_id", acad).order("nome"),
-      sb.from("membros").select("id, papel, ativo, perfis(nome, apelido, email, foto_url, telefone), professores_modalidades(modalidade_id, whatsapp_publico, bio, graduacao)").eq("academia_id", acad).in("papel", ["professor", "admin"]),
+      sb.from("membros").select("id, perfil_id, papel, ativo, perfis(nome, apelido, email, foto_url, telefone), professores_modalidades(modalidade_id, whatsapp_publico, bio, graduacao)").eq("academia_id", acad).in("papel", ["professor", "admin"]),
       sb.from("membros").select("perfil_id, perfis(nome)").eq("academia_id", acad).eq("papel", "aluno").eq("ativo", true),
     ]);
     setMods(m.data || []); setTurmas(t.data || []); setProfs(p.data || []); setAlunos(a.data || []);
@@ -58,7 +60,7 @@ export default function Gestao() {
     const dados = {
       academia_id: acad, nome: form.nome, descricao: form.descricao || null, cor: form.cor || "#7c3aed", icone: form.icone || "🥋",
       graduacoes: faixas.map((f: any) => f.nome.trim()), cores_graduacoes: faixas.map((f: any) => f.cor),
-      ordem: form.ordem ?? mods.length + 1,
+      ordem: form.ordem ?? mods.length + 1, graus_max: form.graus_max ?? 4,
     };
     const { error } = form.id ? await sb.from("modalidades").update(dados).eq("id", form.id) : await sb.from("modalidades").insert(dados);
     setMsg(error ? error.message : "Modalidade salva."); setForm(null); carregar();
@@ -260,6 +262,13 @@ export default function Gestao() {
                 <input className="campo" placeholder="Ícone (emoji)" value={form.icone || ""} onChange={(e) => f("icone", e.target.value)} />
                 <input type="color" className="h-12 w-full rounded-xl" value={form.cor || "#7c3aed"} onChange={(e) => f("cor", e.target.value)} aria-label="Cor" />
                 <input className="campo sm:col-span-4" placeholder="Descrição curta" value={form.descricao || ""} onChange={(e) => f("descricao", e.target.value)} />
+                <label className="flex items-center gap-2 text-sm sm:col-span-4">
+                  Graus por faixa:
+                  <select className="campo w-auto" value={form.graus_max ?? 4} onChange={(e) => f("graus_max", Number(e.target.value))}>
+                    {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n === 0 ? "não usa graus" : `até ${n}`}</option>)}
+                  </select>
+                  <span className="text-xs text-suave">A faixa preta usa dan (1º ao 10º).</span>
+                </label>
               </div>
               <p className="rotulo">Faixas, em ordem (a cor vira a moldura da foto do aluno)</p>
               {(form.faixas || []).map((fx: any, i: number) => (
@@ -328,7 +337,9 @@ export default function Gestao() {
                 </>
               )}
               <input className="campo" placeholder="WhatsApp público (5524999999999)" onChange={(e) => f("whatsapp", e.target.value)} />
-              <input className="campo" placeholder="Graduação (ex.: faixa preta 2º dan)" onChange={(e) => f("graduacao", e.target.value)} />
+              {(() => { const m = mods.find((x) => x.id === (form.modalidades || [])[0]) || mods[0]; return m?.graduacoes?.length
+                ? <SeletorGraduacao key={m.id} faixas={m.graduacoes} grausMax={m.graus_max ?? 4} valor={form.graduacao} onChange={(t) => f("graduacao", t)} />
+                : <input className="campo" placeholder="Graduação (ex.: faixa preta 2º dan)" onChange={(e) => f("graduacao", e.target.value)} />; })()}
               <input className="campo sm:col-span-2" placeholder="Mini bio (aparece na página pública)" onChange={(e) => f("bio", e.target.value)} />
               <select className="campo" value={form.papel} onChange={(e) => f("papel", e.target.value)}>
                 <option value="professor">Professor (só as turmas dele)</option>
@@ -345,33 +356,7 @@ export default function Gestao() {
               <div className="flex gap-2 sm:col-span-2"><button className="btn" onClick={salvarProfessor}>Salvar</button><button className="btn-sec" onClick={() => setForm(null)}>Cancelar</button></div>
             </div>
           )}
-          <ul className="space-y-2">
-            {profs.map((p) => (
-              <li key={p.id} className={`flex flex-wrap items-center gap-3 rounded-2xl bg-painel p-3 ${p.ativo ? "" : "opacity-60"}`}>
-                <Avatar foto={p.perfis?.foto_url} nome={p.perfis?.nome} tamanho={44} mostrarFaixa={false} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{p.perfis?.nome} <span className="chip text-xs">{p.papel}</span></p>
-                  <p className="truncate text-sm text-suave">{p.perfis?.email || "sem e-mail"}</p>
-                  {p.papel === "professor" && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {mods.map((m) => {
-                        const on = (p.professores_modalidades || []).some((x: any) => x.modalidade_id === m.id);
-                        return <button key={m.id} disabled={!ctx.admin} onClick={() => alternarModalidadeProf(p, m.id)} className="chip text-xs" style={on ? { borderColor: m.cor || "var(--cor)", background: (m.cor || "#7c3aed") + "33" } : { opacity: 0.5 }}>{m.nome}</button>;
-                      })}
-                    </div>
-                  )}
-                </div>
-                {ctx.admin && p.papel === "admin" && !profs.some((x) => x.papel === "professor" && x.perfis?.email === p.perfis?.email && x.perfis?.nome === p.perfis?.nome) && (
-                  <button className="btn-sec text-sm" onClick={async () => {
-                    const { data: m } = await sb.from("membros").select("perfil_id").eq("id", p.id).maybeSingle();
-                    if (m) await sb.from("membros").insert({ academia_id: acad, perfil_id: m.perfil_id, papel: "professor" });
-                    carregar();
-                  }}>Também dá aula</button>
-                )}
-                {ctx.admin && <button className="btn-sec text-sm" onClick={() => alternarAtivo(p)}>{p.ativo ? "Desativar" : "Ativar"}</button>}
-              </li>
-            ))}
-          </ul>
+          <Equipe linhas={profs} mods={mods} acad={acad} recarregar={carregar} />
           {professores.length === 0 && <p className="text-suave">Nenhum professor cadastrado ainda.</p>}
         </>
       )}

@@ -153,3 +153,22 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 
 - Corrige "infinite recursion detected in policy for relation perfis" ao cadastrar aluno/professor.
 - Menu "Mais" do celular com rolagem e botão de fechar.
+
+## Atualização 14
+
+- Equipe: editar dados, permissões (admin/professor) e modalidades de cada pessoa (Turmas e equipe).
+- Cronômetro → "Luta com placar": yuko, waza-ari, ippon, shido, osaekomi e Golden Score (regras IJF 2025),
+  azul à esquerda e branco à direita (visão do árbitro), tela de vitória.
+- Botão "Instalar aplicativo" (PWA). O app instalado abre direto na última academia usada (/abrir).
+
+## Atualização 14 (banco) / pacote 15
+
+- Cadastro de aluno: só o nome é obrigatório; ficha pelo WhatsApp (mandar modelo e colar a resposta);
+  endereço; faixa + graus (ou dan) no cadastro; login com senha provisória (troca no 1º acesso).
+- "Cadastro incompleto" na ficha e filtro na lista de alunos.
+- Graduação do professor por listas (faixa + graus / 1º a 10º dan). Graus por faixa (0 a 6) na modalidade.
+- Graus na faixa: ponteira preta (jiu-jitsu), brancos ou na cor da próxima faixa (judô) — Personalizar academia.
+- Ficha: "Campeonatos" do aluno (resultado, adversários, até 3 fotos).
+- Ícone e nome do app = logo e nome da academia quando instalado dentro dela.
+- Placar de judô: escolher o que a voz fala; modo "Olímpico (telão)".
+- Aviso "Hoje tem aniversário!" com parabéns no WhatsApp; recibo no WhatsApp depois de dar baixa.

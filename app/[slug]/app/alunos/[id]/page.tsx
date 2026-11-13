@@ -10,6 +10,7 @@ import { Faixa } from "@/components/Faixa";
 import { Barra } from "@/components/Grafico";
 import { ComparaPeso } from "@/components/ComparaPeso";
 import { CadastroRosto } from "@/components/CadastroRosto";
+import { MeusCampeonatos } from "@/components/MeusCampeonatos";
 import { liberado } from "@/lib/planos";
 import { DIAS, hora } from "@/lib/util";
 
@@ -116,7 +117,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
   }
   async function salvarDados() {
     const upd: any = {};
-    ["telefone", "nascimento", "sexo", "apelido", "email", "contato_emergencia_nome", "contato_emergencia_tel"].forEach((k) => { if (form[k] !== undefined) upd[k] = form[k] || null; });
+    ["nome", "telefone", "nascimento", "sexo", "apelido", "email", "endereco", "contato_emergencia_nome", "contato_emergencia_tel"].forEach((k) => { if (form[k] !== undefined) upd[k] = form[k] || null; });
     if (form.arquivo) {
       const ext = form.arquivo.name.split(".").pop();
       const caminho = `${ctx.academia.id}/fotos/${a.perfil_id}-${Date.now()}.${ext}`;
@@ -203,6 +204,18 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           {ctx.equipe && !a.tem_login && x.perfil?.email && <button className="btn-sec" onClick={criarLogin}>Criar login</button>}
           {ctx.equipe && <Link className="btn-sec" href={`${base}/tecnicas/exame?aluno=${id}`}>Exame de faixa</Link>}
         </div>
+        {/* Cadastro incompleto: o que falta preencher */}
+        {(() => {
+          const pf = x.perfil || {};
+          const faltam = [!pf.nascimento && "data de nascimento", !pf.telefone && "WhatsApp", !pf.email && "e-mail"].filter(Boolean);
+          if (!faltam.length || !(ctx.equipe || meu)) return null;
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl p-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-alerta) 18%, transparent)" }}>
+              <span>📝 <b>Cadastro incompleto:</b> falta {faltam.join(", ")}.</span>
+              {podeEditar && <button className="btn-sec text-sm" onClick={() => setAberto("dados")}>Completar</button>}
+            </div>
+          );
+        })()}
       </section>
 
       {msg && !aberto && <p className="text-sm text-alerta">{msg}</p>}
@@ -221,6 +234,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
         <Bloco titulo="Dados">
           <div className="grid gap-3 sm:grid-cols-2">
             <div><label className="rotulo">Foto</label><input type="file" accept="image/*" className="campo" onChange={(e) => f("arquivo", e.target.files?.[0])} /></div>
+            {ctx.equipe && <div><label className="rotulo">Nome completo</label><input className="campo" defaultValue={x.perfil?.nome || ""} onChange={(e) => f("nome", e.target.value)} /></div>}
             <div><label className="rotulo">Apelido</label><input className="campo" defaultValue={x.perfil?.apelido || ""} onChange={(e) => f("apelido", e.target.value)} /></div>
             <div><label className="rotulo">WhatsApp</label><input className="campo" defaultValue={x.perfil?.telefone || ""} onChange={(e) => f("telefone", e.target.value)} /></div>
             <div><label className="rotulo">Nascimento</label><input type="date" className="campo" defaultValue={x.perfil?.nascimento || ""} onChange={(e) => f("nascimento", e.target.value)} /></div>
@@ -228,6 +242,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
               <select className="campo" defaultValue={x.perfil?.sexo || "M"} onChange={(e) => f("sexo", e.target.value)}><option value="M">Masculino</option><option value="F">Feminino</option></select>
             </div>
             {ctx.equipe && <div><label className="rotulo">E-mail do login</label><input className="campo" defaultValue={x.perfil?.email || ""} onChange={(e) => f("email", e.target.value)} /></div>}
+            <div className="sm:col-span-2"><label className="rotulo">Endereço</label><input className="campo" defaultValue={x.perfil?.endereco || ""} onChange={(e) => f("endereco", e.target.value)} /></div>
             <div><label className="rotulo">Contato de emergência</label><input className="campo" defaultValue={x.perfil?.contato_emergencia_nome || ""} onChange={(e) => f("contato_emergencia_nome", e.target.value)} /></div>
             <div><label className="rotulo">Telefone de emergência</label><input className="campo" defaultValue={x.perfil?.contato_emergencia_tel || ""} onChange={(e) => f("contato_emergencia_tel", e.target.value)} /></div>
           </div>
@@ -311,6 +326,10 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             <CadastroRosto perfilId={a.perfil_id} academiaId={ctx.academia.id} nome={a.nome} podeEditar={ctx.equipe || meu} />
           </Bloco>
         )}
+
+        <Bloco titulo="🏅 Campeonatos">
+          <MeusCampeonatos academiaId={ctx.academia.id} membroId={id} podeEditar={ctx.equipe || meu} />
+        </Bloco>
 
         {/* Títulos */}
         {liberado(ctx.academia.plano, "titulos") && <Bloco titulo="Títulos">
