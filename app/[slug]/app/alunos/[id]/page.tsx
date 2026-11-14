@@ -1,4 +1,5 @@
 "use client";
+import { BotaoNovaSenha } from "@/components/NovaSenha";
 import { MetaSemana } from "@/components/MetaSemana";
 import { SeletorFoto } from "@/components/RecortarFoto";
 import { comprimir } from "@/lib/imagem";
@@ -210,6 +211,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           {z && ctx.equipe && <a href={z} target="_blank" className="btn">WhatsApp</a>}
           {podeEditar && <button className="btn-sec" onClick={() => setAberto("dados")}>Editar dados</button>}
           {ctx.equipe && !a.tem_login && x.perfil?.email && <button className="btn-sec" onClick={criarLogin}>Criar login</button>}
+          {ctx.equipe && a.tem_login && <BotaoNovaSenha perfilId={a.perfil_id} nome={a.apelido || a.nome} telefone={x.perfil?.telefone || a.whatsapp} />}
           {ctx.equipe && <Link className="btn-sec" href={`${base}/tecnicas/exame?aluno=${id}`}>Exame de faixa</Link>}
         </div>
         {/* Situação do cadastro completo (regras automáticas do banco) */}

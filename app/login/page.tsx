@@ -57,11 +57,22 @@ function FormLogin() {
     setPrimeiro(false);
   }
 
-  async function esqueci() {
-    if (!email) return setMsg("Digite seu e-mail acima e toque de novo em “Esqueci a senha”.");
-    await supabaseNavegador().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/login/nova-senha` });
-    setMsg("Enviamos um link para criar uma nova senha no seu e-mail.");
+  // Esqueci a senha: com e-mail chega o link; e a academia (professor/admin) é avisada
+  // e pode mandar uma senha provisória pelo WhatsApp. Também aceita só o WhatsApp.
+  const [esq, setEsq] = useState<string | null>(null);
+  async function pedirSenha() {
+    const c = (esq || "").trim();
+    if (c.length < 6) return setMsg("Digite o e-mail ou o WhatsApp que está no seu cadastro.");
+    setCarregando(true);
+    const sb = supabaseNavegador();
+    if (c.includes("@")) await sb.auth.resetPasswordForEmail(c, { redirectTo: `${window.location.origin}/login/nova-senha` }).catch(() => {});
+    await sb.rpc("pedir_nova_senha", { p_contato: c }).then(() => {}, () => {});
+    setCarregando(false); setEsq(null);
+    setMsg(c.includes("@")
+      ? "Pronto! Se o e-mail estiver cadastrado, chega um link para criar a nova senha (veja também o spam). Sua academia também foi avisada e pode te mandar uma senha provisória."
+      : "Pronto! Sua academia foi avisada e vai te mandar uma senha provisória pelo WhatsApp.");
   }
+  function esqueci() { setEsq(email || ""); setMsg(""); }
 
   if (academias.length) {
     return (
@@ -88,7 +99,18 @@ function FormLogin() {
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
       <button className="btn w-full" disabled={carregando}>{carregando ? "Aguarde..." : primeiro ? "Criar minha senha" : "Entrar"}</button>
-      {!primeiro && <button type="button" className="w-full text-sm text-suave underline" onClick={esqueci}>Esqueci a senha</button>}
+      {!primeiro && esq === null && <button type="button" className="w-full text-sm text-suave underline" onClick={esqueci}>Esqueci a senha</button>}
+      {!primeiro && esq !== null && (
+        <div className="space-y-2 rounded-2xl bg-painel p-3">
+          <p className="text-sm font-semibold">🔑 Esqueci a senha</p>
+          <input className="campo" placeholder="Seu e-mail ou WhatsApp do cadastro" value={esq} onChange={(e) => setEsq(e.target.value)} autoComplete="email" />
+          <div className="flex gap-2">
+            <button type="button" className="btn flex-1" disabled={carregando} onClick={pedirSenha}>Pedir nova senha</button>
+            <button type="button" className="btn-sec" onClick={() => setEsq(null)}>Cancelar</button>
+          </div>
+          <p className="text-xs text-suave">Com e-mail, chega um link para criar a senha. Em todo caso, o professor recebe o pedido e pode te mandar uma senha provisória.</p>
+        </div>
+      )}
       {/* A academia entrega o e-mail e uma senha provisória; no 1º acesso o app pede para trocar.
           (O "criar minha senha" antigo só aparece com ?primeiro=1 no endereço.) */}
       {params.get("primeiro") === "1" ? (

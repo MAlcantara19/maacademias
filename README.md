@@ -227,3 +227,11 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Rode `supabase/ATUALIZAR-20.sql`.
 - **Backup por e-mail (Resend):** crie a conta em resend.com, gere uma API Key e coloque na Vercel: `RESEND_API_KEY` (e `BACKUP_REMETENTE`, ex.: `MA Academias <backup@seudominio.com.br>`, depois de verificar o domínio no Resend; sem domínio, use `onboarding@resend.dev`, que só envia para o e-mail da própria conta do Resend). Todo dia 1º às 9h a planilha vai para o e-mail dos admins; tem também o botão "Mandar agora por e-mail" em Relatório e backup.
 - Chaveamento com resultado rápido (vai para a ficha), cerimônia de graduação (`/<academia>/graduacao`), título 📆 Constância, QR de check-in e mural no telão, Pix na mensagem de cobrança, aluno pede inscrição no campeonato, relatório por trimestre, aulas particulares, mural da turma, modo competição (`/placar/areas`) e resultados públicos (`/<academia>/resultados`).
+
+## Atualização 24 (nova senha)
+
+1. Rode `supabase/ATUALIZAR-21.sql` no SQL Editor (pode rodar de novo sem problema).
+2. Na tela de entrar, **Esqueci a senha** aceita e-mail **ou** WhatsApp do cadastro: com e-mail chega o link do Supabase e, em todo caso, a academia recebe o pedido.
+3. Professor, admin e master veem o aviso 🔑 e o card **Pediram nova senha** na tela inicial → **Gerar nova senha** → mandam por WhatsApp, e-mail ou copiam.
+4. O botão **🔑 Nova senha** também fica na ficha do aluno e no cadastro (para o responsável). A pessoa troca a senha no primeiro acesso.
+5. Precisa da variável `SUPABASE_SECRET_KEY` na Vercel (a mesma do "Criar login").

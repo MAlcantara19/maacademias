@@ -1,4 +1,5 @@
 "use client";
+import { BotaoNovaSenha } from "@/components/NovaSenha";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -270,6 +271,7 @@ function Responsavel({ aluno, resp, recarregar, ok }: any) {
       {msg && <p className="text-sm text-alerta">{msg}</p>}
       <div className="flex flex-wrap gap-2">
         <button className="btn w-full sm:w-auto" onClick={salvar}>Salvar responsável</button>
+        {ctx.equipe && atual?.perfis?.user_id && <BotaoNovaSenha perfilId={atual.responsavel_id} nome={atual.perfis.apelido || atual.perfis.nome} telefone={atual.perfis.telefone} rotulo="🔑 Nova senha do responsável" className="btn-sec w-full sm:w-auto" />}
         {ctx.equipe && atual?.perfis && !atual.perfis.user_id && atual.perfis.email && (
           <button className="btn-sec w-full sm:w-auto" onClick={async () => {
             const r = await criarLogin(supabaseNavegador(), atual.responsavel_id);

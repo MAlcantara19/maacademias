@@ -1,4 +1,5 @@
 "use client";
+import { PedidosSenha } from "@/components/NovaSenha";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -264,6 +265,7 @@ export default function Inicio() {
             )}
           </div>
           <VagasComFila />
+          <PedidosSenha />
           <FaltandoSeguido />
         </>
       ) : (
