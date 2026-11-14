@@ -41,7 +41,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
     const { data: p } = await sb.from("painel_alunos").select("*").eq("membro_id", id).maybeSingle();
     if (!p) return setA(false);
     setA(p);
-    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames, conq, simul] = await Promise.all([
+    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames, conq, simul, stc] = await Promise.all([
       sb.from("medidas").select("*").eq("perfil_id", p.perfil_id).order("data"),
       sb.from("graduacoes").select("*, modalidades(nome, graduacoes, cores_graduacoes)").eq("membro_id", id).order("data", { ascending: false }),
       sb.from("historico_ausencias").select("*").eq("membro_id", id).order("ano", { ascending: false }),
@@ -56,8 +56,10 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       sb.from("exames_faixa").select("*, modalidades(nome)").eq("membro_id", id).order("data", { ascending: false }),
       sb.from("conquistas").select("*").eq("membro_id", id).order("conquistada_em"),
       sb.from("quiz_resultados").select("acertos, total, criado_em").eq("membro_id", id).eq("modo", "simulado").order("criado_em", { ascending: false }).limit(3),
+      sb.rpc("status_cadastro", { p_membro: id }),
     ]);
     setX({
+      cadastro: stc.data || null,
       medidas: med.data || [], graduacoes: grad.data || [], historico: hist.data || [], ausencias: aus.data || [],
       pendencias: pend.data || [], matriculas: mats.data || [], modalidades: mods.data || [], turmas: turmas.data || [],
       carteirinhas: cart.data || [], perfil: perfil.data, membro: membro.data, exames: exames.data || [],
@@ -205,18 +207,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           {ctx.equipe && !a.tem_login && x.perfil?.email && <button className="btn-sec" onClick={criarLogin}>Criar login</button>}
           {ctx.equipe && <Link className="btn-sec" href={`${base}/tecnicas/exame?aluno=${id}`}>Exame de faixa</Link>}
         </div>
-        {/* Cadastro incompleto: o que falta preencher */}
-        {(() => {
-          const pf = x.perfil || {};
-          const faltam = [!pf.nascimento && "data de nascimento", !pf.telefone && "WhatsApp", !pf.email && "e-mail"].filter(Boolean);
-          if (!faltam.length || !(ctx.equipe || meu)) return null;
-          return (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl p-3 text-sm" style={{ background: "color-mix(in srgb, var(--color-alerta) 18%, transparent)" }}>
-              <span>📝 <b>Cadastro incompleto:</b> falta {faltam.join(", ")}.</span>
-              {podeEditar && <button className="btn-sec text-sm" onClick={() => setAberto("dados")}>Completar</button>}
-            </div>
-          );
-        })()}
+        {/* Situação do cadastro completo (regras automáticas do banco) */}
+        {(ctx.equipe || meu) && x.cadastro && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl p-3 text-sm"
+            style={{ background: `color-mix(in srgb, var(${x.cadastro.completo ? "--color-ok" : "--color-alerta"}) 18%, transparent)` }}>
+            <span>{x.cadastro.completo ? <>✅ <b>Cadastro completo</b></> : <>📝 <b>Cadastro com pendências:</b> {x.cadastro.pendencias.slice(0, 3).join(", ")}{x.cadastro.pendencias.length > 3 ? ` e mais ${x.cadastro.pendencias.length - 3}` : ""}.</>}</span>
+            <Link className="btn-sec text-sm" href={`${base}/alunos/${id}/cadastro`}>📋 {x.cadastro.completo ? "Ver cadastro" : "Completar cadastro"}</Link>
+          </div>
+        )}
       </section>
 
       {msg && !aberto && <p className="text-sm text-alerta">{msg}</p>}
@@ -329,9 +327,9 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
         )}
 
         {(ctx.equipe || meu) && (
-          <details className="rounded-2xl bg-painel p-4" open={(x.perfil?.saude?.condicoes || []).length > 0}>
+          <details className="rounded-2xl bg-painel p-4" >
             <summary className="cursor-pointer text-xl font-bold">⚕️ Ficha de saúde</summary>
-            <div className="mt-3"><FichaSaude perfilId={a.perfil_id} saude={x.perfil?.saude} podeEditar={podeEditar} onSalvo={carregar} /></div>
+            <div className="mt-3"><FichaSaude perfilId={a.perfil_id} podeEditar={podeEditar} onSalvo={carregar} /></div>
           </details>
         )}
 

@@ -185,3 +185,9 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Carteirinha como papel de parede da tela de bloqueio; atalhos ao segurar o ícone do app.
 - Master: liberar/desligar o conteúdo de judô do Dojô (técnicas, palavras, roletas, quiz) por academia.
 - Curiosidades do judô nas roletas do Dojô.
+
+## Atualização 16 (cadastro completo + placar olímpico)
+- Rode `supabase/ATUALIZAR-16.sql` (pode rodar de novo sem problema; não apaga nada — a saúde que já existia é copiada para a nova tabela protegida).
+- Ficha do aluno → **📋 Completar cadastro**: dados pessoais (CPF, CEP que preenche sozinho), responsável legal (obrigatório para menor), ficha de saúde (acesso restrito, vence em 1 ano), termos com assinatura no dedo (uso de imagem separado e opcional), documentos, ocorrências.
+- O banco calcula as pendências e só deixa **concluir** o cadastro quando tudo que é obrigatório estiver pronto. Toda segunda o sistema reabre os cadastros com ficha de saúde vencida.
+- Placar: pontos em 3 dígitos (I W Y), cartões amarelo/vermelho, relógio verde/vermelho/amarelo, categoria e fase, menu **✏️ Corrigir pontos**, voz fala "Ippon" e voz **grave**. Trocar de aba no cronômetro com o relógio correndo pergunta o que fazer.

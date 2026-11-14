@@ -36,7 +36,7 @@ export function romajiParaKana(texto: string) {
   return out;
 }
 
-export type Genero = "feminina" | "masculina";
+export type Genero = "feminina" | "masculina" | "grave";
 const MASC = /(ichiro|keita|otoya|hattori|daichi|naoki|male|男)/i;
 const FEM = /(haruka|ayumi|sayaka|kyoko|nanami|mizuki|o-ren|female|女|google)/i;
 
@@ -57,17 +57,20 @@ export function salvarGenero(g: Genero) {
 }
 
 // Fala o termo. Se não houver voz do gênero escolhido, ajusta o tom da voz disponível.
-export function falar(romaji: string, kana?: string | null, genero: Genero = generoSalvo()) {
+// "grave" = voz masculina com tom bem mais baixo (fica com cara de árbitro).
+// fila: true → espera a fala anterior terminar (ex.: "Ippon" … "Sore-made").
+export function falar(romaji: string, kana?: string | null, genero: Genero = generoSalvo(), opcoes: { fila?: boolean } = {}) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
   const texto = kana || romajiParaKana(romaji) || romaji;
   const vozes = vozesJaponesas();
   const u = new SpeechSynthesisUtterance(texto);
   u.lang = "ja-JP";
-  u.rate = 0.8;
-  const certa = vozes.find((v) => (genero === "masculina" ? MASC.test(v.name) : !MASC.test(v.name)));
-  if (certa) u.voice = certa;
-  else { if (vozes[0]) u.voice = vozes[0]; u.pitch = genero === "masculina" ? 0.6 : 1.3; }
-  window.speechSynthesis.cancel();
+  u.rate = genero === "grave" ? 0.72 : 0.8;
+  const homem = genero !== "feminina";
+  const certa = vozes.find((v) => (homem ? MASC.test(v.name) : !MASC.test(v.name)));
+  if (certa) { u.voice = certa; if (genero === "grave") u.pitch = 0.45; }
+  else { if (vozes[0]) u.voice = vozes[0]; u.pitch = genero === "grave" ? 0.1 : genero === "masculina" ? 0.6 : 1.3; }
+  if (!opcoes.fila) window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
   return true;
 }

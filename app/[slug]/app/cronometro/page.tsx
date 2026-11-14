@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Tatame } from "@/components/Tatame";
 import { falar } from "@/lib/fala";
-import { PlacarJudo } from "@/components/PlacarJudo";
+import { PlacarJudo, type PlacarApi } from "@/components/PlacarJudo";
 
 type Fase = "parado" | "preparar" | "luta" | "descanso" | "fim";
 
@@ -19,6 +19,27 @@ export default function Cronometro() {
   useEffect(() => { try { setEstilo(localStorage.getItem("ma_crono_estilo") || "placar"); } catch { /* */ } }, []);
   const escolherEstilo = (e: string) => { setEstilo(e); try { localStorage.setItem("ma_crono_estilo", e); } catch { /* */ } };
   const audio = useRef<AudioContext | null>(null);
+  const placar = useRef<PlacarApi | null>(null);
+  const [troca, setTroca] = useState<null | "rounds" | "luta">(null);
+  const [placarCorrendo, setPlacarCorrendo] = useState(false);
+  useEffect(() => { const t = setInterval(() => setPlacarCorrendo(!!placar.current?.correndo()), 1000); return () => clearInterval(t); }, []);
+  const roundsCorrendo = fase !== "parado" && fase !== "fim" && !pausado;
+
+  // trocar de aba: se o relógio da aba atual estiver correndo, pergunta o que fazer
+  function irAba(m: "rounds" | "luta") {
+    if (m === modo) return;
+    const correndo = modo === "rounds" ? roundsCorrendo : !!placar.current?.correndo();
+    if (correndo) setTroca(m); else setModo(m);
+  }
+  function decidir(acao: "pausar" | "continuar" | "levar") {
+    const destino = troca!;
+    if (acao !== "continuar") { if (modo === "rounds") setPausado(true); else placar.current?.pausar(); }
+    if (acao === "levar") {
+      if (modo === "rounds") placar.current?.definirTempo(fase === "luta" ? resta : cfg.luta);
+      else if (fase !== "parado" && fase !== "fim") { setFase("luta"); setResta(placar.current?.tempo() ?? cfg.luta); setPausado(true); }
+    }
+    setTroca(null); setModo(destino);
+  }
 
   const [som, setSom] = useState({ tipo: "bipe", volume: 0.7 });
   useEffect(() => { try { const x = JSON.parse(localStorage.getItem("ma_crono_som") || "null"); if (x) setSom(x); } catch { /* */ } }, []);
@@ -121,10 +142,25 @@ export default function Cronometro() {
     <div className="space-y-5">
       <h1 className="text-4xl font-extrabold">Cronômetro</h1>
       <div className="flex gap-1 rounded-2xl bg-painel p-1">
-        <button onClick={() => setModo("rounds")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "rounds" ? "bg-painel2" : "text-suave"}`}>⏱️ Rounds (treino)</button>
-        <button onClick={() => setModo("luta")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "luta" ? "bg-painel2" : "text-suave"}`}>🥋 Luta com placar</button>
+        <button onClick={() => irAba("rounds")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "rounds" ? "bg-painel2" : "text-suave"}`}>
+          ⏱️ Rounds (treino){modo !== "rounds" && roundsCorrendo && <span className="ml-1 text-ok" title="correndo">●</span>}</button>
+        <button onClick={() => irAba("luta")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "luta" ? "bg-painel2" : "text-suave"}`}>
+          🥋 Luta com placar{modo !== "luta" && placarCorrendo && <span className="ml-1 text-ok" title="correndo">●</span>}</button>
       </div>
-      {modo === "luta" ? <PlacarJudo voz={cfg.voz} /> : (<>
+      {troca && (
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 sm:items-center sm:p-4" onClick={() => setTroca(null)}>
+          <div className="w-full max-w-md space-y-3 rounded-t-3xl bg-painel p-5 sm:rounded-3xl" onClick={(x) => x.stopPropagation()}>
+            <p className="text-lg font-bold">⏱️ O relógio {modo === "rounds" ? "dos rounds" : "da luta"} está correndo</p>
+            <p className="text-sm text-suave">O que fazer com ele ao ir para {troca === "luta" ? "a luta com placar" : "os rounds"}?</p>
+            {(modo === "rounds" || (fase !== "parado" && fase !== "fim")) && <button className="btn w-full" onClick={() => decidir("levar")}>🔁 Pausar e usar o mesmo tempo ({modo === "rounds" ? mmss(fase === "luta" ? resta : cfg.luta) : mmss(placar.current?.tempo() ?? 0)}) lá</button>}
+            <button className="btn-sec w-full" onClick={() => decidir("pausar")}>⏸ Só pausar</button>
+            <button className="btn-sec w-full" onClick={() => decidir("continuar")}>▶ Deixar correndo</button>
+            <button className="w-full text-sm text-suave underline" onClick={() => setTroca(null)}>Ficar aqui</button>
+          </div>
+        </div>
+      )}
+      <div className={modo === "luta" ? "" : "hidden"}><PlacarJudo voz={cfg.voz} api={placar} /></div>
+      {modo === "rounds" && (<>
       {fase === "parado" && (
         <>
           <div className="grid gap-3 sm:grid-cols-2">

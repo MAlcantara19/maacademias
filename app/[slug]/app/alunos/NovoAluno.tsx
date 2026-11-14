@@ -57,11 +57,11 @@ export function NovoAluno({ onFechar }: { onFechar: () => void }) {
       id: perfilId, nome: f.nome.trim(), apelido: f.apelido || null, email: f.email || null, telefone: f.telefone || null,
       nascimento: f.nascimento || null, sexo: f.sexo, endereco: f.endereco || null,
       contato_emergencia_nome: f.responsavel || null, contato_emergencia_tel: f.responsavel_tel || null,
-      saude: f.saude ? { observacoes: f.saude } : {},
     });
     if (r1.error) { setSalvando(false); return setMsg("Erro ao salvar: " + r1.error.message); }
     const r2 = await sb.from("membros").insert({
       id: membroId, academia_id: ctx.academia.id, perfil_id: perfilId, papel: "aluno",
+      observacoes: f.saude ? `Saúde (informado no cadastro): ${f.saude}` : null,
     });
     if (r2.error) { setSalvando(false); return setMsg("Erro ao vincular: " + r2.error.message); }
     if (f.turmas.length) await sb.from("matriculas").insert(f.turmas.map((t: string) => ({ turma_id: t, membro_id: membroId })));

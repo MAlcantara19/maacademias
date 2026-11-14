@@ -27,11 +27,11 @@ export function EscolhaVoz() {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span className="text-suave">🔊 Voz:</span>
-      {(["feminina", "masculina"] as Genero[]).map((x) => (
-        <button key={x} className="chip text-xs" onClick={() => muda(x)} style={g === x ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{x === "feminina" ? "👩 Feminina" : "👨 Masculina"}</button>
+      {(["feminina", "masculina", "grave"] as Genero[]).map((x) => (
+        <button key={x} className="chip text-xs" onClick={() => muda(x)} style={g === x ? { background: "var(--cor)", borderColor: "var(--cor)" } : {}}>{x === "feminina" ? "👩 Feminina" : x === "masculina" ? "👨 Masculina" : "🎙️ Grave (árbitro)"}</button>
       ))}
       {info.total === 0 && <span className="text-xs text-alerta">Sem voz em japonês neste aparelho. No Android: Configurações → Idioma → Saída de texto para fala → instale “Japonês”.</span>}
-      {info.total > 0 && g === "masculina" && !info.masculina && <span className="text-xs text-suave">(sem voz masculina instalada: usando tom mais grave)</span>}
+      {info.total > 0 && g !== "feminina" && !info.masculina && <span className="text-xs text-suave">(sem voz masculina instalada: usando tom mais grave)</span>}
     </div>
   );
 }
