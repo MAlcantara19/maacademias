@@ -28,16 +28,16 @@
 --
 -- Logins de teste: crie no Supabase em Authentication → Add user
 -- (marque "Auto Confirm User"), com qualquer senha:
---   admin.piloto@admin.com        → admin da academia
---   prof.piloto@prof.com         → professor de jiu-jitsu
---   aluno.piloto@aluno.com        → Aluno 01
---   responsavel.piloto@resp.com  → responsável pela Criança 01 e 02
---   prof.judo.piloto@prof.com     → professor de judô (só vê os alunos dele)
---   prof.muaythai.piloto@prof.com → professora de muay thai
---   prof.tkd.piloto@prof.com      → professor de taekwondo
---   judo.piloto@aluno.com         → aluno de judô (Aluno 14)
---   muaythai.piloto@aluno.com     → aluno de muay thai (Aluno 12)
---   tkd.piloto@aluno.com          → aluno de taekwondo e muay thai (Aluno 15)
+--   admin.piloto@example.com        → admin da academia
+--   prof.piloto@example.com         → professor de jiu-jitsu
+--   aluno.piloto@example.com        → Aluno 01
+--   responsavel.piloto@example.com  → responsável pela Criança 01 e 02
+--   prof.judo.piloto@example.com     → professor de judô (só vê os alunos dele)
+--   prof.muaythai.piloto@example.com → professora de muay thai
+--   prof.tkd.piloto@example.com      → professor de taekwondo
+--   judo.piloto@example.com         → aluno de judô (Aluno 14)
+--   muaythai.piloto@example.com     → aluno de muay thai (Aluno 12)
+--   tkd.piloto@example.com          → aluno de taekwondo e muay thai (Aluno 15)
 -- O login se liga ao perfil sozinho pelo e-mail.
 -- =====================================================================
 
@@ -58,9 +58,9 @@ end $$;
 
 delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
 delete from perfis where email like '%.piloto@example.com'
-   or email in ('admin.piloto@admin.com','prof.piloto@prof.com','aluno.piloto@aluno.com','responsavel.piloto@resp.com',
-                'judo.piloto@aluno.com','muaythai.piloto@aluno.com','tkd.piloto@aluno.com','prof.judo.piloto@prof.com',
-                'prof.muaythai.piloto@prof.com','prof.tkd.piloto@prof.com');
+   or email in ('admin.piloto@example.com','prof.piloto@example.com','aluno.piloto@example.com','responsavel.piloto@example.com',
+                'judo.piloto@example.com','muaythai.piloto@example.com','tkd.piloto@example.com','prof.judo.piloto@example.com',
+                'prof.muaythai.piloto@example.com','prof.tkd.piloto@example.com');
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -181,13 +181,13 @@ begin
   -- =================================================================
   -- EQUIPE
   -- =================================================================
-  adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@admin.com',        'M', '1985-05-10', 'admin');
-  pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@prof.com',    'M', '1990-03-15', 'professor');
-  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@prof.com',    'M', '1992-08-20', 'professor');
-  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@prof.com','F', '1994-11-02', 'professor');
-  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@prof.com',     'M', '1988-01-25', 'professor');
+  adm     := pil_pessoa(ac, 'Admin Piloto',          'admin.piloto@example.com',        'M', '1985-05-10', 'admin');
+  pr_jj   := pil_pessoa(ac, 'Professor Jiu-jitsu',   'prof.piloto@example.com',    'M', '1990-03-15', 'professor');
+  pr_judo := pil_pessoa(ac, 'Professor Judô',        'prof.judo.piloto@example.com',    'M', '1992-08-20', 'professor');
+  pr_mt   := pil_pessoa(ac, 'Professora Muay Thai',  'prof.muaythai.piloto@example.com','F', '1994-11-02', 'professor');
+  pr_tkd  := pil_pessoa(ac, 'Professor Taekwondo',   'prof.tkd.piloto@example.com',     'M', '1988-01-25', 'professor');
   -- O admin também dá aula de jiu-jitsu (mostra que dá pra ter os dois papéis)
-  pr_jj_admin := pil_pessoa(ac, 'Admin Piloto', 'admin.piloto@admin.com', 'M', '1985-05-10', 'professor');
+  pr_jj_admin := pil_pessoa(ac, 'Admin Piloto', 'admin.piloto@example.com', 'M', '1985-05-10', 'professor');
 
   insert into professores_modalidades (membro_id, modalidade_id, whatsapp_publico, bio, graduacao) values
     (pr_jj,       mo_jj,   '5500000000001', 'Faixa preta, 15 anos de tatame. Foco em competição.', 'Faixa preta 2º grau'),
@@ -238,8 +238,8 @@ begin
   for i in 1..16 loop
     m := pil_pessoa(ac,
       'Aluno ' || lpad(i::text, 2, '0'),
-      case i when 1 then 'aluno.piloto@aluno.com' when 12 then 'muaythai.piloto@aluno.com'
-             when 14 then 'judo.piloto@aluno.com' when 15 then 'tkd.piloto@aluno.com'
+      case i when 1 then 'aluno.piloto@example.com' when 12 then 'muaythai.piloto@example.com'
+             when 14 then 'judo.piloto@example.com' when 15 then 'tkd.piloto@example.com'
              else 'aluno' || lpad(i::text, 2, '0') || '.piloto@example.com' end,
       case when i % 4 = 0 then 'F' else 'M' end,
       make_date(1990 + (i * 7) % 20, 1 + (i * 5) % 12, 1 + (i * 3) % 28),
@@ -282,10 +282,10 @@ begin
   end loop;
   -- (crianças não terão login: o e-mail fica só para o piloto poder ser recriado)
 
-  select id into resp1 from perfis where email = 'responsavel.piloto@resp.com';
+  select id into resp1 from perfis where email = 'responsavel.piloto@example.com';
   if resp1 is null then
     insert into perfis (nome, email, sexo, telefone, trocar_senha)
-      values ('Responsável 01', 'responsavel.piloto@resp.com', 'F', '5500000000010', false)
+      values ('Responsável 01', 'responsavel.piloto@example.com', 'F', '5500000000010', false)
       returning id into resp1;
   end if;
   select id into resp2 from perfis where email = 'responsavel02.piloto@example.com';

@@ -5,6 +5,7 @@ import { Tatame } from "@/components/Tatame";
 import { PlacarTelao, TelaVitoria, corRelogio, iwy, mmss, NOME, type Estado, type Evento, type Lado } from "@/components/PlacarTelao";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { QR } from "@/components/QR";
+import { useCtx } from "@/lib/contexto";
 
 // Placar de luta de judô (regras IJF 2025):
 // - Ippon encerra; 2 waza-ari = ippon (waza-ari awasete ippon); yuko não soma.
@@ -14,10 +15,11 @@ import { QR } from "@/components/QR";
 // - Osaekomi: 5–9 s yuko, 10–19 s waza-ari, 20 s ippon (no Golden Score, 5 s já encerra).
 // - Visão do árbitro: AZUL à esquerda, BRANCO à direita.
 
-const novo = (duracao: number, nomes?: { azul: string; branco: string }): Estado => ({
+type Quem = { nome: string; membro?: string | null };
+const novo = (duracao: number, quem?: { azul: Quem; branco: Quem }): Estado => ({
   duracao, resta: duracao, golden: false, gs: 0, correndo: false,
-  azul: { nome: nomes?.azul || "", yuko: 0, waza: 0, shido: 0 },
-  branco: { nome: nomes?.branco || "", yuko: 0, waza: 0, shido: 0 },
+  azul: { nome: quem?.azul.nome || "", membro: quem?.azul.membro || null, yuko: 0, waza: 0, shido: 0 },
+  branco: { nome: quem?.branco.nome || "", membro: quem?.branco.membro || null, yuko: 0, waza: 0, shido: 0 },
   osae: null, fim: null, eventos: [],
 });
 const outro = (l: Lado): Lado => (l === "azul" ? "branco" : "azul");
@@ -52,6 +54,25 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
   const [e, setE] = useState<Estado>(novo(240));
   const [pilha, setPilha] = useState<Estado[]>([]);
   const [tela, setTela] = useState(false);
+  const ctx = useCtx();
+
+  // ---------- Atletas da academia (para salvar a luta na ficha de cada um) ----------
+  const [atletas, setAtletas] = useState<{ membro_id: string; nome: string; apelido?: string }[]>([]);
+  const [autoSalvar, setAutoSalvar] = useState(true);
+  const [salvaMsg, setSalvaMsg] = useState("");
+  const [vitoriaAberta, setVitoriaAberta] = useState(true);
+  const salva = useRef<string | null>(null);
+  useEffect(() => {
+    try { setAutoSalvar(localStorage.getItem("ma_placar_salvar") !== "nao"); } catch { /* */ }
+    if (!ctx.equipe) return;
+    supabaseNavegador().from("painel_alunos").select("membro_id, nome, apelido").eq("academia_id", ctx.academia.id).eq("ativo", true).order("nome")
+      .then(({ data }) => setAtletas(data || []));
+  }, [ctx.equipe, ctx.academia.id]);
+  function escolher(l: Lado, nome: string) {
+    const t = nome.trim().toLowerCase();
+    const m = t ? atletas.find((a) => a.nome.toLowerCase() === t || (a.apelido || "").toLowerCase() === t) : undefined;
+    setE((y) => ({ ...y, [l]: { ...y[l], nome, membro: m?.membro_id || null } }));
+  }
   const ref = useRef(e);
   ref.current = e;
   const audio = useRef<AudioContext | null>(null);
@@ -223,6 +244,29 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
     diz("soremade", "Sore made", ippon && falasRef.current.ippon);
   }, [!!e.fim]); // eslint-disable-line
 
+  // salva a luta na ficha dos atletas escolhidos da lista (e desfaz se a luta for reaberta na correção)
+  async function salvarLuta() {
+    const x = ref.current;
+    if (!x.fim || salva.current || !ctx.equipe || (!x.azul.membro && !x.branco.membro)) return;
+    salva.current = "salvando";
+    const pl = (a: typeof x.azul) => ({ ippon: a.ippon ? 1 : 0, waza: a.waza, yuko: a.yuko, shido: a.shido, hansoku: !!a.hansoku });
+    const { data, error } = await supabaseNavegador().from("lutas").insert({
+      academia_id: ctx.academia.id, azul_membro: x.azul.membro || null, branco_membro: x.branco.membro || null,
+      azul_nome: x.azul.nome || "Azul", branco_nome: x.branco.nome || "Branco", vencedor: x.fim.lado, motivo: x.fim.motivo,
+      placar: { azul: pl(x.azul), branco: pl(x.branco) }, eventos: x.eventos || [], duracao: x.duracao, golden: x.golden, gs: x.gs,
+      categoria: x.info?.categoria || null, fase: x.info?.fase || null, registrado_por: ctx.membroId,
+    }).select("id").single();
+    if (error) { salva.current = null; setSalvaMsg("Não foi possível salvar a luta: " + error.message); return; }
+    salva.current = data.id; setSalvaMsg("✅ Luta salva na ficha dos atletas");
+  }
+  useEffect(() => {
+    if (e.fim) { setVitoriaAberta(true); if (autoSalvar) salvarLuta(); return; }
+    if (salva.current && salva.current !== "salvando") {
+      const id = salva.current; salva.current = null; setSalvaMsg("");
+      supabaseNavegador().from("lutas").delete().eq("id", id).then(() => {});
+    }
+  }, [!!e.fim]); // eslint-disable-line
+
   // a página do cronômetro conversa com o placar por aqui
   useEffect(() => {
     if (!api) return;
@@ -243,7 +287,7 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
       <div className="flex flex-1 flex-col gap-3 rounded-3xl p-4" style={{ background: fundo, color: texto, outline: e.osae?.lado === l ? "4px solid #facc15" : undefined }}>
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-bold tracking-widest">{NOME[l]}</span>
-          <input value={a.nome} placeholder="Nome do atleta" onChange={(x) => setE((y) => ({ ...y, [l]: { ...y[l], nome: x.target.value } }))}
+          <input value={a.nome} placeholder="Nome do atleta" list="ma-atletas" onChange={(x) => escolher(l, x.target.value)}
             className="w-full min-w-0 rounded-lg bg-transparent px-2 py-1 text-right text-sm font-semibold outline-none placeholder:opacity-50" style={{ color: texto, border: `1px solid ${azul ? "#ffffff55" : "#0f172a33"}` }} />
         </div>
         <div className="grid grid-cols-2 gap-2 text-center">
@@ -308,7 +352,7 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-suave">Tempo:</span>
           {[120, 180, 240].map((s) => (
-            <button key={s} className="chip" disabled={e.correndo} onClick={() => { setPilha([]); setE({ ...novo(s, { azul: e.azul.nome, branco: e.branco.nome }), info: e.info }); }}
+            <button key={s} className="chip" disabled={e.correndo} onClick={() => { setPilha([]); setE({ ...novo(s, { azul: e.azul, branco: e.branco }), info: e.info }); }}
               style={e.duracao === s ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{mmss(s)}</button>
           ))}
           <span className="text-xs text-suave">Visão do árbitro: azul à esquerda, branco à direita (regra IJF).</span>
@@ -332,6 +376,28 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
           {FALAS.map(([k, r]) => (
             <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={falas[k]} onChange={(x) => mudarFala(k, x.target.checked)} /> {r}</label>
           ))}
+        </div>
+      )}
+      {!tela && (
+        <div className="space-y-2 rounded-2xl bg-painel p-3 text-sm">
+          <p className="font-semibold">👥 Quem vai lutar {ctx.equipe && atletas.length > 0 && <span className="font-normal text-suave">(escolha da lista para a luta ir para a ficha)</span>}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(["azul", "branco"] as Lado[]).map((l) => (
+              <label key={l} className="flex items-center gap-2 rounded-xl p-1.5" style={{ background: l === "azul" ? "#1d4ed8" : "#f8fafc", color: l === "azul" ? "#fff" : "#0f172a" }}>
+                <span className="w-16 shrink-0 text-xs font-bold">{NOME[l]}</span>
+                <input className="w-full min-w-0 rounded-lg bg-transparent px-2 py-1.5 outline-none placeholder:opacity-60" style={{ border: `1px solid ${l === "azul" ? "#ffffff55" : "#0f172a33"}` }}
+                  list="ma-atletas" placeholder="Digite ou escolha o atleta" value={e[l].nome} onChange={(x) => escolher(l, x.target.value)} />
+                {e[l].membro && <span title="Da lista: a luta vai para a ficha">✅</span>}
+              </label>
+            ))}
+          </div>
+          <datalist id="ma-atletas">{atletas.map((a) => <option key={a.membro_id} value={a.nome}>{a.apelido || ""}</option>)}</datalist>
+          {ctx.equipe && (
+            <label className="flex items-center gap-2 text-xs text-suave">
+              <input type="checkbox" checked={autoSalvar} onChange={(x) => { setAutoSalvar(x.target.checked); try { localStorage.setItem("ma_placar_salvar", x.target.checked ? "sim" : "nao"); } catch { /* */ } }} />
+              Salvar a luta automaticamente na ficha dos atletas da lista quando terminar
+            </label>
+          )}
         </div>
       )}
       {!tela && (
@@ -385,16 +451,22 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
             <button className="btn-sec px-4 py-4" disabled={!pilha.length} onClick={desfazer}>↩️ Desfazer</button>
             <button className="btn-sec px-4 py-4" onClick={() => setCorrigir(true)}>✏️ Corrigir pontos</button>
             {!tela && <button className="btn-sec px-4 py-4" onClick={() => setTela(true)}>⛶ Tela cheia</button>}
-            <button className="btn-sec px-4 py-4" onClick={() => { if (confirm("Começar uma luta nova?")) { setPilha([]); setE({ ...novo(e.duracao), info: e.info }); } }}>🔄 Nova luta</button>
+            <button className="btn-sec px-4 py-4" onClick={() => { if (confirm("Começar uma luta nova?")) { salva.current = null; setSalvaMsg(""); setPilha([]); setE({ ...novo(e.duracao), info: e.info }); } }}>🔄 Nova luta</button>
           </div>
         </div>
       </Tatame>
 
-      <TelaVitoria e={e} onFechar={() => setE((x) => ({ ...x, fim: null }))}>
-        <div className="mt-4 flex gap-2" onClick={(x) => x.stopPropagation()}>
+      <TelaVitoria e={vitoriaAberta ? e : { ...e, fim: null }} onFechar={() => setVitoriaAberta(false)}>
+        {(salvaMsg || ((e.azul.membro || e.branco.membro) && ctx.equipe)) && (
+          <div className="mt-3 text-base" onClick={(x) => x.stopPropagation()}>
+            {salvaMsg ? <p className="font-semibold">{salvaMsg}</p>
+              : <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={salvarLuta}>💾 Salvar na ficha dos atletas</button>}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap justify-center gap-2" onClick={(x) => x.stopPropagation()}>
           <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={desfazer}>↩️ Desfazer</button>
           <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => setCorrigir(true)}>✏️ Corrigir</button>
-          <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => { setPilha([]); setE({ ...novo(e.duracao), info: e.info }); }}>🔄 Nova luta</button>
+          <button className="rounded-xl bg-black/20 px-5 py-3 font-semibold" onClick={() => { salva.current = null; setSalvaMsg(""); setPilha([]); setE({ ...novo(e.duracao), info: e.info }); }}>🔄 Nova luta</button>
         </div>
       </TelaVitoria>
 

@@ -216,10 +216,10 @@ update academias set tema = '{"modo":"escuro","fonte":"esportiva"}'::jsonb
  where (tema is null or tema = '{}'::jsonb) and slug in ('academia-piloto', 'dojo-alcantara');
 
 -- ---------- Logins de teste por modalidade (Academia Piloto) ----------
-update perfis set email = 'judo.piloto@aluno.com'     where email = 'aluno14.piloto@example.com';
-update perfis set email = 'muaythai.piloto@aluno.com' where email = 'aluno12.piloto@example.com';
-update perfis set email = 'tkd.piloto@aluno.com'      where email = 'aluno15.piloto@example.com';
-update perfis set email = 'prof.judo.piloto@prof.com' where email = 'prof.judo.piloto@example.com';
+update perfis set email = 'judo.piloto@example.com'     where email = 'aluno14.piloto@example.com';
+update perfis set email = 'muaythai.piloto@example.com' where email = 'aluno12.piloto@example.com';
+update perfis set email = 'tkd.piloto@example.com'      where email = 'aluno15.piloto@example.com';
+update perfis set email = 'prof.judo.piloto@example.com' where email = 'prof.judo.piloto@example.com';
 update perfis p set user_id = u.id from auth.users u
  where p.user_id is null and lower(p.email) = lower(u.email)
    and not exists (select 1 from perfis x where x.user_id = u.id);

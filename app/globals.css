@@ -126,11 +126,15 @@ h1, h2, h3, .titulo {
 .efeito-subir { animation: efeito-subir linear infinite; }
 .efeito-brilhar { animation: efeito-brilhar ease-in-out infinite; }
 .efeito-flutuar { animation: efeito-flutuar ease-in-out infinite; }
+@keyframes efeito-girar { to { transform: rotate(360deg); } }
+.efeito-girar { animation: efeito-girar linear infinite; }
+@keyframes efeito-estouro { 0% { transform: translate(0, 0) scale(.4) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1) rotate(200deg); opacity: 0; } }
+.efeito-estouro { animation: efeito-estouro .85s ease-out forwards; }
 @keyframes abertura-sumir { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes abertura-girar { 0% { transform: scale(.4) rotate(-180deg); opacity: 0; } 50% { transform: scale(1.08) rotate(10deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
 .abertura { animation: abertura-sumir 1.6s ease forwards; }
 .abertura-logo { animation: abertura-girar .9s cubic-bezier(.2,.8,.2,1) forwards; }
-@media (prefers-reduced-motion: reduce) { .efeito-cair, .efeito-subir, .efeito-brilhar, .efeito-flutuar, .abertura, .abertura-logo { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .efeito-cair, .efeito-subir, .efeito-brilhar, .efeito-flutuar, .efeito-girar, .efeito-estouro, .abertura, .abertura-logo { animation: none !important; } }
 
 /* Mais fontes por academia */
 [data-fonte="moderna"] h1, [data-fonte="moderna"] h2, [data-fonte="moderna"] h3, [data-fonte="moderna"] .titulo {

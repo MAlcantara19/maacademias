@@ -107,12 +107,17 @@ export function NovoAluno({ onFechar }: { onFechar: () => void }) {
   }
 
   const modelo = modeloFicha(ctx.academia.nome);
+  // link de pré-matrícula: a pessoa preenche a ficha completa (dados, saúde, termos e assinatura) pelo celular
+  const linkPre = typeof window !== "undefined" ? `${window.location.origin}/${ctx.academia.slug}/cadastro` : "";
+  const msgPre = `Olá! Para fazer a matrícula na ${ctx.academia.nome}, é só preencher a ficha por este link (leva uns 5 minutos):\n${linkPre}\n\nSe for menor de 18 anos, o responsável preenche e assina. Qualquer dúvida, é só chamar!`;
   return (
     <form onSubmit={salvar} className="grid gap-3 rounded-2xl border border-linha bg-painel p-4 sm:grid-cols-2">
       <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
         <h2 className="text-2xl font-bold">Novo aluno</h2>
         <div className="flex flex-wrap gap-2">
-          <a className="btn-sec text-sm" target="_blank" href={`https://wa.me/${(f.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(modelo)}`}>📤 Mandar ficha</a>
+          <a className="btn text-sm" target="_blank" href={`https://wa.me/${(f.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(msgPre)}`}>📲 Mandar link de pré-matrícula</a>
+          <button type="button" className="btn-sec text-sm" onClick={() => navigator.clipboard?.writeText(linkPre)}>🔗 Copiar link</button>
+          <a className="btn-sec text-sm" target="_blank" href={`https://wa.me/${(f.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(modelo)}`}>📤 Ficha por texto</a>
           <button type="button" className="btn-sec text-sm" onClick={() => setColar(colar === null ? "" : null)}>📋 Colar ficha preenchida</button>
         </div>
       </div>

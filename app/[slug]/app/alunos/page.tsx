@@ -8,6 +8,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { FAIXAS_ETARIAS, dataBR, dinheiro, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
+import { resumoPendencias } from "@/lib/pendencias";
 import { NovoAluno } from "./NovoAluno";
 import { ImportarAlunos } from "./ImportarAlunos";
 import { Solicitacoes } from "./Solicitacoes";
@@ -23,6 +24,7 @@ function Lista() {
   const params = useSearchParams();
   const base = `/${ctx.academia.slug}/app`;
   const [todos, setTodos] = useState<any[]>([]);
+  const [pend, setPend] = useState<Record<string, string[]>>({});
   const [busca, setBusca] = useState("");
   const [situacao, setSituacao] = useState("ativos");
   const [faixaEtaria, setFaixaEtaria] = useState("");
@@ -36,6 +38,8 @@ function Lista() {
   async function carregar() {
     const { data } = await sb.from("painel_alunos").select("*").eq("academia_id", ctx.academia.id);
     setTodos(data || []);
+    const { data: p } = await sb.rpc("cadastros_pendentes", { p_acad: ctx.academia.id });
+    setPend(Object.fromEntries((p || []).map((x: any) => [x.membro_id, x.itens || []])));
   }
   useEffect(() => { carregar(); }, []); // eslint-disable-line
 
@@ -52,7 +56,7 @@ function Lista() {
         (filtro === "sumidos" && (a.dias_sem_vir ?? 0) >= (ctx.academia.alerta_dias_sem_vir || 7) && !a.afastado) ||
         (filtro === "atrasados" && a.mensalidades_atrasadas > 0) ||
         (filtro === "nunca_entrou" && a.tem_login && a.nunca_entrou) ||
-        (filtro === "incompleto" && (!a.nascimento || !a.whatsapp)) ||
+        (filtro === "incompleto" && !!pend[a.membro_id]) ||
         (filtro === "pendencias" && a.pendencias_abertas > 0) ||
         (filtro === "sem_login" && !a.tem_login) ||
         (filtro === "afastados" && a.afastado) ||
@@ -64,7 +68,8 @@ function Lista() {
       if (a == null) return 1; if (b == null) return -1;
       return (typeof a === "string" ? a.localeCompare(b) : a - b) * dir;
     });
-  }, [todos, busca, situacao, faixaEtaria, turma, filtro, ordem, ctx.academia.alerta_dias_sem_vir]);
+  }, [todos, pend, busca, situacao, faixaEtaria, turma, filtro, ordem, ctx.academia.alerta_dias_sem_vir]);
+  const nPend = useMemo(() => todos.filter((a) => a.ativo && pend[a.membro_id]).length, [todos, pend]);
 
   return (
     <div className="space-y-4">
@@ -103,7 +108,7 @@ function Lista() {
         </select>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ...(liberado(ctx.academia.plano, "mensalidades") ? [["atrasados", "💳 Mensalidade atrasada"]] : []), ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"], ["incompleto", "📝 Cadastro incompleto"]].map(([k, v]) => (
+        {[["", "Sem filtro"], ["sumidos", "👀 Sumidos"], ["afastados", "🩹 Afastados"], ["pendencias", "📌 Com pendência"], ...(liberado(ctx.academia.plano, "mensalidades") ? [["atrasados", "💳 Mensalidade atrasada"]] : []), ["sem_carteirinha", "💳 Sem carteirinha"], ["sem_login", "🔑 Sem login"], ["nunca_entrou", "📵 Nunca abriu o app"], ["incompleto", `📋 Cadastro pendente${nPend ? ` (${nPend})` : ""}`]].map(([k, v]) => (
           <button key={k} onClick={() => setFiltro(k)} className="chip" style={filtro === k ? { borderColor: "var(--cor)", background: "var(--cor)" } : {}}>{v}</button>
         ))}
       </div>
@@ -111,6 +116,8 @@ function Lista() {
       <ul className="space-y-2">
         {lista.map((a) => {
           const z = whatsapp(a.whatsapp, `Oi, ${primeiroNome(a.apelido || a.nome)}! Aqui é da ${ctx.academia.nome}.`);
+          const itens = pend[a.membro_id];
+          const avisar = itens && whatsapp(a.whatsapp, `Oi! Aqui é da ${ctx.academia.nome}. O cadastro de ${primeiroNome(a.nome)} ainda tem pendências:\n${itens.map((x) => `• ${x}`).join("\n")}\n\nDá para completar pelo app: ${typeof window !== "undefined" ? window.location.origin : ""}${base}/alunos/${a.membro_id}/cadastro`);
           return (
             <li key={a.membro_id} className={`flex items-center gap-3 rounded-2xl bg-painel p-3 ${!a.ativo ? "opacity-60" : ""}`}>
               <Avatar foto={a.foto_url} nome={a.nome} cor={a.cor_faixa} grau={a.grau} tamanho={48} />
@@ -130,10 +137,17 @@ function Lista() {
                   {liberado(ctx.academia.plano, "mensalidades") && a.mensalidades_atrasadas > 0 ? ` · 💳 ${a.mensalidades_atrasadas} atrasada(s), deve ${dinheiro(a.debito_atualizado)}` : ""}
                 </p>
                 <div className="mt-1.5 max-w-48"><Barra pct={a.frequencia_30d} /></div>
+                {itens && (
+                  <p className="mt-1.5 flex flex-wrap gap-1 text-xs" title={itens.join(", ")}>
+                    <span className="rounded-full px-2 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--color-alerta) 25%, transparent)" }}>📋 {itens.length} pendência(s)</span>
+                    {resumoPendencias(itens).map((x) => <span key={x} className="rounded-full bg-painel2 px-2 py-0.5">{x}</span>)}
+                  </p>
+                )}
               </Link>
               <div className="flex flex-col items-end gap-1">
                 <span className="numero text-lg font-bold">{a.frequencia_30d ?? "—"}%</span>
                 {z && <a href={z} target="_blank" className="btn-sec px-3 py-1.5 text-xs">WhatsApp</a>}
+                {avisar && <a href={avisar} target="_blank" className="btn-sec px-3 py-1.5 text-xs" title="Mandar as pendências pelo WhatsApp">📲 Avisar</a>}
               </div>
             </li>
           );

@@ -41,7 +41,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
     const { data: p } = await sb.from("painel_alunos").select("*").eq("membro_id", id).maybeSingle();
     if (!p) return setA(false);
     setA(p);
-    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames, conq, simul, stc] = await Promise.all([
+    const [med, grad, hist, aus, pend, mats, mods, turmas, cart, perfil, membro, exames, conq, simul, stc, lts] = await Promise.all([
       sb.from("medidas").select("*").eq("perfil_id", p.perfil_id).order("data"),
       sb.from("graduacoes").select("*, modalidades(nome, graduacoes, cores_graduacoes)").eq("membro_id", id).order("data", { ascending: false }),
       sb.from("historico_ausencias").select("*").eq("membro_id", id).order("ano", { ascending: false }),
@@ -57,9 +57,11 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       sb.from("conquistas").select("*").eq("membro_id", id).order("conquistada_em"),
       sb.from("quiz_resultados").select("acertos, total, criado_em").eq("membro_id", id).eq("modo", "simulado").order("criado_em", { ascending: false }).limit(3),
       sb.rpc("status_cadastro", { p_membro: id }),
+      sb.from("lutas").select("*").or(`azul_membro.eq.${id},branco_membro.eq.${id}`).order("data", { ascending: false }).limit(30),
     ]);
     setX({
       cadastro: stc.data || null,
+      lutas: lts.data || [],
       medidas: med.data || [], graduacoes: grad.data || [], historico: hist.data || [], ausencias: aus.data || [],
       pendencias: pend.data || [], matriculas: mats.data || [], modalidades: mods.data || [], turmas: turmas.data || [],
       carteirinhas: cart.data || [], perfil: perfil.data, membro: membro.data, exames: exames.data || [],
@@ -212,7 +214,12 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl p-3 text-sm"
             style={{ background: `color-mix(in srgb, var(${x.cadastro.completo ? "--color-ok" : "--color-alerta"}) 18%, transparent)` }}>
             <span>{x.cadastro.completo ? <>✅ <b>Cadastro completo</b></> : <>📝 <b>Cadastro com pendências:</b> {x.cadastro.pendencias.slice(0, 3).join(", ")}{x.cadastro.pendencias.length > 3 ? ` e mais ${x.cadastro.pendencias.length - 3}` : ""}.</>}</span>
-            <Link className="btn-sec text-sm" href={`${base}/alunos/${id}/cadastro`}>📋 {x.cadastro.completo ? "Ver cadastro" : "Completar cadastro"}</Link>
+            <span className="flex flex-wrap gap-2">
+              {ctx.equipe && !x.cadastro.completo && a.whatsapp && (
+                <a className="btn-sec text-sm" target="_blank" href={whatsapp(a.whatsapp, `Oi! Aqui é da ${ctx.academia.nome}. O cadastro de ${primeiroNome(a.nome)} ainda tem pendências:\n${x.cadastro.pendencias.map((p: string) => `• ${p}`).join("\n")}\n\nDá para completar pelo app: ${window.location.origin}${base}/alunos/${id}/cadastro`) || undefined}>📲 Avisar</a>
+              )}
+              <Link className="btn-sec text-sm" href={`${base}/alunos/${id}/cadastro`}>📋 {x.cadastro.completo ? "Ver cadastro" : "Completar cadastro"}</Link>
+            </span>
           </div>
         )}
       </section>
@@ -332,6 +339,32 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             <div className="mt-3"><FichaSaude perfilId={a.perfil_id} podeEditar={podeEditar} onSalvo={carregar} /></div>
           </details>
         )}
+
+        {(x.lutas || []).length > 0 && (() => {
+          const ls = x.lutas.map((l: any) => {
+            const eu = l.azul_membro === id ? "azul" : "branco", ele = eu === "azul" ? "branco" : "azul";
+            return { ...l, eu, ele, res: !l.vencedor ? "E" : l.vencedor === eu ? "V" : "D" };
+          });
+          const v = ls.filter((l: any) => l.res === "V").length, d = ls.filter((l: any) => l.res === "D").length;
+          const iwy = (p: any) => p ? `${p.ippon ? 1 : 0}${Math.min(p.waza, 9)}${Math.min(p.yuko, 9)}` : "000";
+          return (
+            <Bloco titulo={`🥋 Lutas no placar · ${v}V ${d}D`}>
+              <ul className="divide-y divide-linha">
+                {ls.map((l: any) => (
+                  <li key={l.id} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="numero flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-white"
+                      style={{ background: l.res === "V" ? "var(--color-ok)" : l.res === "D" ? "var(--color-erro)" : "var(--color-linha)" }}>{l.res}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">vs {l[`${l.ele}_nome`]}</span>
+                      <span className="block truncate text-xs text-suave">{dataBR(l.data)} · {l.motivo}{l.golden ? " · Golden Score" : ""}{l.fase ? ` · ${l.fase}` : ""}{l.categoria ? ` · ${l.categoria}` : ""}</span>
+                    </span>
+                    <span className="numero shrink-0 font-bold">{iwy(l.placar?.[l.eu])} × {iwy(l.placar?.[l.ele])}</span>
+                  </li>
+                ))}
+              </ul>
+            </Bloco>
+          );
+        })()}
 
         <Bloco titulo="🏅 Campeonatos">
           <MeusCampeonatos academiaId={ctx.academia.id} membroId={id} podeEditar={ctx.equipe || meu} />

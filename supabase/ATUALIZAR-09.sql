@@ -47,8 +47,8 @@ delete from tecnicas        where academia_id in (select id from academias where
 delete from quiz_resultados where academia_id in (select id from academias where slug like 'piloto-%');
 
 -- ---------- 3) Logins de teste dos outros professores ----------
-update perfis set email = 'prof.muaythai.piloto@prof.com' where email = 'prof.muaythai.piloto@example.com';
-update perfis set email = 'prof.tkd.piloto@prof.com'      where email = 'prof.tkd.piloto@example.com';
+update perfis set email = 'prof.muaythai.piloto@example.com' where email = 'prof.muaythai.piloto@example.com';
+update perfis set email = 'prof.tkd.piloto@example.com'      where email = 'prof.tkd.piloto@example.com';
 update perfis p set user_id = u.id from auth.users u
  where p.user_id is null and lower(p.email) = lower(u.email)
    and not exists (select 1 from perfis x where x.user_id = u.id);

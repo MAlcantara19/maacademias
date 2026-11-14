@@ -10,16 +10,16 @@ update auth.users
    set encrypted_password = extensions.crypt('prof123', extensions.gen_salt('bf')),
        email_confirmed_at = coalesce(email_confirmed_at, now())
  where email in (
-   'admin.piloto@admin.com',
-   'prof.piloto@prof.com', 'prof.judo.piloto@prof.com', 'prof.muaythai.piloto@prof.com', 'prof.tkd.piloto@prof.com',
-   'aluno.piloto@aluno.com', 'judo.piloto@aluno.com', 'muaythai.piloto@aluno.com', 'tkd.piloto@aluno.com',
-   'responsavel.piloto@resp.com'
+   'admin.piloto@example.com',
+   'prof.piloto@example.com', 'prof.judo.piloto@example.com', 'prof.muaythai.piloto@example.com', 'prof.tkd.piloto@example.com',
+   'aluno.piloto@example.com', 'judo.piloto@example.com', 'muaythai.piloto@example.com', 'tkd.piloto@example.com',
+   'responsavel.piloto@example.com'
  );
 
 -- Confira quais existem (os que faltarem, crie em Authentication → Add user → Auto Confirm):
 select e.email, (u.id is not null) as existe
-  from unnest(array['admin.piloto@admin.com','prof.piloto@prof.com','prof.judo.piloto@prof.com','prof.muaythai.piloto@prof.com',
-                    'prof.tkd.piloto@prof.com','aluno.piloto@aluno.com','judo.piloto@aluno.com','muaythai.piloto@aluno.com',
-                    'tkd.piloto@aluno.com','responsavel.piloto@resp.com']) as e(email)
+  from unnest(array['admin.piloto@example.com','prof.piloto@example.com','prof.judo.piloto@example.com','prof.muaythai.piloto@example.com',
+                    'prof.tkd.piloto@example.com','aluno.piloto@example.com','judo.piloto@example.com','muaythai.piloto@example.com',
+                    'tkd.piloto@example.com','responsavel.piloto@example.com']) as e(email)
   left join auth.users u on u.email = e.email
  order by 2, 1;

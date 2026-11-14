@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { dataBR, whatsapp, primeiroNome } from "@/lib/util";
+import Link from "next/link";
+import { abrirAnexo, dataBR, whatsapp, primeiroNome } from "@/lib/util";
 
 // Cadastros feitos pelo próprio aluno no link da academia, esperando aprovação
 export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
@@ -12,6 +13,7 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
   const [turmas, setTurmas] = useState<any[]>([]);
   const [escolha, setEscolha] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState("");
+  const [novo, setNovo] = useState<string | null>(null);
 
   async function carregar() {
     const { data } = await sb.from("solicitacoes_cadastro").select("*, modalidades(nome)").eq("academia_id", ctx.academia.id).eq("status", "nova").order("criada_em");
@@ -24,43 +26,13 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
 
   async function aprovar(s: any) {
     setMsg("");
-    const perfilId = crypto.randomUUID();
-    const membroId = crypto.randomUUID();
+    const turma = escolha[s.id] ?? s.turma_id ?? null;
+    const { data: membroId, error } = await sb.rpc("aprovar_solicitacao", { p_id: s.id, p_turma: turma || null });
+    if (error) return setMsg(error.message);
+    if (s.indicado_por) await sb.rpc("avaliar_conquistas", { p_membro: s.indicado_por });
     const menor = !!s.responsavel_nome;
-    const r1 = await sb.from("perfis").insert({
-      id: perfilId, nome: s.nome, email: menor ? null : s.email, telefone: menor ? null : s.telefone,
-      nascimento: s.nascimento, sexo: s.sexo,
-    });
-    if (r1.error) return setMsg(r1.error.message);
-    const r2 = await sb.from("membros").insert({ id: membroId, academia_id: ctx.academia.id, perfil_id: perfilId, papel: "aluno" });
-    if (r2.error) return setMsg(r2.error.message);
-    const turma = escolha[s.id] ?? s.turma_id;
-    if (turma) await sb.from("matriculas").insert({ turma_id: turma, membro_id: membroId });
-
-    if (menor) {
-      let respId: string | null = null;
-      if (s.responsavel_email) {
-        const { data: ex } = await sb.from("perfis").select("id").ilike("email", s.responsavel_email).limit(1);
-        respId = ex?.[0]?.id || null;
-      }
-      if (!respId) {
-        respId = crypto.randomUUID();
-        await sb.from("perfis").insert({ id: respId, nome: s.responsavel_nome, email: s.responsavel_email, telefone: s.responsavel_tel });
-      }
-      await sb.from("responsaveis").insert({ responsavel_id: respId, dependente_id: perfilId, parentesco: "responsável" });
-    }
-    if (s.aceite_imagem) {
-      await sb.from("consentimentos").insert({
-        perfil_id: perfilId, academia_id: ctx.academia.id, tipo: "imagem", versao_termo: "cadastro-online-v1",
-        aceito_por: menor ? s.responsavel_nome : s.nome, e_responsavel: menor,
-      });
-    }
-    if (s.indicado_por) {
-      await sb.from("indicacoes").insert({ academia_id: ctx.academia.id, indicador_id: s.indicado_por, indicado_nome: s.nome, indicado_membro: membroId });
-      await sb.rpc("avaliar_conquistas", { p_membro: s.indicado_por });
-    }
-    await sb.from("solicitacoes_cadastro").update({ status: "aprovada", avaliada_por: ctx.membroId }).eq("id", s.id);
     setMsg(`${s.nome} aprovado(a)! Avise para entrar em “Primeiro acesso” com o e-mail ${menor ? "do responsável" : "cadastrado"}.`);
+    setNovo(membroId as string);
     carregar(); onAprovar();
   }
 
@@ -75,7 +47,7 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
   return (
     <section className="space-y-2 rounded-2xl border-2 border-dashed p-4" style={{ borderColor: "var(--cor)" }}>
       <h2 className="text-2xl font-bold">🆕 Cadastros para aprovar ({lista.length})</h2>
-      {msg && <p className="text-sm text-ok">{msg}</p>}
+      {msg && <p className="text-sm text-ok">{msg} {novo && <Link className="underline" href={`/${ctx.academia.slug}/app/alunos/${novo}/cadastro`}>Ver cadastro completo →</Link>}</p>}
       {lista.map((s) => {
         const tel = s.telefone || s.responsavel_tel;
         const z = whatsapp(tel, `Oi, ${primeiroNome(s.responsavel_nome || s.nome)}! Recebemos o cadastro na ${ctx.academia.nome}.`);
@@ -87,6 +59,17 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
               {s.modalidades?.nome ? ` · ${s.modalidades.nome}` : ""}{s.aceite_imagem ? " · ✅ autoriza imagem" : " · ❌ não autoriza imagem"}
             </p>
             {s.mensagem && <p className="text-sm">💬 {s.mensagem}</p>}
+            {s.dados?.termos && (
+              <p className="text-sm">
+                📋 Ficha completa: {s.dados.cpf ? "CPF ✓ · " : ""}{s.dados.saude ? "saúde ✓ · " : ""}{s.dados.termos.filter((t: any) => t.aceito).length} termo(s) assinado(s)
+                {s.dados.responsavel?.parentesco ? ` · responsável: ${s.dados.responsavel.parentesco}` : ""}
+              </p>
+            )}
+            {(s.dados?.documentos || []).length > 0 && (
+              <p className="flex flex-wrap gap-2 text-sm">📎 {s.dados.documentos.map((d: any, i: number) => (
+                <button key={i} className="underline" onClick={() => abrirAnexo(sb, d.arquivo)}>{d.tipo.replace("doc_", "doc. ")}</button>
+              ))}</p>
+            )}
             {s.indicado_por && <p className="text-sm">🤝 Veio por indicação{ctx.academia.recompensa_indicacao ? ` (recompensa: ${ctx.academia.recompensa_indicacao})` : ""}</p>}
             <div className="mt-2 flex flex-wrap gap-2">
               <select className="campo w-auto text-sm" value={escolha[s.id] ?? s.turma_id ?? ""} onChange={(e) => setEscolha({ ...escolha, [s.id]: e.target.value })}>

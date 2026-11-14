@@ -94,7 +94,7 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Três academias piloto com os mesmos alunos: `/piloto-base`, `/piloto-intermediario`, `/piloto-completo`.
   Recrie quando quiser rodando `supabase/piloto-academias.sql` (não mexe nas outras academias).
 - Demonstração por plano: `/demo?plano=base` (usa NEXT_PUBLIC_DEMO_EMAIL e NEXT_PUBLIC_DEMO_SENHA;
-  sugestão: prof.piloto@prof.com, que está nas 3 pilotos).
+  sugestão: prof.piloto@example.com, que está nas 3 pilotos).
 - Termos de Uso (`/termos`) e Política de Privacidade (`/privacidade`): texto-base para revisar.
   Ao mudar o texto, troque `VERSAO_TERMOS` em `lib/termos.ts` e todos aceitam de novo.
   Troque também o e-mail de contato em `lib/termos.ts`.
@@ -191,3 +191,11 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Ficha do aluno → **📋 Completar cadastro**: dados pessoais (CPF, CEP que preenche sozinho), responsável legal (obrigatório para menor), ficha de saúde (acesso restrito, vence em 1 ano), termos com assinatura no dedo (uso de imagem separado e opcional), documentos, ocorrências.
 - O banco calcula as pendências e só deixa **concluir** o cadastro quando tudo que é obrigatório estiver pronto. Toda segunda o sistema reabre os cadastros com ficha de saúde vencida.
 - Placar: pontos em 3 dígitos (I W Y), cartões amarelo/vermelho, relógio verde/vermelho/amarelo, categoria e fase, menu **✏️ Corrigir pontos**, voz fala "Ippon" e voz **grave**. Trocar de aba no cronômetro com o relógio correndo pergunta o que fazer.
+
+## Atualização 17 (pré-matrícula, pendências, PDF e lutas)
+- Rode `supabase/ATUALIZAR-17.sql`. Os logins de demonstração passam a ser `...@example.com` (ex.: `prof.piloto@example.com`, mesma senha). Se na Vercel existir `NEXT_PUBLIC_DEMO_EMAIL`, troque o final para `@example.com`.
+- **Pré-matrícula:** o link `/<academia>/cadastro` agora é a ficha completa (dados, responsável, saúde, termos com assinatura e documentos). Em Alunos → Cadastrar aluno → **📲 Mandar link de pré-matrícula**. A aprovação cria o aluno com tudo pronto.
+- **Pendências:** a lista de alunos mostra o que falta em cada um, tem o filtro **📋 Cadastro pendente** e o botão **📲 Avisar** (WhatsApp). O aluno/responsável vê o aviso na tela inicial.
+- **PDF da ficha completa:** no cadastro do aluno, “Gerar e guardar na ficha” (fica em Documentos).
+- **Lutas:** no placar, escolha os atletas da lista; ao terminar, a luta vai para a ficha de cada um (🥋 Lutas no placar).
+- **Efeitos novos:** logo passeando pela tela, chuva de logos, logos em órbita e logo que explode ao tocar (Personalizar academia → Efeitos).

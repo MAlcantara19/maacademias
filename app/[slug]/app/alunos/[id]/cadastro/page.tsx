@@ -12,7 +12,7 @@ import { TERMOS, cpfValido, hashTexto, idade, mascaraCpf, textoDoTermo } from "@
 const PARENTESCOS = ["Mãe", "Pai", "Avó", "Avô", "Tia", "Tio", "Irmã", "Irmão", "Tutor(a) legal", "Guardião(ã)", "Outro"];
 const TIPOS_DOC: Record<string, string> = {
   doc_responsavel: "Documento do responsável (RG/CNH)", doc_aluno: "Certidão de nascimento ou documento do aluno",
-  guarda: "Termo de guarda ou tutela", atestado: "Atestado médico", outro: "Outro documento",
+  guarda: "Termo de guarda ou tutela", atestado: "Atestado médico", outro: "Outro documento", ficha_pdf: "📄 Ficha completa (PDF)",
 };
 const UFS = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
 
@@ -109,6 +109,8 @@ export default function CadastroCompleto({ params }: { params: Promise<{ slug: s
       <Termos aluno={p} menor={menor} resp={resp} ass={ass} recarregar={carregar} n={menor ? 4 : 3} ok={!tem("termo")} />
       <Documentos aluno={p} menor={menor} resp={resp} docs={docs} recarregar={carregar} n={menor ? 5 : 4} ok={!tem("document") && !tem("certid") && !tem("guarda")} />
       {(ctx.equipe || oco.length > 0) && <Ocorrencias membroId={id} lista={oco} recarregar={carregar} n={menor ? 6 : 5} />}
+
+      <PdfFicha dados={{ perfil: p, menor, responsaveis: resp, assinaturas: ass, documentos: docs, ocorrencias: oco, graduacao: grad, status: st }} recarregar={carregar} />
 
       <section className="flex flex-wrap gap-2 rounded-2xl bg-painel p-4 text-sm">
         <span className="w-full font-semibold">Também na ficha do aluno:</span>
@@ -413,6 +415,51 @@ function Documentos({ aluno, menor, resp, docs, recarregar, n, ok }: any) {
         {!docs.length && <p className="py-2 text-sm text-suave">Nenhum documento enviado.</p>}
       </ul>
     </Etapa>
+  );
+}
+
+// ---------------------------------------------------------------- PDF da ficha completa
+function PdfFicha({ dados, recarregar }: { dados: any; recarregar: () => void }) {
+  const ctx = useCtx();
+  const sb = supabaseNavegador();
+  const [gerando, setGerando] = useState("");
+  const salvos = dados.documentos.filter((d: any) => d.tipo === "ficha_pdf");
+
+  async function gerar(salvar: boolean) {
+    setGerando(salvar ? "Gerando e salvando…" : "Gerando…");
+    try {
+      const [{ data: saude }, { data: emerg }] = await Promise.all([
+        sb.from("fichas_saude").select("*").eq("perfil_id", dados.perfil.id).maybeSingle(),
+        sb.from("perfis").select("contato_emergencia_nome, contato_emergencia_tel").eq("id", dados.perfil.id).maybeSingle(),
+      ]);
+      const { gerarPdfFicha } = await import("@/lib/pdfFicha");
+      const blob = await gerarPdfFicha(sb, { ...dados, academia: ctx.academia, saude, emergencia: emerg });
+      const nome = `ficha-${(dados.perfil.nome || "aluno").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      if (salvar) {
+        const caminho = `${ctx.academia.id}/documentos/${dados.perfil.id}/${Date.now()}-ficha.pdf`;
+        const up = await sb.storage.from("privado").upload(caminho, blob, { contentType: "application/pdf" });
+        if (up.error) throw new Error(up.error.message);
+        await sb.from("documentos").insert({ academia_id: ctx.academia.id, perfil_id: dados.perfil.id, tipo: "ficha_pdf", nome, arquivo: "privado:" + caminho });
+        recarregar();
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = nome; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      setGerando("");
+    } catch (e: any) { setGerando("Não deu para gerar: " + (e?.message || "erro")); }
+  }
+
+  return (
+    <section className="space-y-2 rounded-2xl bg-painel p-4">
+      <p className="text-lg font-bold">📄 Ficha completa em PDF</p>
+      <p className="text-sm text-suave">Dados, responsável, saúde, termos com as assinaturas, documentos e ocorrências — para imprimir ou guardar.</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button className="btn" disabled={!!gerando} onClick={() => gerar(true)}>💾 Gerar e guardar na ficha</button>
+        <button className="btn-sec" disabled={!!gerando} onClick={() => gerar(false)}>⬇️ Só baixar</button>
+      </div>
+      {gerando && <p className="text-sm text-suave">{gerando}</p>}
+      {salvos.length > 0 && <p className="text-xs text-suave">Última guardada em {dataHoraBR(salvos[0].criado_em)} (fica em Documentos).</p>}
+    </section>
   );
 }
 

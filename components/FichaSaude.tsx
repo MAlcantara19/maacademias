@@ -68,6 +68,17 @@ export function FichaSaude({ perfilId, podeEditar, onSalvo }: { perfilId: string
   }
   return (
     <div className="grid gap-3 text-sm sm:grid-cols-2">
+      <CamposSaude s={s} muda={muda} emerg={emerg} setEmerg={setEmerg} />
+      {msg && <p className="text-alerta sm:col-span-2">{msg}</p>}
+      <div className="flex flex-wrap gap-2 sm:col-span-2"><button className="btn" onClick={salvar}>Salvar ficha de saúde</button><button className="btn-sec" onClick={() => setEditando(false)}>Cancelar</button></div>
+    </div>
+  );
+}
+
+// Só os campos (usado também no link de pré-matrícula, sem salvar direto no banco)
+export function CamposSaude({ s, muda, emerg, setEmerg }: { s: any; muda: (k: string, v: any) => void; emerg: any; setEmerg: (x: any) => void }) {
+  return (
+    <>
       <div>
         <label className="rotulo">Tipo sanguíneo</label>
         <select className="campo" value={s.tipo_sanguineo || ""} onChange={(e) => muda("tipo_sanguineo", e.target.value)}>
@@ -96,8 +107,6 @@ export function FichaSaude({ perfilId, podeEditar, onSalvo }: { perfilId: string
       <textarea className="campo min-h-16 sm:col-span-2" placeholder="Observações importantes" value={s.observacoes || ""} onChange={(e) => muda("observacoes", e.target.value)} />
       <div><label className="rotulo">Contato de emergência</label><input className="campo" placeholder="Nome" value={emerg.contato_emergencia_nome || ""} onChange={(e) => setEmerg({ ...emerg, contato_emergencia_nome: e.target.value })} /></div>
       <div><label className="rotulo">Telefone de emergência *</label><input className="campo" type="tel" placeholder="(24) 99999-9999" value={emerg.contato_emergencia_tel || ""} onChange={(e) => setEmerg({ ...emerg, contato_emergencia_tel: e.target.value })} /></div>
-      {msg && <p className="text-alerta sm:col-span-2">{msg}</p>}
-      <div className="flex flex-wrap gap-2 sm:col-span-2"><button className="btn" onClick={salvar}>Salvar ficha de saúde</button><button className="btn-sec" onClick={() => setEditando(false)}>Cancelar</button></div>
-    </div>
+    </>
   );
 }

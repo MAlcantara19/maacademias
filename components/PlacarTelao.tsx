@@ -3,7 +3,7 @@
 // Usado no próprio celular (modo olímpico) e na tela que recebe a transmissão (tablet/TV).
 
 export type Lado = "azul" | "branco";
-export type Atleta = { nome: string; yuko: number; waza: number; shido: number; ippon?: number; hansoku?: boolean };
+export type Atleta = { nome: string; yuko: number; waza: number; shido: number; ippon?: number; hansoku?: boolean; membro?: string | null };
 export type Evento = { id: number; lado: Lado; tipo: "ippon" | "waza" | "yuko" | "shido" | "hansoku"; quando: string; obs?: string };
 export type Estado = {
   duracao: number; resta: number; golden: boolean; gs: number; correndo: boolean;

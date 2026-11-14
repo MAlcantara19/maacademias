@@ -10,6 +10,7 @@ import { AniversarioDoDia } from "@/components/AniversarioDoDia";
 import { liberado } from "@/lib/planos";
 import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
+import { MeuCadastroPendente } from "@/components/MeuCadastroPendente";
 
 function Cartao({ titulo, children, href }: { titulo: string; children: React.ReactNode; href?: string }) {
   return (
@@ -235,6 +236,7 @@ export default function Inicio() {
         </>
       ) : (
         <>
+          <MeuCadastroPendente />
           {d.proxima && (
             <section className="rounded-2xl p-5 text-white" style={{ background: "var(--cor)" }}>
               <p className="text-sm opacity-90">Próxima aula</p>
