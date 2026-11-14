@@ -253,6 +253,8 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
           <div className="mt-4 flex flex-wrap gap-2">
             {academia.maps_url && <a className="btn-sec" href={academia.maps_url} target="_blank">Abrir no Google Maps</a>}
             {academia.instagram && <a className="btn-sec" href={`https://instagram.com/${academia.instagram.replace("@", "")}`} target="_blank">Instagram</a>}
+            <Link className="btn-sec" href={`/${slug}/resultados`}>🏅 Resultados</Link>
+            <Link className="btn-sec" href={`/${slug}/graduacao`}>🎓 Últimas graduações</Link>
           </div>
         </section>
       </main>

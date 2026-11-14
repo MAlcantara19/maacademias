@@ -1,6 +1,15 @@
 {
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "crons": [
-    { "path": "/api/limpar-feed", "schedule": "0 7 * * *" }
+    {
+      "path": "/api/limpar-feed",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/backup-mensal",
+      "schedule": "0 12 1 * *"
+    }
   ]
 }

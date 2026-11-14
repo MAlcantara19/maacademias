@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { MESES, addDias, hojeISO } from "@/lib/util";
@@ -18,6 +18,18 @@ export default function Exportar() {
   const [texto, setTexto] = useState("");
   const [msg, setMsg] = useState("");
   const [ocupado, setOcupado] = useState("");
+  // trimestres (formato que prefeitura e editais costumam pedir)
+  const tri = (ano: number, t: number): [string, string, string] => {
+    const ini = `${ano}-${String((t - 1) * 3 + 1).padStart(2, "0")}-01`;
+    const fim = new Date(ano, t * 3, 0).toISOString().slice(0, 10);
+    return [`${t}º tri/${ano}`, ini, fim];
+  };
+  const agoraT = Math.floor(new Date().getMonth() / 3) + 1, anoA = new Date().getFullYear();
+  const trimestres = [0, 1, 2, 3].map((k) => { let t = agoraT - k, a = anoA; while (t < 1) { t += 4; a--; } return tri(a, t); });
+  useEffect(() => {
+    // veio do lembrete do trimestre: já seleciona o trimestre anterior
+    if (new URLSearchParams(location.search).get("trimestre") === "anterior") { const [, i, f] = trimestres[1]; setDe(i); setAte(f); setTimeout(() => document.getElementById("impacto")?.scrollIntoView(), 300); }
+  }, []); // eslint-disable-line
 
   async function imagem(ref: string): Promise<string | null> {
     try {
@@ -128,39 +140,8 @@ export default function Exportar() {
   async function backup() {
     setOcupado("backup"); setMsg("Baixando os dados…");
     try {
-      const desde = addDias(hojeISO(), -365);
-      const [al, rs, tu, ma, fr, co, gr] = await Promise.all([
-        sb.from("painel_alunos").select("nome, apelido, nascimento, idade, sexo, whatsapp, responsavel, turmas, modalidades, faixa, aluno_desde, ativo, saiu_em, motivo_saida, frequencia_30d").eq("academia_id", acad).order("nome"),
-        sb.from("responsaveis").select("parentesco, dependente:perfis!responsaveis_dependente_id_fkey(nome), responsavel:perfis!responsaveis_responsavel_id_fkey(nome, telefone, email)"),
-        sb.from("turmas").select("nome, ativa, vagas, horarios(dia_semana, hora_inicio, hora_fim)").eq("academia_id", acad),
-        sb.from("matriculas").select("status, desde, turmas!inner(nome, academia_id), membros(perfis(nome))").eq("turmas.academia_id", acad),
-        sb.from("frequencia_aulas").select("data, presente, justificada, turma_id, membro_id").eq("academia_id", acad).gte("data", desde),
-        sb.from("cobrancas").select("competencia, vencimento, valor, valor_pago, status, forma, pago_em, membros!membro_id(perfis(nome))").eq("academia_id", acad).gte("competencia", desde.slice(0, 8) + "01"),
-        sb.from("graduacoes").select("faixa, grau, data, modalidades(nome), membros!membro_id!inner(academia_id, perfis(nome))").eq("membros.academia_id", acad),
-      ]);
-      const nomeTurma = new Map((tu.data || []).map((t: any) => [t.id, t.nome]));
-      const nomeAluno = new Map(); // presença: nome pelo membro
-      const { data: nomes } = await sb.from("painel_alunos").select("membro_id, nome").eq("academia_id", acad);
-      (nomes || []).forEach((n: any) => nomeAluno.set(n.membro_id, n.nome));
-      const { data: tIds } = await sb.from("turmas").select("id, nome").eq("academia_id", acad);
-      (tIds || []).forEach((t: any) => nomeTurma.set(t.id, t.nome));
-      const ExcelJS = (await import("exceljs")).default;
-      const wb = new ExcelJS.Workbook();
-      const aba = (nome: string, linhas: any[]) => {
-        const ws = wb.addWorksheet(nome);
-        if (!linhas.length) { ws.addRow(["(vazio)"]); return; }
-        ws.columns = Object.keys(linhas[0]).map((k) => ({ header: k, key: k, width: Math.min(40, Math.max(10, k.length + 4)) }));
-        linhas.forEach((l) => ws.addRow(l));
-        ws.getRow(1).font = { bold: true }; ws.views = [{ state: "frozen", ySplit: 1 }];
-      };
-      aba("Alunos", (al.data || []).map((a: any) => ({ Nome: a.nome, Apelido: a.apelido, Nascimento: a.nascimento, Idade: a.idade, Sexo: a.sexo, WhatsApp: a.whatsapp, Responsavel: a.responsavel, Turmas: (a.turmas || []).join(", "), Modalidades: (a.modalidades || []).join(", "), Faixa: a.faixa, "Aluno desde": a.aluno_desde, Ativo: a.ativo ? "sim" : "não", "Saiu em": a.saiu_em, Motivo: a.motivo_saida, "Frequência 30d (%)": a.frequencia_30d })));
-      aba("Responsáveis", (rs.data || []).filter((r: any) => nomeAluno.size === 0 || Array.from(nomeAluno.values()).includes(r.dependente?.nome)).map((r: any) => ({ Aluno: r.dependente?.nome, Responsavel: r.responsavel?.nome, Parentesco: r.parentesco, Telefone: r.responsavel?.telefone, Email: r.responsavel?.email })));
-      aba("Turmas", (tu.data || []).map((t: any) => ({ Turma: t.nome, Ativa: t.ativa ? "sim" : "não", Vagas: t.vagas, Horarios: (t.horarios || []).map((h: any) => `${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][h.dia_semana]} ${String(h.hora_inicio).slice(0, 5)}-${String(h.hora_fim || "").slice(0, 5)}`).join("; ") })));
-      aba("Matrículas", (ma.data || []).map((m: any) => ({ Aluno: m.membros?.perfis?.nome, Turma: m.turmas?.nome, Status: m.status, Desde: m.desde })));
-      aba("Presenças (12 meses)", (fr.data || []).map((f: any) => ({ Data: f.data, Turma: nomeTurma.get(f.turma_id), Aluno: nomeAluno.get(f.membro_id), Presente: f.presente ? "sim" : "não", Justificada: f.justificada ? "sim" : "" })));
-      aba("Mensalidades", (co.data || []).map((c: any) => ({ Aluno: c.membros?.perfis?.nome, Competencia: c.competencia, Vencimento: c.vencimento, Valor: Number(c.valor), Pago: c.valor_pago != null ? Number(c.valor_pago) : null, Status: c.status, Forma: c.forma, "Pago em": c.pago_em })));
-      aba("Graduações", (gr.data || []).map((g: any) => ({ Aluno: g.membros?.perfis?.nome, Modalidade: g.modalidades?.nome, Faixa: g.faixa, Grau: g.grau, Data: g.data })));
-      const buf = await wb.xlsx.writeBuffer();
+      const { montarBackup } = await import("@/lib/backupPlanilha");
+      const buf = await montarBackup(sb, acad);
       const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a"); a.href = url; a.download = `backup-${slug(ctx.academia.nome)}-${hojeISO()}.xlsx`; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
@@ -185,9 +166,13 @@ export default function Exportar() {
           {[["Este ano", hojeISO().slice(0, 4) + "-01-01"], ["Últimos 6 meses", addDias(hojeISO(), -182)], [`${MESES[new Date().getMonth()]}`, hojeISO().slice(0, 8) + "01"]].map(([r, d]) => (
             <button key={r} className="chip" onClick={() => { setDe(d); setAte(hojeISO()); }}>{r}</button>
           ))}
+          {trimestres.map(([r, i, f]) => (
+            <button key={r} className="chip" onClick={() => { setDe(i); setAte(f > hojeISO() ? hojeISO() : f); }} style={de === i ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
+          ))}
         </div>
         <textarea className="campo min-h-20" placeholder="Texto de apresentação (opcional): ex.: O projeto atende crianças de 6 a 14 anos da comunidade, com aulas gratuitas de judô…" value={texto} onChange={(e) => setTexto(e.target.value)} />
         <button className="btn" disabled={!!ocupado} onClick={relatorio}>{ocupado === "impacto" ? "Gerando…" : "📄 Gerar relatório em PDF"}</button>
+        <p className="text-xs text-suave">📬 No 1º dia de cada trimestre o app avisa o admin que o relatório do trimestre anterior está pronto para gerar.</p>
         <p className="text-xs text-suave">Não leva nomes nem dados de saúde: só números e fotos (confira se as famílias autorizaram o uso de imagem).</p>
       </section>
       <section id="backup" className="space-y-3 rounded-2xl bg-painel p-4">
@@ -195,6 +180,17 @@ export default function Exportar() {
         <p className="text-sm text-suave">Uma planilha com alunos, responsáveis, turmas, matrículas, presenças (12 meses), mensalidades e graduações. Todo dia 1º o app lembra você de baixar. Guarde no Drive ou no e-mail.</p>
         <button className="btn" disabled={!!ocupado} onClick={backup}>{ocupado === "backup" ? "Gerando…" : "📥 Baixar backup agora"}</button>
         <p className="text-xs text-suave">Fichas de saúde e documentos não entram no backup (dados sensíveis ficam só no app).</p>
+              <div className="space-y-1 rounded-xl bg-painel2 p-3 text-sm">
+          <p className="font-semibold">📧 Backup no e-mail todo mês</p>
+          <p className="text-suave">Todo dia 1º a planilha vai sozinha para o e-mail dos admins (precisa da chave do Resend na Vercel).</p>
+          <button className="btn-sec text-sm" disabled={!!ocupado} onClick={async () => {
+            setOcupado("email"); setMsg("Enviando o backup por e-mail…");
+            const { data: { session } } = await sb.auth.getSession();
+            const r = await fetch("/api/backup-mensal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` }, body: JSON.stringify({ academia_id: acad }) });
+            const j = await r.json().catch(() => ({}));
+            setOcupado(""); setMsg(r.ok ? `✅ Backup enviado para ${(j.para || []).join(", ")}.` : `Não foi possível enviar: ${j.erro || r.status}`);
+          }}>{ocupado === "email" ? "Enviando…" : "📧 Mandar agora por e-mail"}</button>
+        </div>
       </section>
       {msg && <p className="text-sm text-suave">{msg}</p>}
     </div>

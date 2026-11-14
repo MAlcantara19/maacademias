@@ -1,4 +1,5 @@
 "use client";
+import { MuralTurma } from "@/components/MuralTurma";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
@@ -106,6 +107,8 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
           )}
         </section>
       )}
+
+      <MuralTurma turmaId={id} />
 
       {ctx.equipe && recado && (
         <section className="space-y-2 rounded-2xl bg-painel p-4">

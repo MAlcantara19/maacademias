@@ -4,11 +4,11 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 
 type Atleta = { membro_id: string; nome: string; apelido?: string; sexo?: string; idade?: number | null; peso?: number | null; faixa?: string | null; cor_faixa?: string | null; ordemFaixa: number };
-type Luta = { a: Atleta; b: Atleta | null; feita?: boolean };
+type Luta = { a: Atleta; b: Atleta | null; feita?: boolean; resultado?: "azul" | "branco" | "empate" };
 
 // Chaveamento do treino: sorteia as lutas da turma juntando quem tem peso,
 // idade e faixa parecidos. Toque em "Lutar" e o placar já abre com os dois.
-export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membro: string }, branco: { nome: string; membro: string }) => void }) {
+export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membro: string }, branco: { nome: string; membro: string }, turma?: string) => void }) {
   const ctx = useCtx();
   const sb = supabaseNavegador();
   const [turmas, setTurmas] = useState<any[]>([]);
@@ -16,7 +16,12 @@ export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membr
   const [atletas, setAtletas] = useState<Atleta[]>([]);
   const [fora, setFora] = useState<Set<string>>(new Set());
   const [cfg, setCfg] = useState({ sexo: true, faixa: true, maxKg: 10 });
-  const [lutas, setLutas] = useState<Luta[]>([]);
+  const [lutas, setLutasEstado] = useState<Luta[]>([]);
+  const [msg, setMsg] = useState("");
+  // o treino do dia fica guardado no aparelho (não some se trocar de tela)
+  const chave = () => `ma_treino_${turma}_${new Date().toISOString().slice(0, 10)}`;
+  const setLutas = (l: Luta[]) => { setLutasEstado(l); try { if (turma) localStorage.setItem(chave(), JSON.stringify(l)); } catch { /* */ } };
+  const nomeTurma = () => turmas.find((t) => t.id === turma)?.nome || "";
 
   useEffect(() => {
     sb.from("turmas").select("id, nome").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmas(data || []));
@@ -36,7 +41,8 @@ export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membr
       const { data: mods } = await sb.from("modalidades").select("graduacoes").eq("academia_id", ctx.academia.id);
       const ordem = (f?: string | null) => Math.max(0, ...(mods || []).map((m: any) => (m.graduacoes || []).indexOf(f)));
       setAtletas((al || []).map((a: any) => ({ ...a, peso: peso.get(a.perfil_id) ?? null, ordemFaixa: ordem(a.faixa) })));
-      setFora(new Set()); setLutas([]);
+      setFora(new Set());
+      try { setLutasEstado(JSON.parse(localStorage.getItem(chave()) || "[]")); } catch { setLutasEstado([]); }
     })();
   }, [turma]); // eslint-disable-line
 
@@ -65,6 +71,21 @@ export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membr
     setLutas(novas);
   }
   const nome = (a: Atleta) => a.apelido || a.nome;
+
+  // resultado rápido (sem placar): já vai para a ficha dos dois atletas
+  async function resultado(i: number, r: "azul" | "branco" | "empate") {
+    const l = lutas[i]; if (!l.b) return;
+    const z = { ippon: 0, waza: 0, yuko: 0, shido: 0 };
+    const { error } = await sb.from("lutas").insert({
+      academia_id: ctx.academia.id, azul_membro: l.a.membro_id, branco_membro: l.b.membro_id, azul_nome: nome(l.a), branco_nome: nome(l.b),
+      vencedor: r === "empate" ? null : r, motivo: r === "empate" ? "Empate (treino)" : "Resultado do treino", placar: { azul: z, branco: z },
+      fase: "Treino do dia", categoria: nomeTurma(), registrado_por: ctx.membroId,
+    });
+    if (error) return setMsg("Não foi possível salvar: " + error.message);
+    setLutas(lutas.map((x, k) => (k === i ? { ...x, feita: true, resultado: r } : x)));
+    setMsg("✅ Resultado salvo na ficha dos dois.");
+  }
+  const texto = () => `🥋 Treino do dia · ${nomeTurma()}\n` + lutas.map((l, i) => `${i + 1}. ${nome(l.a)}${l.b ? ` × ${nome(l.b)}` : " (sem par)"}${l.resultado ? ` → ${l.resultado === "empate" ? "empate" : `venceu ${nome(l.resultado === "azul" ? l.a : l.b!)}`}` : ""}`).join("\n");
   const info = (a: Atleta) => [a.peso ? `${a.peso} kg` : null, a.faixa ? a.faixa.toLowerCase() : null, a.idade != null ? `${a.idade}a` : null].filter(Boolean).join(" · ");
 
   return (
@@ -103,11 +124,26 @@ export function Chaveamento({ onLutar }: { onLutar: (azul: { nome: string; membr
                   {l.b ? <> × <span className="font-semibold">{nome(l.b)}</span> <span className="text-xs text-suave">({info(l.b)})</span></>
                     : <span className="text-xs text-alerta"> · sem par (rodízio ou com o professor)</span>}
                 </span>
-                {l.b && <button className="btn px-3 py-1 text-xs" onClick={() => { onLutar({ nome: nome(l.a), membro: l.a.membro_id }, { nome: nome(l.b!), membro: l.b!.membro_id }); setLutas(lutas.map((x, k) => (k === i ? { ...x, feita: true } : x))); }}>{l.feita ? "↻ De novo" : "▶ Lutar"}</button>}
+                {l.b && <button className="btn px-3 py-1 text-xs" onClick={() => { onLutar({ nome: nome(l.a), membro: l.a.membro_id }, { nome: nome(l.b!), membro: l.b!.membro_id }, nomeTurma()); setLutas(lutas.map((x, k) => (k === i ? { ...x, feita: true } : x))); }}>{l.feita ? "↻ De novo" : "▶ Placar"}</button>}
+                {l.b && !l.resultado && (
+                  <span className="flex gap-1" title="Resultado rápido, sem placar">
+                    <button className="rounded-lg px-2 py-1 text-xs font-bold text-white" style={{ background: "#1d4ed8" }} onClick={() => resultado(i, "azul")}>Azul</button>
+                    <button className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-black" onClick={() => resultado(i, "branco")}>Branco</button>
+                    <button className="rounded-lg bg-painel px-2 py-1 text-xs" onClick={() => resultado(i, "empate")}>=</button>
+                  </span>
+                )}
+                {l.resultado && <span className="text-xs font-semibold text-ok">✓ {l.resultado === "empate" ? "empate" : `venceu ${nome(l.resultado === "azul" ? l.a : l.b!)}`}</span>}
               </li>
             ))}
           </ol>
         )}
+        {lutas.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-sec text-xs" onClick={() => navigator.clipboard?.writeText(texto()).then(() => setMsg("Lista copiada! Cole no grupo da turma."))}>📋 Copiar o treino do dia</button>
+            <span className="self-center text-xs text-suave">Cada resultado (placar ou rápido) vai para a ficha dos atletas, em “Lutas”.</span>
+          </div>
+        )}
+        {msg && <p className="text-xs text-suave">{msg}</p>}
       </div>
     </details>
   );

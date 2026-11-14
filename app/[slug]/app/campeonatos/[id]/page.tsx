@@ -24,6 +24,13 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
   const [inscrever, setInscrever] = useState("");
   const [msg, setMsg] = useState("");
   const [extra, setExtra] = useState<Record<string, any>>({});
+  const [pedidos, setPedidos] = useState<any[]>([]);
+  async function decidirPedido(p: any, aprovar: boolean) {
+    if (!aprovar && !confirm(`Recusar o pedido de ${p.nome}?`)) return;
+    const { error } = await sb.from("inscricoes_evento").update({ status: aprovar ? "confirmada" : "recusada" }).eq("id", p.id);
+    setMsg(error ? error.message : aprovar ? `${p.nome} inscrito(a)!` : "Pedido recusado.");
+    carregar();
+  }
 
   async function carregar() {
     const { data: e } = await sb.from("eventos").select("*").eq("id", id).maybeSingle();
@@ -33,7 +40,11 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
       sb.from("checklist_campeonato").select("*").eq("evento_id", id).maybeSingle(),
       sb.from("cronograma_evento").select("*").eq("evento_id", id).order("inicio"),
     ]);
-    setFicha(f.data || []); setCk(c.data); setCrono(cr.data || []);
+    // pedidos feitos pelos alunos esperando aprovação
+    const { data: pd } = await sb.from("inscricoes_evento").select("id, membro_id, categoria_peso, peso_inscricao, faixa, observacao, pedido_em").eq("evento_id", id).eq("status", "pendente");
+    const idsPend = new Set((pd || []).map((x: any) => x.id));
+    setPedidos((pd || []).map((x: any) => ({ ...x, nome: (f.data || []).find((y: any) => y.inscricao_id === x.id)?.nome || "Aluno" })));
+    setFicha((f.data || []).filter((x: any) => !idsPend.has(x.inscricao_id))); setCk(c.data); setCrono(cr.data || []);
     // ficha de anamnese de cada inscrito: cadastro, saúde e documentos (só a equipe vê)
     const ids = (f.data || []).map((x: any) => x.membro_id);
     if (ctx.equipe && ids.length) {
@@ -115,6 +126,17 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
       <Link href={`${base}/campeonatos`} className="nao-imprimir text-sm text-suave">← Campeonatos</Link>
       <header className="imprimir-claro">
         <h1 className="text-4xl font-extrabold">{ev.titulo}</h1>
+        {ctx.equipe && pedidos.length > 0 && (
+          <section className="nao-imprimir mt-3 space-y-2 rounded-2xl border-2 p-3" style={{ borderColor: "var(--cor)" }}>
+            <p className="font-bold">🙋 Pedidos de inscrição ({pedidos.length})</p>
+            {pedidos.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-2 text-sm">
+                <span><b>{p.nome}</b> · {p.categoria_peso || "categoria a definir"}{p.peso_inscricao ? ` · ${Number(p.peso_inscricao)} kg` : ""}{p.faixa ? ` · faixa ${String(p.faixa).toLowerCase()}` : ""}{p.observacao ? ` · 💬 ${p.observacao}` : ""}</span>
+                <span className="flex gap-2"><button className="btn px-3 py-1 text-xs" onClick={() => decidirPedido(p, true)}>✅ Aprovar</button><button className="btn-sec px-3 py-1 text-xs" onClick={() => decidirPedido(p, false)}>Recusar</button></span>
+              </div>
+            ))}
+          </section>
+        )}
         <p className="text-suave">{dataHoraBR(ev.inicio)}{ev.local ? ` · ${ev.local}` : ""} · {ctx.academia.nome}</p>
       </header>
 

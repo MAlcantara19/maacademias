@@ -80,14 +80,29 @@ export default function ExameLote() {
     doc.save(`certificados-${mod.nome.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")}-${data}.pdf`);
     setOcupado(false);
     setMsg(registrar ? `🎉 ${escolhidos.length} graduação(ões) registrada(s) e certificados baixados.` : "Certificados baixados (sem registrar a graduação).");
+    if (registrar) setCerimonia(data);
     if (registrar) carregar();
   }
 
+  const [cerimonia, setCerimonia] = useState<string | null>(null);
   if (!ctx.equipe) return <p className="text-suave">Só a equipe aplica exames.</p>;
   return (
     <div className="space-y-4">
       <Link href={`/${ctx.academia.slug}/app/alunos`} className="text-sm text-suave">← Alunos</Link>
       <h1 className="text-4xl font-extrabold">🎓 Exame de faixa em lote</h1>
+      {cerimonia && (() => {
+        const link = `${window.location.origin}/${ctx.academia.slug}/graduacao?de=${cerimonia}&ate=${cerimonia}`;
+        return (
+          <section className="space-y-2 rounded-2xl p-4 text-white" style={{ background: "linear-gradient(135deg, var(--cor), #f59e0b)" }}>
+            <p className="text-xl font-extrabold">🎉 Página da cerimônia pronta!</p>
+            <p className="text-sm opacity-90">Mostre no telão e mande para os pais (aparece só o primeiro nome e a inicial do sobrenome).</p>
+            <div className="flex flex-wrap gap-2">
+              <a className="rounded-xl bg-white/25 px-4 py-2 font-bold" href={link} target="_blank">🖥️ Abrir a cerimônia</a>
+              <a className="rounded-xl bg-white/25 px-4 py-2 font-bold" target="_blank" href={`https://wa.me/?text=${encodeURIComponent(`🥋 Parabéns aos novos graduados da ${ctx.academia.nome}! 🎉\n${link}`)}`}>📲 Mandar no WhatsApp</a>
+            </div>
+          </section>
+        );
+      })()}
       <div className="grid gap-2 rounded-2xl bg-painel p-3 sm:grid-cols-5">
         <select className="campo" value={modId} onChange={(e) => setModId(e.target.value)} aria-label="Modalidade">{mods.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}</select>
         <label className="text-sm"><span className="rotulo">Mín. de aulas na faixa</span><input type="number" min={0} className="campo" value={crit.aulas} onChange={(e) => setCrit({ ...crit, aulas: Number(e.target.value) })} /></label>

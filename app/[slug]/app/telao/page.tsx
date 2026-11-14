@@ -5,6 +5,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, MESES, dataHoraBR, hojeISO, hora } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
+import { QR } from "@/components/QR";
 
 // Modo TV: quadro de avisos que passa sozinho (aniversariantes, ranking do mês,
 // próximos eventos, avisos e as aulas de hoje). Ideal para a TV da recepção.
@@ -17,6 +18,8 @@ export default function Telao() {
   const [i, setI] = useState(0);
   const [cheia, setCheia] = useState(false);
   const [tick, setTick] = useState(0);
+  const [comQR, setComQR] = useState(true);
+  const [salas, setSalas] = useState({ a: "", b: "" });
   const cor = ctx.academia.cores?.primaria || "#7c3aed";
 
   useEffect(() => {
@@ -30,24 +33,31 @@ export default function Telao() {
       if (turma) ids = ((await sb.from("matriculas").select("membro_id").eq("turma_id", turma).eq("status", "ativa")).data || []).map((m: any) => m.membro_id);
       let qa = sb.from("painel_alunos").select("membro_id, nome, apelido, foto_url, cor_faixa, grau, nascimento").eq("academia_id", ctx.academia.id).eq("ativo", true);
       if (ids) qa = qa.in("membro_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-      const [{ data: al }, { data: rk }, { data: ev }, { data: av }] = await Promise.all([
+      const desde = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+      const [{ data: al }, { data: rk }, { data: ev }, { data: av }, { data: gr }] = await Promise.all([
         qa,
         sb.rpc("ranking_periodo", { p_acad: ctx.academia.id, p_de: hoje.slice(0, 8) + "01", p_ate: hoje, p_modalidade: null, p_turma: turma || null }),
         sb.from("eventos").select("*").eq("academia_id", ctx.academia.id).gte("inicio", new Date().toISOString()).order("inicio").limit(5),
-        sb.from("avisos").select("*").eq("academia_id", ctx.academia.id).order("fixado", { ascending: false }).order("data", { ascending: false }).limit(4),
+        sb.from("avisos").select("*").eq("academia_id", ctx.academia.id).order("fixado", { ascending: false }).order("data", { ascending: false }).limit(8),
+        sb.from("graduacoes").select("faixa, grau, data, membro_id, modalidades(graduacoes, cores_graduacoes)").gte("data", desde).order("data", { ascending: false }).limit(40),
       ]);
+      // novas faixas dos últimos dias (cerimônia no telão)
+      const fotos = new Map((al || []).map((a: any) => [a.membro_id, a]));
+      const novas = (gr || []).filter((g: any) => fotos.has(g.membro_id)).map((g: any) => ({ ...g, aluno: fotos.get(g.membro_id), cor: g.modalidades?.cores_graduacoes?.[(g.modalidades?.graduacoes || []).indexOf(g.faixa)] }));
       const aniv = (al || []).filter((a: any) => a.nascimento && Number(a.nascimento.slice(5, 7)) === mes)
         .sort((a: any, b: any) => a.nascimento.slice(8).localeCompare(b.nascimento.slice(8)));
       const ranking = (rk || []).filter((r: any) => r.aulas_possiveis >= 2).sort((a: any, b: any) => (b.pct ?? 0) - (a.pct ?? 0) || b.presencas - a.presencas).slice(0, 8);
       const dow = new Date(hoje + "T12:00:00").getDay();
       const aulas = turmas.filter((t) => !turma || t.id === turma).flatMap((t) => (t.horarios || []).filter((h: any) => h.dia_semana === dow).map((h: any) => ({ ...h, turma: t.nome })))
         .sort((a: any, b: any) => a.hora_inicio.localeCompare(b.hora_inicio));
-      setD({ aniv, ranking, eventos: ev || [], avisos: (av || []).filter((a: any) => !a.expira_em || new Date(a.expira_em) > new Date()), aulas, mes, dow });
+      // mural: com uma turma escolhida, mostra os recados dela e os gerais
+      const avisos = (av || []).filter((a: any) => (!a.expira_em || new Date(a.expira_em) > new Date()) && (!turma || !a.turma_id || a.turma_id === turma)).slice(0, 4);
+      setD({ aniv, ranking, eventos: ev || [], avisos, aulas, mes, dow, novas });
     })();
   }, [turma, turmas, tick]); // eslint-disable-line
 
   const telas = d ? [
-    d.aulas.length && "aulas", d.aniv.length && "aniv", d.ranking.length && "ranking", d.eventos.length && "eventos", d.avisos.length && "avisos",
+    d.aulas.length && "aulas", d.novas.length && "novas", d.aniv.length && "aniv", d.ranking.length && "ranking", d.eventos.length && "eventos", d.avisos.length && "avisos",
   ].filter(Boolean) as string[] : [];
   useEffect(() => {
     if (!telas.length) return;
@@ -67,7 +77,7 @@ export default function Telao() {
   const Titulo = ({ children }: { children: React.ReactNode }) => <h2 className="mb-[3vh] text-[5vh] font-extrabold leading-none" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{children}</h2>;
 
   const quadro = d && (
-    <div className="flex h-full w-full flex-col p-[4vh]" style={{ background: `radial-gradient(circle at 85% 0%, ${cor}55, #0b0f1d 60%)`, color: "#fff" }}>
+    <div className="relative flex h-full w-full flex-col p-[4vh]" style={{ background: `radial-gradient(circle at 85% 0%, ${cor}55, #0b0f1d 60%)`, color: "#fff" }}>
       <header className="mb-[3vh] flex items-center justify-between">
         <div className="flex items-center gap-[2vh]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -83,6 +93,14 @@ export default function Telao() {
         {atual === "aulas" && (<><Titulo>🥋 Aulas de hoje · {DIAS[d.dow]}</Titulo>
           <ul className="grid gap-[2vh] sm:grid-cols-2">{d.aulas.map((h: any) => (
             <li key={h.id} className="rounded-[2vh] bg-white/10 p-[2.5vh]"><p className="numero text-[6vh] font-bold leading-none">{hora(h.hora_inicio)}<span className="text-[3vh] opacity-70"> – {hora(h.hora_fim)}</span></p><p className="text-[3vh]">{h.turma}{h.tipo_treino ? ` · ${h.tipo_treino}` : ""}</p></li>
+          ))}</ul></>)}
+        {atual === "novas" && (<><Titulo>🎉 Novas faixas — parabéns!</Titulo>
+          <ul className="grid grid-cols-2 gap-[2.5vh] lg:grid-cols-4">{d.novas.slice(0, 12).map((g: any, k: number) => (
+            <li key={k} className="flex flex-col items-center gap-[1vh] rounded-[2vh] bg-white/10 p-[2vh] text-center">
+              <Avatar foto={g.aluno.foto_url} nome={g.aluno.nome} cor={g.cor} grau={g.grau} tamanho={110} />
+              <p className="text-[3vh] font-bold leading-tight">{g.aluno.apelido || g.aluno.nome.split(" ")[0]}</p>
+              <p className="text-[2.4vh] opacity-90">faixa {String(g.faixa).toLowerCase()}{g.grau ? ` · ${g.grau}º grau` : ""}</p>
+            </li>
           ))}</ul></>)}
         {atual === "aniv" && (<><Titulo>🎂 Aniversariantes de {MESES[d.mes - 1]}</Titulo>
           <ul className="grid grid-cols-2 gap-[2.5vh] lg:grid-cols-4">{d.aniv.slice(0, 12).map((a: any) => (
@@ -105,12 +123,18 @@ export default function Telao() {
           <ul className="space-y-[2vh]">{d.eventos.map((e: any) => (
             <li key={e.id} className="rounded-[2vh] bg-white/10 p-[2.5vh]"><p className="text-[4vh] font-bold leading-tight">{e.titulo}</p><p className="text-[2.6vh] opacity-80">{dataHoraBR(e.inicio)}{e.local ? ` · ${e.local}` : ""}</p></li>
           ))}</ul></>)}
-        {atual === "avisos" && (<><Titulo>📢 Avisos</Titulo>
+        {atual === "avisos" && (<><Titulo>📢 {turma ? "Mural da turma" : "Avisos"}</Titulo>
           <ul className="space-y-[2vh]">{d.avisos.map((a: any) => (
             <li key={a.id} className="rounded-[2vh] border-l-[1vh] bg-white/10 p-[2.5vh]" style={{ borderColor: cor }}><p className="text-[4vh] font-bold leading-tight">{a.titulo}</p>{a.texto && <p className="text-[2.6vh] opacity-85">{a.texto}</p>}</li>
           ))}</ul></>)}
         {!telas.length && <p className="text-[3vh] opacity-80">Sem novidades para mostrar agora.</p>}
       </div>
+      {comQR && ctx.academia.qr_fixo_token && (
+        <div className="absolute bottom-[3vh] right-[3vh] flex flex-col items-center gap-[0.6vh] rounded-[1.5vh] bg-white p-[1.2vh] text-black shadow-2xl">
+          <QR texto={`${typeof window !== "undefined" ? window.location.origin : ""}/${ctx.academia.slug}/checkin?t=${ctx.academia.qr_fixo_token}`} tamanho={130} />
+          <span className="text-[1.6vh] font-bold">📲 Check-in: aponte a câmera</span>
+        </div>
+      )}
       <div className="mt-[2vh] flex justify-center gap-[1vh]">{telas.map((t, k) => <span key={t} className="h-[1vh] w-[4vh] rounded-full" style={{ background: k === i % telas.length ? cor : "#ffffff33" }} />)}</div>
     </div>
   );
@@ -124,7 +148,17 @@ export default function Telao() {
         <select className="campo w-auto" value={turma} onChange={(e) => setTurma(e.target.value)} aria-label="Turma"><option value="">Academia toda</option>{turmas.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select>
         <button className="btn" onClick={telaCheia}>⛶ Abrir em tela cheia</button>
         <Link href={`/${ctx.academia.slug}/app`} className="btn-sec">Voltar</Link>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={comQR} onChange={(e) => setComQR(e.target.checked)} /> QR de check-in no canto</label>
       </div>
+      <details className="rounded-2xl bg-painel p-3 text-sm">
+        <summary className="cursor-pointer font-semibold">🏟️ Modo competição: placar ao vivo de duas áreas lado a lado</summary>
+        <p className="mt-2 text-suave">Em cada área, o mesário abre Cronômetro → Luta com placar → <b>📡 Transmitir</b> e informa o número da sala. Digite as duas salas aqui:</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input className="campo w-28" inputMode="numeric" placeholder="Área 1" value={salas.a} onChange={(e) => setSalas({ ...salas, a: e.target.value.replace(/\D/g, "") })} />
+          <input className="campo w-28" inputMode="numeric" placeholder="Área 2" value={salas.b} onChange={(e) => setSalas({ ...salas, b: e.target.value.replace(/\D/g, "") })} />
+          <a className={`btn ${salas.a && salas.b ? "" : "pointer-events-none opacity-50"}`} target="_blank" href={`/placar/areas?a=${salas.a}&b=${salas.b}`}>📺 Abrir as duas áreas</a>
+        </div>
+      </details>
       <div className="aspect-video w-full overflow-hidden rounded-2xl">{quadro || <p className="p-4 text-suave">Carregando…</p>}</div>
     </div>
   );

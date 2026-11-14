@@ -387,10 +387,10 @@ export function PlacarJudo({ voz = true, api, inicial }: { voz?: boolean; api?: 
         </div>
       )}
       {!tela && ctx.equipe && (
-        <Chaveamento onLutar={(azul, branco) => {
+        <Chaveamento onLutar={(azul, branco, turma) => {
           if (e.correndo && !confirm("Tem uma luta correndo. Começar esta nova luta?")) return;
           salva.current = null; setSalvaMsg(""); setPilha([]);
-          setE({ ...novo(e.duracao, { azul, branco }), info: e.info });
+          setE({ ...novo(e.duracao, { azul, branco }), info: { ...e.info, fase: "Treino do dia", categoria: turma || e.info?.categoria } });
           window.scrollTo({ top: 0, behavior: "smooth" });
         }} />
       )}

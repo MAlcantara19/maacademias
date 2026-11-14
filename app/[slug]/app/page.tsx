@@ -12,6 +12,7 @@ import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
 import { MeuCadastroPendente } from "@/components/MeuCadastroPendente";
 import { FaltandoSeguido } from "@/components/FaltandoSeguido";
+import { QueroLutar } from "@/components/QueroLutar";
 import { VagasComFila } from "@/components/VagasComFila";
 
 function Cartao({ titulo, children, href }: { titulo: string; children: React.ReactNode; href?: string }) {
@@ -268,6 +269,7 @@ export default function Inicio() {
       ) : (
         <>
           <MeuCadastroPendente />
+          {ctx.academia.modulos?.campeonatos !== false && <QueroLutar />}
           {(ctx.meusAlunos.length > 1 || (ctx.meusAlunos[0] && !ctx.meusAlunos[0].eu) ? d.porAluno || [] : d.proxima ? [d.proxima] : []).map((px: any) => {
             const al = ctx.meusAlunos.find((m) => m.id === px.membro_id);
             const deOutro = ctx.meusAlunos.length > 1 || !al?.eu;

@@ -3,6 +3,7 @@ const TITULOS: [string, string, string][] = [
   ["💪", "50 treinos", "Chegar a 50 presenças na academia."],
   ["🏅", "100 treinos", "Chegar a 100 presenças."],
   ["🏆", "250 treinos", "Chegar a 250 presenças."],
+  ["📆", "Constância", "Bater a meta de treinos da semana 4 semanas seguidas."],
   ["🎓", "Primeiros passos", "Fazer o primeiro quiz em Estudar."],
   ["💯", "Gabaritou", "Acertar todas as perguntas de um quiz com 10 ou mais."],
   ["📚", "Estudioso", "Fazer 30 quizzes."],

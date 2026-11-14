@@ -126,6 +126,14 @@ export default function Mensalidades() {
     carregar();
   }
 
+  // Pix copia e cola para colar na mensagem do WhatsApp (o aluno paga direto do banco)
+  function pixTexto(valor: number, ref: string) {
+    const a = ctx.academia;
+    if (!a.pix_chave || !valor) return "";
+    const codigo = gerarPix({ chave: a.pix_chave, nome: a.pix_nome || a.nome, cidade: a.pix_cidade || a.cidade || "BRASIL", valor, txid: ref.replace(/[^A-Za-z0-9]/g, "").slice(0, 25) || "MENS" });
+    return `\n\n💠 Pix (${dinheiro(valor)}) — copie e cole no app do banco:\n${codigo}`;
+  }
+
   function abrirPix(c: any) {
     const a = ctx.academia;
     setPix({
@@ -266,7 +274,7 @@ export default function Mensalidades() {
         {lista.map((c) => {
           const s = situacao(c);
           const nome = c.membros?.perfis?.apelido || c.membros?.perfis?.nome;
-          const z = whatsapp(c.membros?.perfis?.telefone, `Oi, ${primeiroNome(nome)}! Passando para lembrar da mensalidade de ${MESES[Number(mes.slice(5, 7)) - 1]} (${dinheiro(c.valor)}), com vencimento em ${dataBR(c.vencimento)}. Obrigado! 🥋`);
+          const z = whatsapp(c.membros?.perfis?.telefone, `Oi, ${primeiroNome(nome)}! Passando para lembrar da mensalidade de ${MESES[Number(mes.slice(5, 7)) - 1]} (${dinheiro(c.valor)}), com vencimento em ${dataBR(c.vencimento)}.${s !== "paga" ? pixTexto(Number(c.total_atualizado || c.valor), "MENS" + (c.recibo_numero || "")) : ""}\n\nObrigado! 🥋`);
           return (
             <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-painel p-3" style={{ borderLeft: `4px solid ${s === "paga" ? "var(--color-ok)" : s === "atrasada" ? "var(--color-erro)" : "var(--color-linha)"}` }}>
               <div className="min-w-0 flex-1">
@@ -315,7 +323,7 @@ export default function Mensalidades() {
           <ul className="space-y-2">
             {devedores.map((d) => {
               const nome = d.membro?.perfis?.apelido || d.membro?.perfis?.nome;
-              const z = whatsapp(d.membro?.perfis?.telefone, `Oi, ${primeiroNome(nome)}! Tudo bem? Consta em aberto: ${d.meses.map((c: any) => `${MESES[Number(c.competencia.slice(5, 7)) - 1]} (venc. ${dataBR(c.vencimento)})`).join(", ")}. Total atualizado: ${dinheiro(d.total)}. Dá para pagar pelo app com Pix. Qualquer coisa, me chama! 🥋`);
+              const z = whatsapp(d.membro?.perfis?.telefone, `Oi, ${primeiroNome(nome)}! Tudo bem? Consta em aberto: ${d.meses.map((c: any) => `${MESES[Number(c.competencia.slice(5, 7)) - 1]} (venc. ${dataBR(c.vencimento)})`).join(", ")}. Total atualizado: ${dinheiro(d.total)}.${pixTexto(Number(d.total), "DEB" + String(d.membro_id).slice(0, 8))}\n\nTambém dá para pagar pelo app. Qualquer coisa, me chama! 🥋`);
               return (
                 <li key={d.membro_id} className="flex flex-wrap items-center gap-3 rounded-xl bg-painel2 p-3">
                   <div className="min-w-0 flex-1">
