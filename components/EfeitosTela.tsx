@@ -62,7 +62,7 @@ export function EfeitosTela({ tipo, logo }: { tipo: string; logo?: string | null
   if (tipo === "logo_orbita") return <LogoOrbita logo={logo} />;
   if (tipo === "logo_chuva") {
     return (
-      <div className="pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
+      <div className="nao-imprimir pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
         {particulas.slice(0, 12).map((p, i) => (
           <span key={i} className="efeito-cair absolute top-0" style={{ left: `${p.left}%`, animationDelay: `${p.delay}s`, animationDuration: `${p.dur + 3}s`, opacity: 0.22 }}>
             <Marca logo={logo} tam={22 + p.tam} />
@@ -73,7 +73,7 @@ export function EfeitosTela({ tipo, logo }: { tipo: string; logo?: string | null
   }
   const sobe = tipo === "criancas";
   return (
-    <div className="pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
+    <div className="nao-imprimir pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
       {(tipo === "confete" || tipo === "carnaval" || tipo === "ano_novo") && particulas.map((p, i) => (
         <span key={`c${i}`} className="efeito-cair absolute top-0 rounded-sm opacity-80"
           style={{ left: `${p.left}%`, width: p.tam * 0.5, height: p.tam * 0.8, background: p.cor, animationDelay: `${p.delay}s`, animationDuration: `${p.dur}s` }} />
@@ -151,7 +151,7 @@ function LogoPasseio({ logo }: { logo?: string | null }) {
     return () => cancelAnimationFrame(raf);
   }, []);
   return (
-    <div className="pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
+    <div className="nao-imprimir pointer-events-none fixed inset-0 z-[5] overflow-hidden" aria-hidden>
       {[0, 1, 2].map((i) => (
         <span key={i} ref={(el) => { els.current[i] = el; }} className="absolute left-0 top-0 will-change-transform" style={{ opacity: i === 0 ? 0.28 : 0.16 }}>
           <Marca logo={logo} tam={i === 0 ? 64 : 44} />
@@ -165,7 +165,7 @@ function LogoPasseio({ logo }: { logo?: string | null }) {
 function LogoOrbita({ logo }: { logo?: string | null }) {
   const n = 6;
   return (
-    <div className="pointer-events-none fixed inset-0 z-[5] flex items-center justify-center overflow-hidden" aria-hidden>
+    <div className="nao-imprimir pointer-events-none fixed inset-0 z-[5] flex items-center justify-center overflow-hidden" aria-hidden>
       {[0, 1].map((anel) => (
         <div key={anel} className="efeito-girar absolute" style={{ width: anel ? "min(90vw, 90vh)" : "min(55vw, 55vh)", aspectRatio: "1", animationDuration: anel ? "60s" : "38s", animationDirection: anel ? "reverse" : "normal" }}>
           {Array.from({ length: n }).map((_, i) => (
@@ -192,7 +192,7 @@ function LogoToque({ logo }: { logo?: string | null }) {
     return () => window.removeEventListener("pointerdown", toque);
   }, []);
   return (
-    <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>
+    <div className="nao-imprimir pointer-events-none fixed inset-0 z-[60] overflow-hidden" aria-hidden>
       {estouros.map((z) => Array.from({ length: 7 }).map((_, i) => {
         const ang = (Math.PI * 2 * i) / 7, d = 70 + (i % 3) * 18;
         return (

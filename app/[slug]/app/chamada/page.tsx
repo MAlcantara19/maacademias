@@ -61,6 +61,13 @@ function Chamada() {
   const rec = useRef<any>(null);
   const ouvindoRef = useRef(false);
   const [msg, setMsg] = useState("");
+  // informações extras de cada aluno: idade/menor, cadastro pendente e alerta de saúde
+  const [idades, setIdades] = useState<Record<string, number | null>>({});
+  const [pend, setPend] = useState<Record<string, string[]>>({});
+  const [saude, setSaude] = useState<Record<string, string[]>>({});
+  const [busca, setBusca] = useState("");
+  const [ver, setVer] = useState<"todos" | "faltam" | "presentes">("todos");
+  const [gerando, setGerando] = useState(false);
 
   useEffect(() => {
     sb.from("turmas").select("id, nome, professor_id, modalidades(nome, cor), horarios(*)")
@@ -100,9 +107,22 @@ function Chamada() {
       // nomes e apelidos para a chamada por voz
       const ids = (lista || []).map((x: any) => x.membro_id);
       if (ids.length) {
-        const { data: pn } = await sb.from("painel_alunos").select("membro_id, perfil_id, nome, apelido").in("membro_id", ids);
+        const { data: pn } = await sb.from("painel_alunos").select("membro_id, perfil_id, nome, apelido, idade").in("membro_id", ids);
         setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
         setPerfisDe(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.perfil_id])));
+        setIdades(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.idade ?? null])));
+        const perfis = (pn || []).map((x: any) => x.perfil_id);
+        const [{ data: cp }, { data: fs }] = await Promise.all([
+          sb.rpc("cadastros_pendentes", { p_acad: ctx.academia.id }),
+          ctx.equipe && perfis.length ? sb.from("fichas_saude").select("perfil_id, dados, validade").in("perfil_id", perfis) : Promise.resolve({ data: [] as any[] }),
+        ]);
+        setPend(Object.fromEntries((cp || []).filter((x: any) => ids.includes(x.membro_id)).map((x: any) => [x.membro_id, x.itens || []])));
+        const ROT: Record<string, string> = { cardiaco: "cardíaco", respiratorio: "respiratório", convulsao: "convulsão", ortopedico: "ortopédico" };
+        setSaude(Object.fromEntries((fs || []).map((f: any) => {
+          const d = f.dados || {};
+          const l = [...Object.keys(ROT).filter((k) => d[k] === "sim").map((k) => ROT[k]), d.alergias && `alergia: ${d.alergias}`, d.restricoes && `restrição: ${d.restricoes}`].filter(Boolean);
+          return [f.perfil_id, l];
+        }).filter(([, l]: any) => l.length)));
       }
       setVao(new Set(((pcRes as any).data || []).map((x: any) => x.membro_id)));
       setPlano((plRes as any).data?.[0] || null);
@@ -215,6 +235,46 @@ function Chamada() {
     if (r.error) ids.forEach((id) => guardar("marcar", id));
   }
 
+  async function desmarcarTodos() {
+    const ids = Array.from(presentesRef.current.keys());
+    if (!ids.length || !confirm(`Desmarcar os ${ids.length} presentes desta aula?`)) return;
+    presentesRef.current = new Map();
+    setPresentes(new Map());
+    const a = await garantirAula();
+    if (!a) { ids.forEach((id) => guardar("desmarcar", id)); return; }
+    const r = await sb.from("presencas").delete().eq("aula_id", a.id).in("membro_id", ids);
+    if (r.error) ids.forEach((id) => guardar("desmarcar", id));
+  }
+
+  // ---------- Imprimir / PDF ----------
+  const horarioTxt = () => { const h = horariosDoDia.find((x: any) => x.id === horarioId); return h ? `${hora(h.hora_inicio)}–${hora(h.hora_fim)}` : ""; };
+  const obsDe = (a: any) => [
+    idades[a.membro_id] != null && idades[a.membro_id]! < 18 ? "Menor de idade" : "",
+    pend[a.membro_id] ? `Cadastro pendente (${pend[a.membro_id].length})` : "",
+    saude[perfisDe[a.membro_id]] ? `Saúde: ${saude[perfisDe[a.membro_id]].join("; ")}` : "",
+  ].filter(Boolean).join(" · ");
+  async function baixarPdf() {
+    setGerando(true);
+    try {
+      const { gerarPdfChamada } = await import("@/lib/pdfChamada");
+      const h = horariosDoDia.find((x: any) => x.id === horarioId);
+      const blob = await gerarPdfChamada({
+        academia: ctx.academia, turma: turma?.nome || "", data, horario: horarioTxt(), tipo: h?.tipo_treino, professor: ctx.perfil?.nome,
+        anotacao: obs, cancelada,
+        linhas: alunos.map((a) => {
+          const p = presentes.get(a.membro_id);
+          return { nome: a.nome, idade: idades[a.membro_id] ?? null, presente: !!p,
+            chegada: p?.chegou_em && p.metodo !== "manual" ? new Date(p.chegou_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : p ? "" : "",
+            obs: obsDe(a) };
+        }),
+      });
+      const url = URL.createObjectURL(blob);
+      const el = document.createElement("a"); el.href = url; el.download = `chamada-${(turma?.nome || "turma").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")}-${data}.pdf`; el.click();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (e: any) { setMsg("Não deu para gerar o PDF: " + (e?.message || e)); }
+    setGerando(false);
+  }
+
   // ---------- Chamada por reconhecimento facial ----------
   async function chamadaPorFoto(arquivo?: File) {
     if (!arquivo) return;
@@ -297,9 +357,20 @@ function Chamada() {
   }
 
   const cancelada = aula?.status === "cancelada";
+  const menor = (id: string) => idades[id] != null && idades[id]! < 18;
+  const urgentes = alunos.filter((a) => pend[a.membro_id]).sort((x, y) => Number(menor(y.membro_id)) - Number(menor(x.membro_id)));
+  const nMenores = alunos.filter((a) => menor(a.membro_id)).length;
+  const t = busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const visiveis = alunos.filter((a) => {
+    const p = presentes.has(a.membro_id);
+    if (ver === "faltam" && p) return false;
+    if (ver === "presentes" && !p) return false;
+    return !t || (nomes[a.membro_id] || [a.nome]).some((n) => n.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(t));
+  });
 
   return (
-    <div className="space-y-5">
+    <>
+    <div className="nao-imprimir space-y-5">
       <Tour id="chamada" perfilId={ctx.perfil?.id} vistos={ctx.perfil?.tours_vistos} passos={[
         { titulo: "Chamada", texto: "Escolha a turma, o dia e o horário. A chamada abre sozinha no primeiro toque." },
         { titulo: "Toque no aluno", texto: "Um toque marca presente; outro desmarca. Quem fez check-in pelo QR já aparece marcado com o horário de chegada." },
@@ -334,9 +405,15 @@ function Chamada() {
       )}
       {horariosDoDia.length > 0 && (
         <div className="sticky top-[60px] z-10 flex items-center justify-between gap-3 rounded-2xl bg-painel p-4 lg:top-2">
-          <p className="numero text-3xl font-bold">
-            {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes{vao.size ? ` · ✋ ${vao.size} avisaram que vinham` : ""}</span>
-          </p>
+          <div>
+            <p className="numero text-3xl font-bold">
+              {presentes.size}<span className="text-lg text-suave"> de {alunos.length} presentes</span>
+            </p>
+            <p className="text-xs text-suave">
+              {alunos.length - presentes.size} faltando{alunos.length ? ` · ${Math.round((presentes.size / alunos.length) * 100)}%` : ""}
+              {vao.size ? ` · ✋ ${vao.size} avisaram que vinham` : ""}{nMenores ? ` · 🧒 ${nMenores} menor(es)` : ""}
+            </p>
+          </div>
           <div className="flex flex-wrap justify-end gap-2">
             {(ctx.academia.modos_chamada || []).includes("facial") && liberado(ctx.academia.plano, "chamada_facial") && !cancelada && (
               <label className="btn-sec cursor-pointer text-sm">🤳 Pela foto
@@ -346,7 +423,8 @@ function Chamada() {
             {liberado(ctx.academia.plano, "chamada_voz") && <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
               {ouvindo ? "⏹ Parar" : "🎤 Por voz"}
             </button>}
-            <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>Todos</button>
+            <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>✅ Marcar todos</button>
+            <button className="btn-sec text-sm" onClick={desmarcarTodos} disabled={cancelada || !presentes.size}>↩️ Desmarcar todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
           </div>
         </div>
@@ -395,12 +473,39 @@ function Chamada() {
         </details>
       )}
       {cancelada && <p className="rounded-xl bg-alerta/15 p-3 text-alerta">Aula cancelada. Ela não conta na frequência.</p>}
+      {urgentes.length > 0 && !cancelada && (
+        <details className="rounded-2xl border-2 p-3" style={{ borderColor: "var(--color-erro)", background: "color-mix(in srgb, var(--color-erro) 12%, transparent)" }} open={urgentes.some((a) => menor(a.membro_id))}>
+          <summary className="cursor-pointer font-bold text-erro">🚨 URGENTE: {urgentes.length} aluno(s) com cadastro pendente{urgentes.some((a) => menor(a.membro_id)) ? ` (${urgentes.filter((a) => menor(a.membro_id)).length} menor(es) de idade)` : ""}</summary>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {urgentes.map((a) => (
+              <li key={a.membro_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel p-2">
+                <span className="min-w-0 flex-1">
+                  <b>{a.nome}</b>{menor(a.membro_id) && <span className="ml-1 rounded-full bg-erro px-2 py-0.5 text-xs font-bold text-white">MENOR · {idades[a.membro_id]} anos</span>}
+                  <span className="block truncate text-xs text-suave">{pend[a.membro_id].slice(0, 4).join(", ")}{pend[a.membro_id].length > 4 ? "…" : ""}</span>
+                </span>
+                <Link className="btn-sec px-3 py-1 text-xs" href={`${base}/alunos/${a.membro_id}/cadastro`}>Resolver</Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {horariosDoDia.length > 0 && !cancelada && alunos.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input className="campo sm:flex-1" placeholder="🔎 Buscar aluno" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <div className="flex gap-1">
+            {([["todos", "Todos"], ["faltam", `Faltando (${alunos.length - presentes.size})`], ["presentes", `Presentes (${presentes.size})`]] as const).map(([k, r]) => (
+              <button key={k} className="chip flex-1 whitespace-nowrap py-2 text-sm" onClick={() => setVer(k)} style={ver === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
+            ))}
+          </div>
+        </div>
+      )}
       {msg && <p className="text-sm text-suave">{msg}</p>}
 
       {horariosDoDia.length > 0 && !cancelada && (
         <ul className="grid gap-2 sm:grid-cols-2">
-          {alunos.map((a) => {
+          {visiveis.map((a) => {
             const p = presentes.get(a.membro_id);
+            const sd = saude[perfisDe[a.membro_id]];
             return (
               <li key={a.membro_id}>
                 <button
@@ -412,6 +517,13 @@ function Chamada() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{a.nome}{vao.has(a.membro_id) && <span title="Avisou que vinha"> ✋</span>}</p>
                     <div className="flex flex-wrap gap-1">
+                      {menor(a.membro_id) && <span className="rounded-full px-2 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--cor) 25%, transparent)" }}>🧒 Menor · {idades[a.membro_id]} anos</span>}
+                      {pend[a.membro_id] && (
+                        <span className={`rounded-full bg-erro px-2 text-xs font-bold text-white ${menor(a.membro_id) ? "animate-pulse" : ""}`} title={pend[a.membro_id].join(", ")}>
+                          🚨 {menor(a.membro_id) ? "URGENTE: " : ""}cadastro pendente ({pend[a.membro_id].length})
+                        </span>
+                      )}
+                      {sd && <span className="rounded-full px-2 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--color-alerta) 30%, transparent)" }} title={sd.join(" · ")}>⚕️ {sd[0].length > 34 ? sd[0].slice(0, 32) + "…" : sd[0]}{sd.length > 1 ? ` +${sd.length - 1}` : ""}</span>}
                       {(a.alertas || []).map((al: any, k: number) => (
                         <span key={k} className="text-xs text-suave" title={al.texto}>{al.icone} {al.texto}</span>
                       ))}
@@ -426,6 +538,7 @@ function Chamada() {
             );
           })}
           {alunos.length === 0 && <p className="text-suave">Nenhum aluno matriculado nesta turma.</p>}
+          {alunos.length > 0 && visiveis.length === 0 && <p className="text-suave">Ninguém nesse filtro.</p>}
         </ul>
       )}
 
@@ -435,6 +548,8 @@ function Chamada() {
           <textarea id="obs" className="campo min-h-20" placeholder="Ex.: treino de passagem de guarda, 6 rounds" value={obs} onChange={(e) => setObs(e.target.value)} />
           <div className="mt-2 flex flex-wrap gap-2">
             <button className="btn-sec text-sm" onClick={salvarObs}>Salvar anotação</button>
+            <button className="btn-sec text-sm" onClick={baixarPdf} disabled={gerando}>{gerando ? "Gerando…" : "📄 Baixar PDF"}</button>
+            <button className="btn-sec text-sm" onClick={() => window.print()}>🖨️ Imprimir</button>
             {ctx.academia.modulos?.feed !== false && (
               <label className="btn-sec cursor-pointer text-sm">📷 Foto do treino → feed
                 <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => fotoDoTreino(e.target.files)} />
@@ -447,8 +562,34 @@ function Chamada() {
 
       <p className="text-sm text-suave">
         Check-in pelo QR da parede: veja o código em <Link className="underline" href={`${base}/config`}>Personalizar academia</Link>.
+        {" "}Lista do mês inteiro: <Link className="underline" href={`${base}/lista-presenca`}>Lista de presença</Link>.
       </p>
     </div>
+
+    {/* Versão para imprimir (só aparece na impressão) */}
+    <div className="hidden bg-white p-2 text-black print:block">
+      <style>{`@media print { @page { size: A4 portrait; margin: 12mm; } }`}</style>
+      <p className="text-xl font-bold">{ctx.academia.nome} · Chamada</p>
+      <p className="text-sm">{turma?.nome} · {new Date(data + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })} · {horarioTxt()}{ctx.perfil?.nome ? ` · Prof.: ${ctx.perfil.nome}` : ""}</p>
+      <p className="mb-2 text-sm font-bold">{cancelada ? "AULA CANCELADA" : `Presentes: ${presentes.size} de ${alunos.length} · Faltas: ${alunos.length - presentes.size}`}</p>
+      <table className="w-full border-collapse text-xs">
+        <thead><tr>{["#", "Aluno", "Idade", "Presença", "Observação"].map((h) => <th key={h} className="border border-gray-400 p-1 text-left">{h}</th>)}</tr></thead>
+        <tbody>
+          {alunos.map((a, i) => (
+            <tr key={a.membro_id}>
+              <td className="border border-gray-400 p-1">{i + 1}</td>
+              <td className="border border-gray-400 p-1">{a.nome}</td>
+              <td className="border border-gray-400 p-1">{idades[a.membro_id] ?? "-"}</td>
+              <td className="border border-gray-400 p-1 font-bold">{presentes.has(a.membro_id) ? "PRESENTE" : "FALTOU"}</td>
+              <td className="border border-gray-400 p-1">{obsDe(a)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {obs && <p className="mt-2 text-xs">Anotação: {obs}</p>}
+      <p className="mt-10 text-xs">______________________________________<br />Assinatura do(a) professor(a)</p>
+    </div>
+    </>
   );
 }
 

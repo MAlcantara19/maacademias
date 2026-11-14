@@ -1,4 +1,5 @@
 "use client";
+import { ColarImagem } from "@/components/ColarImagem";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toPng } from "html-to-image";
@@ -166,6 +167,7 @@ function Carteirinha() {
             <label className="btn-sec cursor-pointer">Trocar foto da carteirinha
               <input type="file" accept="image/*" className="hidden" onChange={(e) => trocarFoto(e.target.files?.[0])} />
             </label>
+            <ColarImagem rotulo="📋 Colar foto" className="btn-sec" onImagem={(arq) => trocarFoto(arq)} />
           </div>
           {msg && <p className="text-sm text-suave">{msg}</p>}
 
@@ -227,7 +229,8 @@ function Carteirinha() {
                 <input className="campo" placeholder="Federação (ex.: Federação de Judô do RJ)" onChange={(e) => setFed({ ...fed, entidade: e.target.value })} />
                 <input className="campo" placeholder="Número de registro" onChange={(e) => setFed({ ...fed, numero: e.target.value })} />
                 <div><label className="rotulo">Válida até</label><input type="date" className="campo" onChange={(e) => setFed({ ...fed, valida_ate: e.target.value })} /></div>
-                <div><label className="rotulo">Foto da carteirinha</label><input type="file" accept="image/*,application/pdf" className="campo" onChange={(e) => setFed({ ...fed, arquivo: e.target.files?.[0] })} /></div>
+                <div><label className="rotulo">Foto da carteirinha</label><input type="file" accept="image/*,application/pdf" className="campo" onChange={(e) => setFed({ ...fed, arquivo: e.target.files?.[0] })} />
+                  <ColarImagem onImagem={(arq) => setFed({ ...fed, arquivo: arq })} />{fed.arquivo && <span className="ml-2 text-xs text-ok">✓ {fed.arquivo.name}</span>}</div>
                 <button className="btn sm:col-span-2" onClick={enviarFederacao}>Enviar</button>
               </div>
             )}

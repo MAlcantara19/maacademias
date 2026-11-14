@@ -1,4 +1,5 @@
 "use client";
+import { ColarImagem } from "@/components/ColarImagem";
 import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
@@ -239,7 +240,14 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
       {aberto === "dados" && (
         <Bloco titulo="Dados">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="rotulo">Foto</label><input type="file" accept="image/*" className="campo" onChange={(e) => f("arquivo", e.target.files?.[0])} /></div>
+            <div>
+              <label className="rotulo">Foto</label>
+              <div className="flex flex-wrap items-start gap-2">
+                <input type="file" accept="image/*" className="campo min-w-0 flex-1" onChange={(e) => f("arquivo", e.target.files?.[0])} />
+                <ColarImagem onImagem={(arq) => f("arquivo", arq)} />
+              </div>
+              {form.arquivo && <p className="mt-1 text-xs text-ok">Nova foto pronta: toque em Salvar.</p>}
+            </div>
             {ctx.equipe && <div><label className="rotulo">Nome completo</label><input className="campo" defaultValue={x.perfil?.nome || ""} onChange={(e) => f("nome", e.target.value)} /></div>}
             <div><label className="rotulo">Apelido</label><input className="campo" defaultValue={x.perfil?.apelido || ""} onChange={(e) => f("apelido", e.target.value)} /></div>
             <div><label className="rotulo">WhatsApp</label><input className="campo" defaultValue={x.perfil?.telefone || ""} onChange={(e) => f("telefone", e.target.value)} /></div>

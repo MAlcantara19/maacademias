@@ -199,3 +199,7 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - **PDF da ficha completa:** no cadastro do aluno, “Gerar e guardar na ficha” (fica em Documentos).
 - **Lutas:** no placar, escolha os atletas da lista; ao terminar, a luta vai para a ficha de cada um (🥋 Lutas no placar).
 - **Efeitos novos:** logo passeando pela tela, chuva de logos, logos em órbita e logo que explode ao tocar (Personalizar academia → Efeitos).
+
+## Atualização 18 (chamada e colar imagem)
+- Chamada: ✅ Marcar todos / ↩️ Desmarcar todos, busca, filtro Faltando/Presentes, % de presença, 🧒 aviso de menor, 🚨 cadastro pendente URGENTE (com botão Resolver), ⚕️ alerta de saúde, 📄 Baixar PDF e 🖨️ Imprimir.
+- 📋 Colar imagem: foto do aluno, carteirinha, rosto, logo, capa e banners aceitam imagem copiada (ex.: foto de perfil do WhatsApp Web → Copiar imagem). Não precisa rodar SQL novo.

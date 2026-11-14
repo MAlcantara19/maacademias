@@ -1,4 +1,5 @@
 "use client";
+import { ColarImagem } from "@/components/ColarImagem";
 import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -107,22 +108,24 @@ export default function Config() {
             <div className="sm:col-span-2"><label className="rotulo">Sobre nós</label><textarea className="campo min-h-28" value={a.sobre || ""} onChange={(e) => muda("sobre", e.target.value)} /></div>
             <div>
               <label className="rotulo">Logo</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {a.logo_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.logo_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
                 )}
-                <input type="file" accept="image/*" className="campo" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*" className="campo min-w-0 flex-1" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
+                <ColarImagem onImagem={setLogo} />
               </div>
             </div>
             <div>
               <label className="rotulo">Foto de capa (topo da página)</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {a.capa_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.capa_url} alt="" className="h-12 w-20 rounded-lg object-cover" />
                 )}
-                <input type="file" accept="image/*" className="campo" onChange={(e) => setCapa(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*" className="campo min-w-0 flex-1" onChange={(e) => setCapa(e.target.files?.[0] || null)} />
+                <ColarImagem onImagem={setCapa} />
               </div>
             </div>
             <div>
@@ -276,6 +279,7 @@ export default function Config() {
           {novoBanner ? (
             <div className="grid gap-2 rounded-xl border border-linha p-3 sm:grid-cols-2">
               <input type="file" accept="image/*" className="campo sm:col-span-2" onChange={(e) => setNovoBanner({ ...novoBanner, arquivo: e.target.files?.[0] })} />
+              <ColarImagem onImagem={(arq) => setNovoBanner({ ...novoBanner, arquivo: arq })} />
               <input className="campo" placeholder="Título (ex.: Matrículas abertas)" onChange={(e) => setNovoBanner({ ...novoBanner, titulo: e.target.value })} />
               <input className="campo" placeholder="Texto curto" onChange={(e) => setNovoBanner({ ...novoBanner, texto: e.target.value })} />
               <input className="campo sm:col-span-2" placeholder="Link ao tocar (opcional)" onChange={(e) => setNovoBanner({ ...novoBanner, link: e.target.value })} />

@@ -1,4 +1,5 @@
 "use client";
+import { ColarImagem } from "@/components/ColarImagem";
 import { useEffect, useState } from "react";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { rostosDaFoto } from "@/lib/rosto";
@@ -58,6 +59,7 @@ export function CadastroRosto({ perfilId, academiaId, nome, podeEditar }: { perf
           <label className={`btn-sec w-fit cursor-pointer text-sm ${ocupado ? "opacity-50" : ""}`}>🤳 {ocupado ? "Analisando…" : "Tirar/enviar foto do rosto"}
             <input type="file" accept="image/*" capture="user" className="hidden" disabled={ocupado} onChange={(e) => cadastrar(e.target.files?.[0])} />
           </label>
+          {!ocupado && <ColarImagem rotulo="📋 Colar foto do rosto" onImagem={(arq) => cadastrar(arq)} />}
         </>
       ) : <p className="text-sm text-suave">Sem rosto cadastrado.</p>}
       {msg && <p className="text-sm text-suave">{msg}</p>}
