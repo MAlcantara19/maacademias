@@ -21,16 +21,7 @@ export const EFEITOS = [
   { id: "criancas", nome: "🎈 Dia das crianças" },
 ] as const;
 
-// Temporada automática pela data
-export function efeitoDaTemporada(d = new Date()) {
-  const m = d.getMonth() + 1, dia = d.getDate();
-  if (m === 12 && dia <= 25) return "natal";
-  if ((m === 12 && dia > 25) || (m === 1 && dia <= 6)) return "ano_novo";
-  if (m === 2) return "carnaval";
-  if (m === 6) return "junina";
-  if (m === 10 && dia <= 12) return "criancas";
-  return null;
-}
+// efeitoDaTemporada fica em lib/efeitos.ts (pode ser usada no servidor)
 
 const CORES = ["#facc15", "#ef4444", "#22c55e", "#3b82f6", "#a855f7", "#f97316", "#ffffff"];
 const SIMBOLOS: Record<string, string[]> = {

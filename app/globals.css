@@ -128,6 +128,11 @@ h1, h2, h3, .titulo {
 .efeito-flutuar { animation: efeito-flutuar ease-in-out infinite; }
 @keyframes efeito-girar { to { transform: rotate(360deg); } }
 .efeito-girar { animation: efeito-girar linear infinite; }
+@keyframes telao-entrar { from { opacity: 0; transform: translateY(2vh); } to { opacity: 1; transform: none; } }
+.telao-entrar { animation: telao-entrar .6s ease-out; }
+/* brilho que passa sobre o QR da carteirinha digital (mostra que não é print) */
+@keyframes qr-brilho { 0% { background-position: -150% 0; } 100% { background-position: 250% 0; } }
+.qr-brilho { background: linear-gradient(110deg, transparent 35%, rgba(124,58,237,.18) 50%, transparent 65%); background-size: 200% 100%; animation: qr-brilho 2.2s linear infinite; }
 @keyframes efeito-estouro { 0% { transform: translate(0, 0) scale(.4) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1) rotate(200deg); opacity: 0; } }
 .efeito-estouro { animation: efeito-estouro .85s ease-out forwards; }
 @keyframes abertura-sumir { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }

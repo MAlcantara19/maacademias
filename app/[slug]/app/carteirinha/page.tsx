@@ -177,6 +177,18 @@ function Carteirinha() {
     setLoteMsg(`✅ PDF com ${frentes.length} carteirinha(s) (${cracha ? "54 × 85,6" : "85,6 × 54"} mm, tamanho de cartão). Imprima em 100% (sem "ajustar à página").`);
   }
 
+  // ---------- Carteirinha digital: QR que vale só hoje ----------
+  const [qrHoje, setQrHoje] = useState<string | null>(null);
+  const [agora, setAgora] = useState(new Date());
+  const [digital, setDigital] = useState(false);
+  const [soDiario, setSoDiario] = useState(!!ctx.academia.carteirinha_qr_diario);
+  useEffect(() => {
+    if (!digital || !alunoId) return;
+    sb.rpc("qr_do_dia", { p_membro: alunoId }).then(({ data }) => setQrHoje(data || null));
+    const t = setInterval(() => setAgora(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [digital, alunoId]); // eslint-disable-line
+
   async function enviarFederacao() {
     if (!fed?.entidade) return setMsg("Informe a federação.");
     let imagem: string | null = null;
@@ -303,6 +315,35 @@ function Carteirinha() {
               <div className="flex gap-2"><button className="btn" onClick={salvarModelo}>Salvar modelo</button><button className="btn-sec" onClick={() => { setCfg(ctx.academia.carteirinha || {}); setEditando(false); }}>Cancelar</button></div>
             </section>
           )}
+
+          <section className="space-y-3 rounded-2xl bg-painel p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-2xl font-bold">📱 Carteirinha digital</h2>
+              <button className="btn text-sm" onClick={() => setDigital(!digital)}>{digital ? "Fechar" : "Mostrar QR de hoje"}</button>
+            </div>
+            <p className="text-sm text-suave">O QR muda todo dia: print de ontem não funciona. Mostre na recepção ou na chamada.</p>
+            {digital && (
+              <div className="flex flex-col items-center gap-3 rounded-2xl p-4 text-white" style={{ background: `linear-gradient(135deg, #0b0f1d, ${cor})` }}>
+                <p className="text-lg font-bold">{p.apelido || p.nome}</p>
+                <div className="relative rounded-2xl bg-white p-3">
+                  {qrHoje ? <QR texto={qrHoje} tamanho={210} /> : <div className="flex h-[210px] w-[210px] items-center justify-center text-sm text-black">Gerando…</div>}
+                  <span className="qr-brilho pointer-events-none absolute inset-0 rounded-2xl" aria-hidden />
+                </div>
+                <p className="numero text-2xl font-bold">{agora.toLocaleTimeString("pt-BR")}</p>
+                <p className="text-sm opacity-90">Válido só hoje · {agora.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" })}</p>
+              </div>
+            )}
+            {ctx.admin && (
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1" checked={soDiario} onChange={async (e) => {
+                  setSoDiario(e.target.checked);
+                  const { error } = await sb.from("academias").update({ carteirinha_qr_diario: e.target.checked }).eq("id", ctx.academia.id);
+                  setMsg(error ? error.message : e.target.checked ? "Agora a chamada só aceita o QR do dia (carteirinha digital)." : "A chamada aceita também a carteirinha impressa.");
+                }} />
+                <span>Na chamada, aceitar <b>só</b> o QR do dia (bloqueia carteirinha impressa e prints).</span>
+              </label>
+            )}
+          </section>
 
           {ctx.equipe && (
             <section className="space-y-2 rounded-2xl bg-painel p-4">

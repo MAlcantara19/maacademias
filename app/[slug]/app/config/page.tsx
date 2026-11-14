@@ -94,7 +94,7 @@ export default function Config() {
       tema: a.tema || {}, modos_chamada: a.modos_chamada || ["manual"], tipo: a.tipo || "academia", tecnicas_progressivas: !!a.tecnicas_progressivas, meta_estudo_semanal: Number(a.meta_estudo_semanal || 3),
       contrato_texto: a.contrato_texto || null, recompensa_indicacao: a.recompensa_indicacao || null,
       contrato_versao: (a.contrato_texto || "") !== (ctx.academia.contrato_texto || "") ? (a.contrato_texto ? new Date().toISOString().slice(0, 16) : null) : a.contrato_versao,
-      alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
+      alerta_dias_sem_vir: Number(a.alerta_dias_sem_vir), meta_semanal_padrao: Number(a.meta_semanal_padrao || 2), aviso_aniversario_dias: Number(a.aviso_aniversario_dias),
     }).eq("id", a.id);
     setMsg(error ? error.message : "Alterações salvas.");
     router.refresh();
@@ -175,6 +175,7 @@ export default function Config() {
           <div className="grid gap-3 sm:grid-cols-4">
             <div><label className="rotulo">Raio do check-in (m)</label><input type="number" className="campo" value={a.checkin_raio_m} onChange={(e) => muda("checkin_raio_m", e.target.value)} /></div>
             <div><label className="rotulo">Tolerância de atraso (min)</label><input type="number" className="campo" value={a.tolerancia_atraso_min} onChange={(e) => muda("tolerancia_atraso_min", e.target.value)} /></div>
+            <div><label className="rotulo">Meta de treinos por semana (padrão dos alunos)</label><input type="number" min={1} max={7} className="campo" value={a.meta_semanal_padrao ?? 2} onChange={(e) => muda("meta_semanal_padrao", e.target.value)} /></div>
             <div><label className="rotulo">Alerta de sumido (dias)</label><input type="number" className="campo" value={a.alerta_dias_sem_vir} onChange={(e) => muda("alerta_dias_sem_vir", e.target.value)} /></div>
             <div><label className="rotulo">Aviso de aniversário (dias antes)</label><input type="number" className="campo" value={a.aviso_aniversario_dias} onChange={(e) => muda("aviso_aniversario_dias", e.target.value)} /></div>
           </div>

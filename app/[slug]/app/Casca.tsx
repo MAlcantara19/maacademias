@@ -12,7 +12,8 @@ import { liberado } from "@/lib/planos";
 import { BotaoWhats } from "@/components/BotaoWhats";
 import { AceiteTermos } from "@/components/AceiteTermos";
 import { InstalarApp } from "@/components/InstalarApp";
-import { AberturaLogo, EfeitosTela, efeitoDaTemporada } from "@/components/EfeitosTela";
+import { AberturaLogo, EfeitosTela } from "@/components/EfeitosTela";
+import { efeitoDaTemporada } from "@/lib/efeitos";
 import { EstiloFaixaCtx } from "@/lib/estiloFaixa";
 import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
 
@@ -80,6 +81,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
         { href: `${base}/tecnicas`, rotulo: "Técnicas e exames", icone: "🥋" },
         { href: `${base}/estudar`, rotulo: "Estudar", icone: "🧠" },
         { href: `${base}/cronometro`, rotulo: "Cronômetro", icone: "⏱️" },
+        { href: `${base}/telao`, rotulo: "Telão (modo TV)", icone: "📺" },
         { href: `${base}/recordes`, rotulo: "Recordes", icone: "🏆" },
         { href: `${base}/totem`, rotulo: "Modo totem", icone: "📟", m: "totem" },
         { href: `${base}/experimentais`, rotulo: "Aulas experimentais", icone: "🙋", m: "aula_experimental" },

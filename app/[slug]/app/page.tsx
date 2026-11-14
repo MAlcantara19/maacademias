@@ -12,6 +12,7 @@ import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
 import { MeuCadastroPendente } from "@/components/MeuCadastroPendente";
 import { FaltandoSeguido } from "@/components/FaltandoSeguido";
+import { VagasComFila } from "@/components/VagasComFila";
 
 function Cartao({ titulo, children, href }: { titulo: string; children: React.ReactNode; href?: string }) {
   return (
@@ -110,7 +111,26 @@ export default function Inicio() {
         const { count: indicados } = await sb.from("indicacoes").select("id", { count: "exact", head: true }).in("indicador_id", ids.length ? ids : [NENHUM]);
         // responsável com mais de um filho: a próxima aula de cada um
         const porAluno = ids.map((id) => proximas.find((p) => p.membro_id === id)).filter(Boolean);
-        setD({ avisos, eventos, painel: painel.data || [], proxima: proximas[0], porAluno, pendencias: pendencias.data || [], indicados: indicados || 0 });
+        // presenças do mês e da semana + meta semanal de cada um
+        const inicioMes = hoje.slice(0, 8) + "01";
+        const dow = (new Date(hoje + "T12:00:00").getDay() + 6) % 7; // segunda = 0
+        const inicioSemana = addDias(hoje, -dow);
+        const [{ data: pres }, { data: metas }, { data: stc }] = await Promise.all([
+          sb.from("presencas").select("membro_id, aulas!inner(data)").in("membro_id", ids.length ? ids : [NENHUM]).gte("aulas.data", inicioMes < inicioSemana ? inicioMes : inicioSemana),
+          sb.from("membros").select("id, meta_semanal").in("id", ids.length ? ids : [NENHUM]),
+          Promise.all(ids.map((id) => sb.rpc("status_cadastro", { p_membro: id }).then((r: any) => [id, r.data]))).then((l) => ({ data: l })),
+        ]);
+        const resumo: Record<string, any> = {};
+        for (const id of ids) {
+          const ps = (pres || []).filter((p: any) => p.membro_id === id);
+          resumo[id] = {
+            mes: ps.filter((p: any) => p.aulas.data >= inicioMes).length,
+            semana: ps.filter((p: any) => p.aulas.data >= inicioSemana).length,
+            meta: (metas || []).find((m: any) => m.id === id)?.meta_semanal || ctx.academia.meta_semanal_padrao || 2,
+            cadastro: ((stc || []) as any[]).find((x: any) => x[0] === id)?.[1],
+          };
+        }
+        setD({ avisos, eventos, painel: painel.data || [], resumo, proxima: proximas[0], porAluno, pendencias: pendencias.data || [], indicados: indicados || 0 });
       }
     })();
   }, [ctx.academia.id]); // eslint-disable-line
@@ -138,6 +158,12 @@ export default function Inicio() {
 
       {ctx.equipe ? (
         <>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`${base}/telao`} className="btn-sec text-sm">📺 Telão (modo TV)</Link>
+            <Link href={`${base}/exame-lote`} className="btn-sec text-sm">🎓 Exame em lote</Link>
+            {ctx.admin && <Link href={`${base}/exportar`} className="btn-sec text-sm">📄 Relatório de impacto</Link>}
+            {ctx.admin && <Link href={`${base}/exportar#backup`} className="btn-sec text-sm">📦 Backup</Link>}
+          </div>
           {ctx.admin && d.passos.some((p: any) => !p.ok) && (
             <section className="rounded-2xl border-2 border-dashed p-4" style={{ borderColor: "var(--cor)" }}>
               <h2 className="text-2xl font-bold">Primeiros passos da academia</h2>
@@ -236,6 +262,7 @@ export default function Inicio() {
               </Cartao>
             )}
           </div>
+          <VagasComFila />
           <FaltandoSeguido />
         </>
       ) : (
@@ -258,17 +285,46 @@ export default function Inicio() {
             </section>
             );
           })}
+          {ctx.meusAlunos.some((m) => !m.eu) && <h2 className="text-2xl font-bold">👨‍👧 {ctx.meusAlunos.length > 1 ? "Meus filhos" : "Meu filho(a)"}</h2>}
           <div className="grid gap-3 sm:grid-cols-2">
-            {d.painel.map((p: any) => (
-              <Link key={p.membro_id} href={`${base}/alunos/${p.membro_id}`} className="flex items-center gap-4 rounded-2xl bg-painel p-4">
-                <Avatar foto={p.foto_url} nome={p.nome} cor={p.cor_faixa} grau={p.grau} tamanho={56} />
-                <div className="flex-1">
-                  <p className="font-semibold">{p.apelido || p.nome}</p>
-                  <p className="text-sm text-suave">Faixa {p.faixa?.toLowerCase() || "—"} · frequência {p.frequencia_30d ?? "—"}%</p>
-                  <div className="mt-2"><Barra pct={p.frequencia_30d} /></div>
+            {d.painel.map((p: any) => {
+              const r = d.resumo?.[p.membro_id] || {};
+              const px = (d.porAluno || []).find((x: any) => x.membro_id === p.membro_id) || (d.proxima?.membro_id === p.membro_id ? d.proxima : null);
+              const pend = d.pendencias.filter((x: any) => x.membro_id === p.membro_id).length;
+              const bateu = r.semana >= r.meta;
+              return (
+                <div key={p.membro_id} className="space-y-3 rounded-2xl bg-painel p-4">
+                  <Link href={`${base}/alunos/${p.membro_id}`} className="flex items-center gap-4">
+                    <Avatar foto={p.foto_url} nome={p.nome} cor={p.cor_faixa} grau={p.grau} tamanho={56} />
+                    <div className="flex-1">
+                      <p className="font-semibold">{p.apelido || p.nome}</p>
+                      <p className="text-sm text-suave">Faixa {p.faixa?.toLowerCase() || "—"} · frequência {p.frequencia_30d ?? "—"}%</p>
+                      <div className="mt-2"><Barra pct={p.frequencia_30d} /></div>
+                    </div>
+                  </Link>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="rounded-xl bg-painel2 p-2"><p className="text-xs text-suave">📅 Este mês</p><p className="numero text-xl font-bold">{r.mes ?? 0} treino(s)</p></div>
+                    <button type="button" className="rounded-xl bg-painel2 p-2 text-left" title="Toque para mudar a meta" onClick={async () => {
+                      const v = prompt("Meta de treinos por semana (1 a 14):", String(r.meta || 2));
+                      if (!v) return;
+                      const { error } = await sb.rpc("definir_meta", { p_membro: p.membro_id, p_meta: Number(v) });
+                      if (error) return alert(error.message);
+                      setD((x: any) => ({ ...x, resumo: { ...x.resumo, [p.membro_id]: { ...r, meta: Number(v) } } }));
+                    }}>
+                      <p className="text-xs text-suave">🎯 Meta da semana ✏️</p>
+                      <p className="numero text-xl font-bold">{r.semana ?? 0}/{r.meta || 2} {bateu ? "🔥" : ""}</p>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-painel"><div className="h-full" style={{ width: `${Math.min(100, ((r.semana || 0) / (r.meta || 2)) * 100)}%`, background: bateu ? "var(--color-ok)" : "var(--cor)" }} /></div>
+                    </button>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    {px && <p>🕒 Próxima: <b>{px.dia === hojeISO() ? "hoje" : DIAS[px.dia_semana]} {hora(px.hora_inicio)}</b> · {px.turma}</p>}
+                    {pend > 0 && <p>📌 {pend} pendência(s) com a academia</p>}
+                    {r.cadastro && !r.cadastro.completo && <Link className="block text-alerta underline" href={`${base}/alunos/${p.membro_id}/cadastro`}>📋 Cadastro: falta {r.cadastro.pendencias.length} item(ns)</Link>}
+                    {p.mensalidades_em_aberto > 0 && liberado(ctx.academia.plano, "mensalidades") && <Link className="block underline" href={`${base}/mensalidades`}>💳 {p.mensalidades_em_aberto} mensalidade(s) em aberto</Link>}
+                  </div>
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
           {ctx.meusAlunos[0] && liberado(ctx.academia.plano, "indicacoes") && (() => {
             const link = typeof window !== "undefined" ? `${window.location.origin}/${ctx.academia.slug}/cadastro?indicado=${ctx.meusAlunos[0].id}` : "";

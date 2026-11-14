@@ -8,7 +8,8 @@ import { Faixa } from "@/components/Faixa";
 import { Avatar } from "@/components/Avatar";
 import { FormExperimental } from "./FormExperimental";
 import { BotaoWhats } from "@/components/BotaoWhats";
-import { EfeitosTela, efeitoDaTemporada } from "@/components/EfeitosTela";
+import { EfeitosTela } from "@/components/EfeitosTela";
+import { efeitoDaTemporada } from "@/lib/efeitos";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -24,8 +25,10 @@ export default async function PaginaAcademia(props: { params: Promise<{ slug: st
   } catch (e: any) {
     if (typeof e?.digest === "string" && e.digest.startsWith("NEXT_")) throw e; // notFound/redirect
     const { slug } = await props.params;
+    let master = false;
     try {
       const sb = await supabaseServidor();
+      master = !!(await sb.rpc("sou_master")).data;
       await sb.from("erros_app").insert({ pagina: `/${slug}`, mensagem: `[servidor] ${String(e?.message || e).slice(0, 480)}`, detalhe: String(e?.stack || "").slice(0, 2000), navegador: "servidor" });
     } catch { /* sem conexão */ }
     const a = await buscarAcademia(slug).catch(() => null);
@@ -37,6 +40,7 @@ export default async function PaginaAcademia(props: { params: Promise<{ slug: st
         <p className="text-suave">A página completa está sendo ajustada. Fale com a academia:</p>
         {a.whatsapp && <a className="btn w-fit" href={`https://wa.me/${String(a.whatsapp).replace(/\D/g, "")}`} target="_blank">WhatsApp</a>}
         <Link href="/login" className="btn-sec w-fit">Área do aluno</Link>
+        {master && <pre className="mt-4 whitespace-pre-wrap rounded-xl bg-painel p-3 text-xs text-alerta">Só o master vê isto — motivo: {String(e?.message || e)}{"\n"}{String(e?.stack || "").split("\n").slice(0, 6).join("\n")}</pre>}
       </main>
     );
   }

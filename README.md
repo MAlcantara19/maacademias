@@ -217,3 +217,8 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 - Carteirinha: fundo com a logo (padrão), capa ou imagem escolhida; **PDF em lote** da turma no tamanho de cartão; **📷 Ler carteirinha** na chamada.
 - Chamada: 🎂 aniversariantes com parabéns, 👋 visitante (aula experimental), 📉 faltando seguido também na tela inicial.
 - Ranking por turma (assiduidade), legenda dos selos, 🪄 tirar o fundo da foto, validade de documentos, tabela e planilha de pendências.
+
+## Atualização 22 (correção da página + 12 novidades)
+- Rode `supabase/ATUALIZAR-19.sql` (meta semanal, QR do dia, lembrete de backup).
+- Página da academia volta a abrir com o efeito de temporada ligado.
+- 🎲 Chaveamento no placar · 🎓 Exame de faixa em lote com certificados · 🧾 Recibo com a logo de fundo · 👨‍👧 Painel do responsável na tela inicial · 🥇 Ficha de saúde/documentos na inscrição do campeonato · 🎟️ Lista de espera com aviso · 📺 Telão (modo TV) · 🎯 Meta de treinos por semana · 📝 Visitante → pré-matrícula já preenchida · 📱 Carteirinha digital com QR do dia · 📄 Relatório de impacto em PDF · 📦 Backup em planilha (lembrete todo dia 1º).

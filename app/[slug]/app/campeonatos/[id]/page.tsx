@@ -23,6 +23,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
   const [novoCrono, setNovoCrono] = useState<any>(null);
   const [inscrever, setInscrever] = useState("");
   const [msg, setMsg] = useState("");
+  const [extra, setExtra] = useState<Record<string, any>>({});
 
   async function carregar() {
     const { data: e } = await sb.from("eventos").select("*").eq("id", id).maybeSingle();
@@ -33,6 +34,31 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
       sb.from("cronograma_evento").select("*").eq("evento_id", id).order("inicio"),
     ]);
     setFicha(f.data || []); setCk(c.data); setCrono(cr.data || []);
+    // ficha de anamnese de cada inscrito: cadastro, saúde e documentos (só a equipe vê)
+    const ids = (f.data || []).map((x: any) => x.membro_id);
+    if (ctx.equipe && ids.length) {
+      const { data: pa } = await sb.from("painel_alunos").select("membro_id, perfil_id").in("membro_id", ids);
+      const perfis = (pa || []).map((x: any) => x.perfil_id);
+      const [{ data: fs }, { data: docs }, st] = await Promise.all([
+        sb.from("fichas_saude").select("perfil_id, dados, validade").in("perfil_id", perfis),
+        sb.from("documentos").select("perfil_id, tipo, validade, criado_em").in("perfil_id", perfis),
+        Promise.all(ids.map((mid: string) => sb.rpc("status_cadastro", { p_membro: mid }).then((r: any) => [mid, r.data]))),
+      ]);
+      const hoje = new Date().toISOString().slice(0, 10);
+      const ROT: Record<string, string> = { cardiaco: "cardíaco", respiratorio: "respiratório", convulsao: "convulsão", ortopedico: "ortopédico" };
+      setExtra(Object.fromEntries((pa || []).map((x: any) => {
+        const fic = (fs || []).find((y: any) => y.perfil_id === x.perfil_id);
+        const d = fic?.dados || {};
+        const atestado = (docs || []).filter((y: any) => y.perfil_id === x.perfil_id && y.tipo === "atestado").sort((a: any, b: any) => (b.criado_em || "").localeCompare(a.criado_em || ""))[0];
+        return [x.membro_id, {
+          saude: fic ? (fic.validade < hoje ? "vencida" : "ok") : "falta",
+          alertas: [...Object.keys(ROT).filter((k) => d[k] === "sim").map((k) => ROT[k]), d.alergias && `alergia: ${d.alergias}`, d.medicamentos && `remédios: ${d.medicamentos}`, d.restricoes && `restrição: ${d.restricoes}`].filter(Boolean),
+          sangue: d.tipo_sanguineo,
+          atestado: atestado ? (atestado.validade && atestado.validade < hoje ? "vencido" : "ok") : "falta",
+          cadastro: (st as any[]).find((z) => z[0] === x.membro_id)?.[1],
+        }];
+      })));
+    }
     if (ctx.equipe && e) {
       let q = sb.from("atletas_categoria").select("*").eq("academia_id", ctx.academia.id);
       if (e.modalidade_id) q = q.eq("modalidade_id", e.modalidade_id);
@@ -196,6 +222,20 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
                   <img src={a.carteirinha_federacao_url} alt="Carteirinha" className="hidden h-20 rounded-lg sm:block" />
                 )}
               </div>
+              {ctx.equipe && extra[a.membro_id] && (() => {
+                const x = extra[a.membro_id];
+                const cor = (ok: boolean) => (ok ? "border-ok" : "border-alerta text-alerta");
+                return (
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                    <span className={`chip ${cor(x.saude === "ok")}`}>⚕️ Saúde: {x.saude === "ok" ? "em dia" : x.saude === "vencida" ? "vencida" : "não preenchida"}</span>
+                    <span className={`chip ${cor(x.atestado === "ok")}`}>📄 Atestado: {x.atestado === "ok" ? "ok" : x.atestado === "vencido" ? "vencido" : "não enviado"}</span>
+                    {x.cadastro && <span className={`chip ${cor(x.cadastro.completo)}`}>📋 Cadastro: {x.cadastro.completo ? "completo" : `${x.cadastro.pendencias.length} pendência(s)`}</span>}
+                    {x.sangue && <span className="chip">🩸 {x.sangue}</span>}
+                    {x.alertas.map((t: string) => <span key={t} className="chip border-erro">⚠️ {t}</span>)}
+                    <Link className="chip nao-imprimir underline" href={`${base}/alunos/${a.membro_id}/cadastro`}>abrir ficha completa</Link>
+                  </div>
+                );
+              })()}
               {ctx.equipe && (
                 <div className="nao-imprimir mt-3 flex flex-wrap items-center gap-2">
                   <input className="campo w-32" type="number" step="0.1" placeholder="Peso pesagem" defaultValue={a.peso_pesagem ?? ""}

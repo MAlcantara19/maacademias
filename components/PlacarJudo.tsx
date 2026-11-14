@@ -6,6 +6,7 @@ import { PlacarTelao, TelaVitoria, corRelogio, iwy, mmss, NOME, type Estado, typ
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { QR } from "@/components/QR";
 import { useCtx } from "@/lib/contexto";
+import { Chaveamento } from "@/components/Chaveamento";
 
 // Placar de luta de judô (regras IJF 2025):
 // - Ippon encerra; 2 waza-ari = ippon (waza-ari awasete ippon); yuko não soma.
@@ -32,7 +33,7 @@ const ROTULO_EV: Record<Evento["tipo"], string> = { ippon: "Ippon", waza: "Waza-
 export type PlacarApi = { correndo: () => boolean; pausar: () => void; tempo: () => number; definirTempo: (seg: number) => void };
 type Fala = (typeof FALAS)[number][0];
 
-export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.MutableRefObject<PlacarApi | null> }) {
+export function PlacarJudo({ voz = true, api, inicial }: { voz?: boolean; api?: React.MutableRefObject<PlacarApi | null>; inicial?: { azul?: string | null; branco?: string | null } }) {
   // o que a voz fala (padrão: só Hajime e Sore-made) e o jeito do placar — lembrados no aparelho
   const [falas, setFalas] = useState<Record<Fala, boolean>>({ hajime: true, matte: false, osaekomi: false, toketa: false, pontos: false, ippon: true, soremade: true });
   const [genero, setGenero] = useState<Genero>("feminina");
@@ -66,11 +67,18 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
     try { setAutoSalvar(localStorage.getItem("ma_placar_salvar") !== "nao"); } catch { /* */ }
     if (!ctx.equipe) return;
     supabaseNavegador().from("painel_alunos").select("membro_id, nome, apelido").eq("academia_id", ctx.academia.id).eq("ativo", true).order("nome")
-      .then(({ data }) => setAtletas(data || []));
-  }, [ctx.equipe, ctx.academia.id]);
+      .then(({ data }) => {
+        setAtletas(data || []);
+        // veio do chaveamento: já abre com os dois atletas
+        const acha = (id?: string | null) => (data || []).find((a: any) => a.membro_id === id);
+        const az = acha(inicial?.azul), br = acha(inicial?.branco);
+        if (az || br) setE((y) => ({ ...y, azul: az ? { ...y.azul, nome: az.apelido || az.nome, membro: az.membro_id } : y.azul, branco: br ? { ...y.branco, nome: br.apelido || br.nome, membro: br.membro_id } : y.branco }));
+      });
+  }, [ctx.equipe, ctx.academia.id, inicial?.azul, inicial?.branco]); // eslint-disable-line
   function escolher(l: Lado, nome: string) {
     const t = nome.trim().toLowerCase();
     const m = t ? atletas.find((a) => a.nome.toLowerCase() === t || (a.apelido || "").toLowerCase() === t) : undefined;
+    // nome escolhido na lista mostra o apelido quando houver
     setE((y) => ({ ...y, [l]: { ...y[l], nome, membro: m?.membro_id || null } }));
   }
   const ref = useRef(e);
@@ -377,6 +385,14 @@ export function PlacarJudo({ voz = true, api }: { voz?: boolean; api?: React.Mut
             <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={falas[k]} onChange={(x) => mudarFala(k, x.target.checked)} /> {r}</label>
           ))}
         </div>
+      )}
+      {!tela && ctx.equipe && (
+        <Chaveamento onLutar={(azul, branco) => {
+          if (e.correndo && !confirm("Tem uma luta correndo. Começar esta nova luta?")) return;
+          salva.current = null; setSalvaMsg(""); setPilha([]);
+          setE({ ...novo(e.duracao, { azul, branco }), info: e.info });
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }} />
       )}
       {!tela && (
         <div className="space-y-2 rounded-2xl bg-painel p-3 text-sm">

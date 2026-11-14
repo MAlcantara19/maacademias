@@ -85,6 +85,7 @@ function Lista() {
           <button className="btn-sec" onClick={() => setTrazer(true)}>Trazer de outra academia</button>
           <button className="btn" onClick={() => setNovo(true)}>Cadastrar aluno</button>
           <button className="btn-sec" onClick={() => setImportar(true)}>📥 Importar planilha</button>
+          <Link className="btn-sec" href={`${base}/exame-lote`}>🎓 Exame em lote</Link>
         </div>
       </div>
 

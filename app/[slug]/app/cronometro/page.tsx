@@ -1,5 +1,8 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useCtx } from "@/lib/contexto";
 import { Tatame } from "@/components/Tatame";
 import { falar } from "@/lib/fala";
 import { PlacarJudo, type PlacarApi } from "@/components/PlacarJudo";
@@ -7,14 +10,20 @@ import { PlacarJudo, type PlacarApi } from "@/components/PlacarJudo";
 type Fase = "parado" | "preparar" | "luta" | "descanso" | "fim";
 
 // Cronômetro de randori/round em tela cheia, com bipe e "Hajime!"/"Matte!" falados
-export default function Cronometro() {
+export default function Pagina() {
+  return <Suspense><Cronometro /></Suspense>;
+}
+
+function Cronometro() {
+  const params = useSearchParams();
+  const ctx = useCtx();
   const [cfg, setCfg] = useState({ rounds: 5, luta: 240, descanso: 60, preparar: 10, voz: true });
   const [fase, setFase] = useState<Fase>("parado");
   const [round, setRound] = useState(1);
   const [resta, setResta] = useState(0);
   const [pausado, setPausado] = useState(false);
   const [tela, setTela] = useState(false);
-  const [modo, setModo] = useState<"rounds" | "luta">("rounds");
+  const [modo, setModo] = useState<"rounds" | "luta">(params.get("modo") === "luta" ? "luta" : "rounds");
   const [estilo, setEstilo] = useState("placar");
   useEffect(() => { try { setEstilo(localStorage.getItem("ma_crono_estilo") || "placar"); } catch { /* */ } }, []);
   const escolherEstilo = (e: string) => { setEstilo(e); try { localStorage.setItem("ma_crono_estilo", e); } catch { /* */ } };
@@ -140,7 +149,10 @@ export default function Cronometro() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-4xl font-extrabold">Cronômetro</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-4xl font-extrabold">Cronômetro</h1>
+        {ctx.equipe && <span className="text-sm text-suave">🎲 Chaveamento: aba “Luta com placar”</span>}
+      </div>
       <div className="flex gap-1 rounded-2xl bg-painel p-1">
         <button onClick={() => irAba("rounds")} className={`flex-1 rounded-xl py-2 font-semibold ${modo === "rounds" ? "bg-painel2" : "text-suave"}`}>
           ⏱️ Rounds (treino){modo !== "rounds" && roundsCorrendo && <span className="ml-1 text-ok" title="correndo">●</span>}</button>
@@ -159,7 +171,7 @@ export default function Cronometro() {
           </div>
         </div>
       )}
-      <div className={modo === "luta" ? "" : "hidden"}><PlacarJudo voz={cfg.voz} api={placar} /></div>
+      <div className={modo === "luta" ? "" : "hidden"}><PlacarJudo voz={cfg.voz} api={placar} inicial={{ azul: params.get("azul"), branco: params.get("branco") }} /></div>
       {modo === "rounds" && (<>
       {fase === "parado" && (
         <>

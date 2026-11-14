@@ -102,7 +102,8 @@ function Exame() {
     <div className="space-y-5">
       <div className="nao-imprimir flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-4xl font-extrabold">Exame de faixa</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link className="btn-sec" href={`${base}/exame-lote`}>👥 Exame em lote</Link>
           <button className="btn-sec" onClick={() => window.print()}>Imprimir</button>
           <button className="btn" onClick={salvar}>Salvar</button>
         </div>

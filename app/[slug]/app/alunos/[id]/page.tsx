@@ -1,4 +1,5 @@
 "use client";
+import { MetaSemana } from "@/components/MetaSemana";
 import { SeletorFoto } from "@/components/RecortarFoto";
 import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
@@ -372,6 +373,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           );
         })()}
 
+        <MetaSemana ids={[id]} editavel={ctx.equipe} />
         <LegendaSelos ranking={false} icones={false} />
 
         <Bloco titulo="🏅 Campeonatos">

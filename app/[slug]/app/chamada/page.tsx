@@ -291,11 +291,11 @@ function Chamada() {
 
   // ---------- QR da carteirinha: lê e marca presente ----------
   async function lerCarteirinha(texto: string) {
-    let id = alunos.find((a) => a.membro_id === texto)?.membro_id;
-    if (!id) {
-      const { data: c } = await sb.from("carteirinhas").select("membro_id").eq("codigo", texto).maybeSingle();
-      id = c?.membro_id;
-    }
+    // QR do dia (carteirinha digital) ou código impresso — quem confere é o banco
+    const { data: v, error } = await sb.rpc("validar_qr", { p_texto: texto });
+    let id: string | undefined = v?.ok ? v.membro_id : undefined;
+    if (error) id = alunos.find((a) => a.membro_id === texto)?.membro_id; // banco sem a atualização 19
+    if (!id) return `⛔ ${v?.motivo || "Carteirinha não reconhecida"}`;
     const al = alunos.find((a) => a.membro_id === id);
     if (!al) return "❓ Carteirinha não é desta turma";
     if (presentesRef.current.has(al.membro_id)) return `✓ ${al.nome} já estava presente`;
@@ -338,6 +338,12 @@ function Chamada() {
       .or(`horario_id.eq.${h?.id},horario_id.is.null`);
     setVisitantes(vis || []);
     setMsg("👋 Visitante registrado. Ele aparece em Aulas experimentais para o pós-aula.");
+  }
+  // link da pré-matrícula já preenchido com os dados do visitante
+  function linkMatricula(v: any) {
+    const resp = String(v.mensagem || "").match(/Responsável: ([^·]+)/)?.[1]?.trim();
+    const q = new URLSearchParams({ nome: v.nome || "", tel: v.telefone || "", ...(v.nascimento ? { nasc: v.nascimento } : {}), ...(resp ? { resp } : {}), ...(v.email ? { email: v.email } : {}) });
+    return `${window.location.origin}/${ctx.academia.slug}/cadastro?${q}`;
   }
   async function visitanteVeio(v: any) {
     await sb.from("aulas_experimentais").update({ status: "compareceu" }).eq("id", v.id);
@@ -624,13 +630,14 @@ function Chamada() {
           <ul className="mt-2 space-y-1.5 text-sm">
             {visitantes.map((v) => {
               const idade = v.nascimento ? Math.floor((Date.now() - new Date(v.nascimento + "T12:00:00").getTime()) / 31557600000) : null;
-              const w = whatsapp(v.telefone, `Oi, ${primeiroNome(v.nome)}! Foi ótimo ter você no treino da ${ctx.academia.nome} 🥋 Para fazer a matrícula é só preencher a ficha por aqui: ${window.location.origin}/${ctx.academia.slug}/cadastro`);
+              const w = whatsapp(v.telefone, `Oi, ${primeiroNome(v.nome)}! Foi ótimo ter você no treino da ${ctx.academia.nome} 🥋 Para fazer a matrícula é só preencher a ficha por aqui (já deixei seus dados): ${linkMatricula(v)}`);
               return (
                 <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-2">
                   <span><b>{v.nome}</b>{idade != null ? ` · ${idade} anos` : ""}{idade != null && idade < 18 ? " 🧒" : ""} <span className="text-xs text-suave">· {v.status === "compareceu" ? "✓ veio" : "agendado"}</span></span>
                   <span className="flex gap-2">
                     {v.status !== "compareceu" && <button className="btn-sec px-3 py-1 text-xs" onClick={() => visitanteVeio(v)}>✅ Veio</button>}
-                    {w && <a className="btn-sec px-3 py-1 text-xs" target="_blank" href={w}>📲 Link de matrícula</a>}
+                    {w && <a className="btn-sec px-3 py-1 text-xs" target="_blank" href={w}>📲 Mandar link</a>}
+                    <a className="btn-sec px-3 py-1 text-xs" target="_blank" href={linkMatricula(v)}>📝 Converter em matrícula</a>
                   </span>
                 </li>
               );

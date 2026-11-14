@@ -93,6 +93,12 @@ export default function Experimentais() {
                 )}
                 {e.status === "agendada" && <button className="btn-sec text-sm" onClick={() => mudar(e, { status: "compareceu" })}>Compareceu</button>}
                 {["agendada", "compareceu"].includes(e.status) && <button className="btn text-sm" onClick={() => matricular(e)}>Matricular</button>}
+                {["agendada", "compareceu"].includes(e.status) && (() => {
+                  const q = new URLSearchParams({ nome: e.nome || "", tel: e.telefone || "", ...(e.nascimento ? { nasc: e.nascimento } : {}), ...(e.email ? { email: e.email } : {}) });
+                  const link = `${typeof window !== "undefined" ? window.location.origin : ""}/${ctx.academia.slug}/cadastro?${q}`;
+                  const w = whatsapp(e.telefone, `Oi, ${primeiroNome(e.nome)}! Que bom que você veio treinar na ${ctx.academia.nome} 🥋 Para fazer a matrícula, é só completar a ficha (já deixei seus dados): ${link}`);
+                  return w ? <a href={w} target="_blank" className="btn-sec text-sm">📝 Mandar pré-matrícula preenchida</a> : null;
+                })()}
                 {!["matriculou", "desistiu"].includes(e.status) && <button className="text-sm text-suave underline" onClick={() => mudar(e, { status: "desistiu" })}>Desistiu</button>}
               </div>
             </li>

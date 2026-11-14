@@ -29,13 +29,14 @@ function Etapa({ n, titulo, ok, aberta, children }: { n: number; titulo: string;
   );
 }
 
-export function FormCadastro({ academia, slug, modalidades, turmas, indicadoPor }: {
+export function FormCadastro({ academia, slug, modalidades, turmas, indicadoPor, inicial = {} }: {
   academia: { id: string; nome: string; termos_cadastro?: any }; slug: string; modalidades: any[]; turmas: any[]; indicadoPor?: string | null;
+  inicial?: { nome?: string; tel?: string; nasc?: string; resp?: string; email?: string }; // visitante que virou matrícula
 }) {
   const sb = supabaseNavegador();
-  const [f, setF] = useState<any>({ sexo: "M" });
+  const [f, setF] = useState<any>({ sexo: "M", nome: inicial.nome || "", nascimento: inicial.nasc || "", telefone: inicial.tel || "", email: inicial.email || "" });
   const [end, setEnd] = useState<any>({});
-  const [r, setR] = useState<any>({ endereco_igual: true });
+  const [r, setR] = useState<any>({ endereco_igual: true, nome: inicial.resp || "", telefone: inicial.resp ? inicial.tel || "" : "" });
   const [aut, setAut] = useState<any[]>([]);
   const [saude, setSaude] = useState<any>({});
   const [emerg, setEmerg] = useState<any>({});
