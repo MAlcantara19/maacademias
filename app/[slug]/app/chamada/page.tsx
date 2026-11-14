@@ -5,8 +5,10 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { DIAS, hora, hojeISO } from "@/lib/util";
+import { DIAS, hora, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
+import { LeitorQR } from "@/components/LeitorQR";
+import { LegendaSelos } from "@/components/LegendaSelos";
 import { Tour } from "@/components/Tour";
 import { minhasTurmas } from "@/lib/turmas";
 import { liberado } from "@/lib/planos";
@@ -68,9 +70,16 @@ function Chamada() {
   const [busca, setBusca] = useState("");
   const [ver, setVer] = useState<"todos" | "faltam" | "presentes">("todos");
   const [gerando, setGerando] = useState(false);
+  const [seguidas, setSeguidas] = useState<Record<string, number>>({});
+  const [zap, setZap] = useState<Record<string, string>>({});
+  const [rapida, setRapida] = useState<{ ids: string[]; i: number; marcados: number } | null>(null);
+  const [lendoQR, setLendoQR] = useState(false);
+  const [aniversarios, setAniversarios] = useState<{ id: string; nome: string; idade: number; hoje: boolean }[]>([]);
+  const [visitantes, setVisitantes] = useState<any[]>([]);
+  const [novoVis, setNovoVis] = useState<any>(null);
 
   useEffect(() => {
-    sb.from("turmas").select("id, nome, professor_id, modalidades(nome, cor), horarios(*)")
+    sb.from("turmas").select("id, nome, professor_id, modalidade_id, modalidades(nome, cor), horarios(*)")
       .eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome")
       .then(({ data }) => {
         const l = minhasTurmas(ctx, data || []).sort((a: any, b: any) => Number(b.professor_id === ctx.professorId) - Number(a.professor_id === ctx.professorId));
@@ -107,10 +116,39 @@ function Chamada() {
       // nomes e apelidos para a chamada por voz
       const ids = (lista || []).map((x: any) => x.membro_id);
       if (ids.length) {
-        const { data: pn } = await sb.from("painel_alunos").select("membro_id, perfil_id, nome, apelido, idade").in("membro_id", ids);
+        const { data: pn } = await sb.from("painel_alunos").select("membro_id, perfil_id, nome, apelido, idade, whatsapp, nascimento").in("membro_id", ids);
         setNomes(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, [x.nome, x.apelido].filter(Boolean)])));
         setPerfisDe(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.perfil_id])));
         setIdades(Object.fromEntries((pn || []).map((x: any) => [x.membro_id, x.idade ?? null])));
+        setZap(Object.fromEntries((pn || []).filter((x: any) => x.whatsapp).map((x: any) => [x.membro_id, x.whatsapp])));
+        // aniversariantes: hoje e nos próximos/últimos 3 dias
+        const ref = new Date(data + "T12:00:00");
+        setAniversarios((pn || []).filter((x: any) => x.nascimento).map((x: any) => {
+          const n = new Date(x.nascimento + "T12:00:00");
+          const este = new Date(ref.getFullYear(), n.getMonth(), n.getDate(), 12);
+          const dif = Math.round((este.getTime() - ref.getTime()) / 86400000);
+          return { id: x.membro_id, nome: x.apelido || x.nome, idade: ref.getFullYear() - n.getFullYear(), dif };
+        }).filter((x: any) => Math.abs(x.dif) <= 3).sort((a: any, b: any) => Math.abs(a.dif) - Math.abs(b.dif)).map((x: any) => ({ ...x, hoje: x.dif === 0 })));
+        // faltas seguidas: últimas aulas desta turma antes deste dia (desde que o aluno entrou)
+        const [{ data: mats }, { data: ult }] = await Promise.all([
+          sb.from("matriculas").select("membro_id, desde").eq("turma_id", turmaId),
+          sb.from("aulas").select("id, data").eq("turma_id", turmaId).lt("data", data).neq("status", "cancelada")
+            .order("data", { ascending: false }).order("hora_inicio", { ascending: false }).limit(8),
+        ]);
+        const { data: pr } = ult?.length ? await sb.from("presencas").select("aula_id, membro_id").in("aula_id", ult.map((u: any) => u.id)) : { data: [] as any[] };
+        const veio = new Set((pr || []).map((x: any) => x.aula_id + "|" + x.membro_id));
+        const desde = Object.fromEntries((mats || []).map((m: any) => [m.membro_id, m.desde]));
+        const seg: Record<string, number> = {};
+        for (const id of ids) {
+          let n = 0;
+          for (const u of ult || []) {
+            if (desde[id] && u.data < desde[id]) break;
+            if (veio.has(u.id + "|" + id)) break;
+            n++;
+          }
+          if (n >= 2) seg[id] = n;
+        }
+        setSeguidas(seg);
         const perfis = (pn || []).map((x: any) => x.perfil_id);
         const [{ data: cp }, { data: fs }] = await Promise.all([
           sb.rpc("cadastros_pendentes", { p_acad: ctx.academia.id }),
@@ -126,6 +164,11 @@ function Chamada() {
       }
       setVao(new Set(((pcRes as any).data || []).map((x: any) => x.membro_id)));
       setPlano((plRes as any).data?.[0] || null);
+      if (h) {
+        const { data: vis } = await sb.from("aulas_experimentais").select("*").eq("academia_id", ctx.academia.id)
+          .or(`horario_id.eq.${h.id},and(horario_id.is.null,data_desejada.eq.${data})`).eq("data_desejada", data);
+        setVisitantes(vis || []);
+      } else setVisitantes([]);
       if (!h) return;
       const a: any = (aRes as any).data;
       if (a) {
@@ -246,11 +289,80 @@ function Chamada() {
     if (r.error) ids.forEach((id) => guardar("desmarcar", id));
   }
 
+  // ---------- QR da carteirinha: lê e marca presente ----------
+  async function lerCarteirinha(texto: string) {
+    let id = alunos.find((a) => a.membro_id === texto)?.membro_id;
+    if (!id) {
+      const { data: c } = await sb.from("carteirinhas").select("membro_id").eq("codigo", texto).maybeSingle();
+      id = c?.membro_id;
+    }
+    const al = alunos.find((a) => a.membro_id === id);
+    if (!al) return "❓ Carteirinha não é desta turma";
+    if (presentesRef.current.has(al.membro_id)) return `✓ ${al.nome} já estava presente`;
+    await marcarVarios([al.membro_id]);
+    return `✅ ${al.nome} marcado(a)`;
+  }
+
+  // ---------- Aniversário: toca a melodia do parabéns ----------
+  function tocarParabens() {
+    try {
+      const ac = new AudioContext();
+      const N: Record<string, number> = { G4: 392, A4: 440, B4: 494, C5: 523, D5: 587, E5: 659, F5: 698, G5: 784 };
+      const notas: [string, number][] = [["G4", .75], ["G4", .25], ["A4", 1], ["G4", 1], ["C5", 1], ["B4", 2], ["G4", .75], ["G4", .25], ["A4", 1], ["G4", 1], ["D5", 1], ["C5", 2],
+        ["G4", .75], ["G4", .25], ["G5", 1], ["E5", 1], ["C5", 1], ["B4", 1], ["A4", 2], ["F5", .75], ["F5", .25], ["E5", 1], ["C5", 1], ["D5", 1], ["C5", 2]];
+      let t = ac.currentTime + 0.1; const b = 0.42;
+      for (const [n, d] of notas) {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = "triangle"; o.frequency.value = N[n]; o.connect(g); g.connect(ac.destination);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + d * b * 0.95);
+        o.start(t); o.stop(t + d * b); t += d * b;
+      }
+    } catch { /* sem áudio */ }
+    setFesta(true); setTimeout(() => setFesta(false), 9000);
+  }
+  const [festa, setFesta] = useState(false);
+
+  // ---------- Visitante (aula experimental na hora) ----------
+  async function salvarVisitante() {
+    if (!novoVis?.nome?.trim() || !novoVis?.telefone?.trim()) return setMsg("Para o visitante, preencha pelo menos nome e WhatsApp.");
+    const h = horariosDoDia.find((x: any) => x.id === horarioId);
+    const { error } = await sb.from("aulas_experimentais").insert({
+      academia_id: ctx.academia.id, modalidade_id: turma?.modalidade_id || null, horario_id: h?.id || null, data_desejada: data,
+      nome: novoVis.nome.trim(), telefone: novoVis.telefone.trim(), nascimento: novoVis.nascimento || null, email: novoVis.email || null,
+      mensagem: [novoVis.responsavel && `Responsável: ${novoVis.responsavel}`, novoVis.obs].filter(Boolean).join(" · ") || "Visitante registrado na chamada",
+      status: "compareceu", encaminhada_para: ctx.membroId,
+    });
+    if (error) return setMsg("Não foi possível salvar o visitante: " + error.message);
+    setNovoVis(null);
+    const { data: vis } = await sb.from("aulas_experimentais").select("*").eq("academia_id", ctx.academia.id).eq("data_desejada", data)
+      .or(`horario_id.eq.${h?.id},horario_id.is.null`);
+    setVisitantes(vis || []);
+    setMsg("👋 Visitante registrado. Ele aparece em Aulas experimentais para o pós-aula.");
+  }
+  async function visitanteVeio(v: any) {
+    await sb.from("aulas_experimentais").update({ status: "compareceu" }).eq("id", v.id);
+    setVisitantes((l) => l.map((x) => (x.id === v.id ? { ...x, status: "compareceu" } : x)));
+  }
+
+  // ---------- Chamada rápida: um aluno por vez, "veio / não veio" ----------
+  function abrirRapida() {
+    const ids = alunos.filter((a) => !presentesRef.current.has(a.membro_id)).map((a) => a.membro_id);
+    if (!ids.length) return setMsg("Todos já estão marcados como presentes.");
+    setRapida({ ids, i: 0, marcados: 0 });
+  }
+  function responder(veio: boolean) {
+    if (!rapida) return;
+    const id = rapida.ids[rapida.i];
+    if (veio !== presentesRef.current.has(id)) alternar(id); // ao voltar, dá para corrigir
+    setRapida({ ...rapida, i: rapida.i + 1, marcados: rapida.marcados + (veio ? 1 : 0) });
+  }
+
   // ---------- Imprimir / PDF ----------
   const horarioTxt = () => { const h = horariosDoDia.find((x: any) => x.id === horarioId); return h ? `${hora(h.hora_inicio)}–${hora(h.hora_fim)}` : ""; };
   const obsDe = (a: any) => [
     idades[a.membro_id] != null && idades[a.membro_id]! < 18 ? "Menor de idade" : "",
     pend[a.membro_id] ? `Cadastro pendente (${pend[a.membro_id].length})` : "",
+    seguidas[a.membro_id] ? `Faltou as últimas ${seguidas[a.membro_id]}` : "",
     saude[perfisDe[a.membro_id]] ? `Saúde: ${saude[perfisDe[a.membro_id]].join("; ")}` : "",
   ].filter(Boolean).join(" · ");
   async function baixarPdf() {
@@ -423,6 +535,9 @@ function Chamada() {
             {liberado(ctx.academia.plano, "chamada_voz") && <button className="btn-sec text-sm" onClick={alternarVoz} disabled={cancelada} style={ouvindo ? { background: "var(--color-erro)", borderColor: "var(--color-erro)" } : {}}>
               {ouvindo ? "⏹ Parar" : "🎤 Por voz"}
             </button>}
+            <button className="btn text-sm" onClick={abrirRapida} disabled={cancelada || !alunos.length}>⚡ Chamada rápida</button>
+            <button className="btn-sec text-sm" onClick={() => setLendoQR(true)} disabled={cancelada || !alunos.length}>📷 Ler carteirinha</button>
+            <button className="btn-sec text-sm" onClick={() => setNovoVis(novoVis ? null : {})} disabled={cancelada}>👋 Visitante</button>
             <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>✅ Marcar todos</button>
             <button className="btn-sec text-sm" onClick={desmarcarTodos} disabled={cancelada || !presentes.size}>↩️ Desmarcar todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
@@ -473,6 +588,56 @@ function Chamada() {
         </details>
       )}
       {cancelada && <p className="rounded-xl bg-alerta/15 p-3 text-alerta">Aula cancelada. Ela não conta na frequência.</p>}
+      {aniversarios.length > 0 && !cancelada && (
+        <section className="relative overflow-hidden rounded-2xl p-4 text-white" style={{ background: "linear-gradient(135deg, #db2777, #f59e0b)" }}>
+          {festa && Array.from({ length: 24 }).map((_, i) => (
+            <span key={i} className="confete" style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 8) * 0.25}s`, background: ["#facc15", "#ffffff", "#22c55e", "#3b82f6"][i % 4] }} />
+          ))}
+          <p className="text-xl font-extrabold">🎂 {aniversarios.some((a) => a.hoje) ? "Tem aniversariante hoje!" : "Aniversariantes da semana"}</p>
+          <ul className="mt-1 space-y-0.5">
+            {aniversarios.map((a) => (
+              <li key={a.id}>{a.hoje ? "🎉" : "🎈"} <b>{a.nome}</b> · {a.hoje ? `faz ${a.idade} anos hoje` : `${a.idade} anos ${(a as any).dif > 0 ? `em ${(a as any).dif} dia(s)` : `há ${-(a as any).dif} dia(s)`}`}</li>
+            ))}
+          </ul>
+          <button className="relative mt-2 rounded-xl bg-white/25 px-4 py-2 font-bold" onClick={tocarParabens}>🎶 Tocar o parabéns no fim da aula</button>
+        </section>
+      )}
+      {novoVis && !cancelada && (
+        <section className="space-y-2 rounded-2xl border-2 bg-painel p-4" style={{ borderColor: "var(--cor)" }}>
+          <p className="text-lg font-bold">👋 Visitante (aula experimental)</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input className="campo" placeholder="Nome *" value={novoVis.nome || ""} onChange={(e) => setNovoVis({ ...novoVis, nome: e.target.value })} />
+            <input className="campo" type="tel" placeholder="WhatsApp *" value={novoVis.telefone || ""} onChange={(e) => setNovoVis({ ...novoVis, telefone: e.target.value })} />
+            <div><label className="rotulo">Nascimento</label><input className="campo" type="date" value={novoVis.nascimento || ""} onChange={(e) => setNovoVis({ ...novoVis, nascimento: e.target.value })} /></div>
+            <input className="campo self-end" placeholder="E-mail (opcional)" value={novoVis.email || ""} onChange={(e) => setNovoVis({ ...novoVis, email: e.target.value })} />
+            {novoVis.nascimento && (Date.now() - new Date(novoVis.nascimento).getTime()) / 31557600000 < 18 && (
+              <input className="campo sm:col-span-2" placeholder="Nome do responsável (menor de idade)" value={novoVis.responsavel || ""} onChange={(e) => setNovoVis({ ...novoVis, responsavel: e.target.value })} />
+            )}
+            <input className="campo sm:col-span-2" placeholder="Observação (ex.: já treinou, veio com amigo)" value={novoVis.obs || ""} onChange={(e) => setNovoVis({ ...novoVis, obs: e.target.value })} />
+          </div>
+          <div className="flex gap-2"><button className="btn" onClick={salvarVisitante}>Salvar visitante</button><button className="btn-sec" onClick={() => setNovoVis(null)}>Cancelar</button></div>
+        </section>
+      )}
+      {visitantes.length > 0 && !cancelada && (
+        <section className="rounded-2xl bg-painel p-3">
+          <p className="font-bold">👋 Visitantes / aula experimental ({visitantes.length})</p>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {visitantes.map((v) => {
+              const idade = v.nascimento ? Math.floor((Date.now() - new Date(v.nascimento + "T12:00:00").getTime()) / 31557600000) : null;
+              const w = whatsapp(v.telefone, `Oi, ${primeiroNome(v.nome)}! Foi ótimo ter você no treino da ${ctx.academia.nome} 🥋 Para fazer a matrícula é só preencher a ficha por aqui: ${window.location.origin}/${ctx.academia.slug}/cadastro`);
+              return (
+                <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-2">
+                  <span><b>{v.nome}</b>{idade != null ? ` · ${idade} anos` : ""}{idade != null && idade < 18 ? " 🧒" : ""} <span className="text-xs text-suave">· {v.status === "compareceu" ? "✓ veio" : "agendado"}</span></span>
+                  <span className="flex gap-2">
+                    {v.status !== "compareceu" && <button className="btn-sec px-3 py-1 text-xs" onClick={() => visitanteVeio(v)}>✅ Veio</button>}
+                    {w && <a className="btn-sec px-3 py-1 text-xs" target="_blank" href={w}>📲 Link de matrícula</a>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       {urgentes.length > 0 && !cancelada && (
         <details className="rounded-2xl border-2 p-3" style={{ borderColor: "var(--color-erro)", background: "color-mix(in srgb, var(--color-erro) 12%, transparent)" }} open={urgentes.some((a) => menor(a.membro_id))}>
           <summary className="cursor-pointer font-bold text-erro">🚨 URGENTE: {urgentes.length} aluno(s) com cadastro pendente{urgentes.some((a) => menor(a.membro_id)) ? ` (${urgentes.filter((a) => menor(a.membro_id)).length} menor(es) de idade)` : ""}</summary>
@@ -486,6 +651,22 @@ function Chamada() {
                 <Link className="btn-sec px-3 py-1 text-xs" href={`${base}/alunos/${a.membro_id}/cadastro`}>Resolver</Link>
               </li>
             ))}
+          </ul>
+        </details>
+      )}
+      {Object.keys(seguidas).length > 0 && !cancelada && (
+        <details className="rounded-2xl bg-painel p-3">
+          <summary className="cursor-pointer font-bold">📉 Faltando seguido: {Object.keys(seguidas).length} aluno(s)</summary>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {alunos.filter((a) => seguidas[a.membro_id]).sort((x, y) => seguidas[y.membro_id] - seguidas[x.membro_id]).map((a) => {
+              const w = whatsapp(zap[a.membro_id], `Oi, ${primeiroNome(nomes[a.membro_id]?.[1] || a.nome)}! Aqui é da ${ctx.academia.nome}. Sentimos sua falta nos últimos treinos da turma ${turma?.nome}. Está tudo bem? Te esperamos no tatame! 🥋`);
+              return (
+                <li key={a.membro_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-painel2 p-2">
+                  <span><b>{a.nome}</b> <span className={seguidas[a.membro_id] >= 3 ? "font-semibold text-erro" : "text-alerta"}>· faltou as últimas {seguidas[a.membro_id]}{seguidas[a.membro_id] >= 8 ? "+" : ""}</span></span>
+                  {w && <a className="btn-sec px-3 py-1 text-xs" href={w} target="_blank">💬 Mandar mensagem</a>}
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
@@ -523,6 +704,7 @@ function Chamada() {
                           🚨 {menor(a.membro_id) ? "URGENTE: " : ""}cadastro pendente ({pend[a.membro_id].length})
                         </span>
                       )}
+                      {seguidas[a.membro_id] && <span className={`rounded-full px-2 text-xs font-semibold ${seguidas[a.membro_id] >= 3 ? "bg-erro/20 text-erro" : "bg-alerta/20"}`}>📉 faltou as últimas {seguidas[a.membro_id]}</span>}
                       {sd && <span className="rounded-full px-2 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--color-alerta) 30%, transparent)" }} title={sd.join(" · ")}>⚕️ {sd[0].length > 34 ? sd[0].slice(0, 32) + "…" : sd[0]}{sd.length > 1 ? ` +${sd.length - 1}` : ""}</span>}
                       {(a.alertas || []).map((al: any, k: number) => (
                         <span key={k} className="text-xs text-suave" title={al.texto}>{al.icone} {al.texto}</span>
@@ -560,11 +742,53 @@ function Chamada() {
         </section>
       )}
 
+      <LegendaSelos titulos={false} ranking={false} />
       <p className="text-sm text-suave">
         Check-in pelo QR da parede: veja o código em <Link className="underline" href={`${base}/config`}>Personalizar academia</Link>.
         {" "}Lista do mês inteiro: <Link className="underline" href={`${base}/lista-presenca`}>Lista de presença</Link>.
       </p>
     </div>
+
+    {lendoQR && <LeitorQR onLer={lerCarteirinha} onFechar={() => setLendoQR(false)} />}
+    {rapida && (() => {
+      const fim = rapida.i >= rapida.ids.length;
+      const a = fim ? null : alunos.find((x) => x.membro_id === rapida.ids[rapida.i]);
+      return (
+        <div className="nao-imprimir fixed inset-0 z-[90] flex flex-col bg-fundo p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-suave">⚡ Chamada rápida · {turma?.nome}</p>
+            <button className="btn-sec text-sm" onClick={() => setRapida(null)}>✕ Fechar</button>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-painel2"><div className="h-full" style={{ width: `${(Math.min(rapida.i, rapida.ids.length) / rapida.ids.length) * 100}%`, background: "var(--cor)" }} /></div>
+          {fim ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+              <p className="text-5xl">✅</p>
+              <p className="text-2xl font-bold">Chamada feita!</p>
+              <p className="text-suave">{rapida.marcados} marcado(s) agora · {presentes.size} de {alunos.length} presentes</p>
+              <button className="btn px-8 py-4 text-lg" onClick={() => setRapida(null)}>Concluir</button>
+            </div>
+          ) : a && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+              <p className="numero text-sm text-suave">{rapida.i + 1} de {rapida.ids.length}</p>
+              <Avatar foto={a.foto_url} nome={a.nome} cor={a.cor_faixa} grau={a.grau} tamanho={140} />
+              <p className="text-3xl font-extrabold leading-tight sm:text-4xl">{nomes[a.membro_id]?.[1] || a.nome}</p>
+              {nomes[a.membro_id]?.[1] && <p className="text-suave">{a.nome}</p>}
+              <div className="flex flex-wrap justify-center gap-1.5 text-sm">
+                {menor(a.membro_id) && <span className="chip">🧒 {idades[a.membro_id]} anos</span>}
+                {vao.has(a.membro_id) && <span className="chip">✋ avisou que vinha</span>}
+                {seguidas[a.membro_id] && <span className="chip">📉 faltou as últimas {seguidas[a.membro_id]}</span>}
+                {pend[a.membro_id] && <span className="chip border-erro text-erro">🚨 cadastro pendente</span>}
+              </div>
+              <div className="mt-4 grid w-full max-w-md grid-cols-2 gap-3">
+                <button className="rounded-3xl py-8 text-2xl font-extrabold text-white" style={{ background: "var(--color-erro)" }} onClick={() => responder(false)}>❌ Não veio</button>
+                <button className="rounded-3xl py-8 text-2xl font-extrabold text-white" style={{ background: "var(--color-ok)" }} onClick={() => responder(true)}>✅ Veio</button>
+              </div>
+              {rapida.i > 0 && <button className="text-sm text-suave underline" onClick={() => setRapida({ ...rapida, i: rapida.i - 1 })}>⬅️ Voltar ao anterior</button>}
+            </div>
+          )}
+        </div>
+      );
+    })()}
 
     {/* Versão para imprimir (só aparece na impressão) */}
     <div className="hidden bg-white p-2 text-black print:block">

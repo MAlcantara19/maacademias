@@ -1,4 +1,5 @@
 "use client";
+import { criarLogin } from "@/lib/criarLogin";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -134,7 +135,11 @@ export default function Gestao() {
     if ((form.modalidades || []).length) {
       await sb.from("professores_modalidades").insert(form.modalidades.map((m: string) => ({ membro_id: membroId, modalidade_id: m, whatsapp_publico: form.whatsapp || null, bio: form.bio || null, graduacao: form.graduacao || null })));
     }
-    setMsg("Professor cadastrado. Ele entra pelo “Primeiro acesso” com esse e-mail."); setForm(null); carregar();
+    const acesso = await criarLogin(sb, perfilId);
+    setMsg(acesso.senha
+      ? `Professor cadastrado! Acesso: ${acesso.email} · senha provisória ${acesso.senha} (ele troca no primeiro acesso).`
+      : `Professor cadastrado. ${acesso.erro || ""}`);
+    setForm(null); carregar();
   }
   async function alternarModalidadeProf(p: any, modId: string) {
     const tem = (p.professores_modalidades || []).some((x: any) => x.modalidade_id === modId);

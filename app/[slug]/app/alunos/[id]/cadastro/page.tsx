@@ -3,7 +3,8 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
-import { abrirAnexo, dataBR, dataHoraBR } from "@/lib/util";
+import { abrirAnexo, dataBR, dataHoraBR, whatsapp } from "@/lib/util";
+import { criarLogin, textoAcesso } from "@/lib/criarLogin";
 import { comprimir } from "@/lib/imagem";
 import { FichaSaude } from "@/components/FichaSaude";
 import { AssinaturaPad } from "@/components/AssinaturaPad";
@@ -206,6 +207,7 @@ function Responsavel({ aluno, resp, recarregar, ok }: any) {
   const ctx = useCtx();
   const sb = supabaseNavegador();
   const atual = resp.find((r: any) => r.principal) || resp[0];
+  const [acesso, setAcesso] = useState<any>(null);
   const [f, setF] = useState<any>(() => ({ ...(atual?.perfis || {}), parentesco: atual?.parentesco || "", endereco_igual: !atual?.perfis?.endereco }));
   const [aut, setAut] = useState<any[]>(aluno.autorizados_retirada || []);
   const [msg, setMsg] = useState("");
@@ -266,7 +268,23 @@ function Responsavel({ aluno, resp, recarregar, ok }: any) {
         <button type="button" className="btn-sec text-sm" onClick={() => setAut([...aut, {}])}>+ Pessoa autorizada</button>
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
-      <button className="btn w-full sm:w-auto" onClick={salvar}>Salvar responsável</button>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn w-full sm:w-auto" onClick={salvar}>Salvar responsável</button>
+        {ctx.equipe && atual?.perfis && !atual.perfis.user_id && atual.perfis.email && (
+          <button className="btn-sec w-full sm:w-auto" onClick={async () => {
+            const r = await criarLogin(supabaseNavegador(), atual.responsavel_id);
+            if (r.erro) return setMsg(r.erro);
+            setAcesso(r); recarregar();
+          }}>🔑 Criar login do responsável</button>
+        )}
+      </div>
+      {acesso && (
+        <div className="rounded-xl border-2 border-ok p-3 text-sm">
+          <p className="font-semibold">Login criado ✓</p>
+          <p>E-mail: <b>{acesso.email}</b> · Senha provisória: <b className="numero">{acesso.senha}</b></p>
+          <a className="btn-sec mt-2 text-sm" target="_blank" href={whatsapp(f.telefone, textoAcesso(ctx.academia.nome, acesso.email, acesso.senha, `${window.location.origin}/login`)) || undefined}>📲 Mandar pelo WhatsApp</a>
+        </div>
+      )}
     </Etapa>
   );
 }
@@ -366,6 +384,7 @@ function Documentos({ aluno, menor, resp, docs, recarregar, n, ok }: any) {
   const ctx = useCtx();
   const sb = supabaseNavegador();
   const [tipo, setTipo] = useState(menor ? "doc_responsavel" : "atestado");
+  const [validade, setValidade] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState("");
   const par = ((resp.find((x: any) => x.principal) || resp[0])?.parentesco || "").toLowerCase();
@@ -379,7 +398,8 @@ function Documentos({ aluno, menor, resp, docs, recarregar, n, ok }: any) {
     const caminho = `${ctx.academia.id}/documentos/${aluno.id}/${Date.now()}-${tipo}.${ext}`;
     const up = await sb.storage.from("privado").upload(caminho, ext === "pdf" ? arq : await comprimir(arq, 1800, 0.8));
     if (up.error) { setEnviando(false); return setMsg("Não foi possível enviar: " + up.error.message); }
-    const { error } = await sb.from("documentos").insert({ academia_id: ctx.academia.id, perfil_id: aluno.id, tipo, nome: arq.name, arquivo: "privado:" + caminho });
+    const { error } = await sb.from("documentos").insert({ academia_id: ctx.academia.id, perfil_id: aluno.id, tipo, nome: arq.name, arquivo: "privado:" + caminho, validade: validade || null });
+    setValidade("");
     setEnviando(false); setMsg(error ? error.message : "Documento enviado."); recarregar();
   }
   async function apagar(d: any) {
@@ -396,8 +416,9 @@ function Documentos({ aluno, menor, resp, docs, recarregar, n, ok }: any) {
           {exigidos.map((t) => <li key={t}>{docs.some((d: any) => d.tipo === t) ? "✅" : "⬜"} {TIPOS_DOC[t]} *</li>)}
         </ul>
       )}
-      <p className="text-xs text-suave">🔒 Os documentos só podem ser abertos pelo aluno, pelo responsável e pelos professores/admin dele. Foto ou PDF, até 8 MB.</p>
+      <p className="text-xs text-suave">🔒 Os documentos só podem ser abertos pelo aluno, pelo responsável e pelos professores/admin dele. Foto ou PDF, até 8 MB. Se o documento vence (ex.: atestado), coloque a validade: o app avisa 30 dias antes.</p>
       <div className="flex flex-col gap-2 sm:flex-row">
+        <input type="date" className="campo sm:w-auto" title="Validade (opcional): o app avisa quando vencer" value={validade} onChange={(x) => setValidade(x.target.value)} />
         <select className="campo sm:w-auto" value={tipo} onChange={(x) => setTipo(x.target.value)}>{Object.entries(TIPOS_DOC).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         <label className={`btn-sec cursor-pointer text-center ${enviando ? "opacity-50" : ""}`}>📎 {enviando ? "Enviando…" : "Enviar arquivo"}
           <input type="file" accept="image/*,application/pdf" className="hidden" disabled={enviando} onChange={(x) => enviar(x.target.files?.[0])} />
@@ -407,7 +428,8 @@ function Documentos({ aluno, menor, resp, docs, recarregar, n, ok }: any) {
       <ul className="divide-y divide-linha">
         {docs.map((d: any) => (
           <li key={d.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-            <span className="min-w-0 flex-1"><b>{TIPOS_DOC[d.tipo] || d.tipo}</b><span className="block truncate text-xs text-suave">{d.nome} · {dataBR(d.criado_em)}</span></span>
+            <span className="min-w-0 flex-1"><b>{TIPOS_DOC[d.tipo] || d.tipo}</b>
+              {d.validade && <span className={`ml-2 rounded-full px-2 text-xs font-semibold ${d.validade < new Date().toISOString().slice(0, 10) ? "bg-erro text-white" : "bg-painel2"}`}>{d.validade < new Date().toISOString().slice(0, 10) ? "⛔ venceu" : "vale até"} {dataBR(d.validade)}</span>}<span className="block truncate text-xs text-suave">{d.nome} · {dataBR(d.criado_em)}</span></span>
             <button className="underline" onClick={() => abrirAnexo(sb, d.arquivo)}>abrir</button>
             {ctx.equipe && <button className="text-suave underline" onClick={() => apagar(d)}>apagar</button>}
           </li>

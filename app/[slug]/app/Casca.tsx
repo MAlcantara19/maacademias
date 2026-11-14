@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProvedorCtx, type Ctx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
+import { VerComo } from "@/components/VerComo";
 import { Faixa } from "@/components/Faixa";
 import { BoasVindas } from "@/components/BoasVindas";
 import { Contrato } from "@/components/Contrato";
@@ -17,7 +18,7 @@ import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
-export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; outras?: any[]; children: React.ReactNode }) {
+export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras = [], children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; verComoNivel?: string; outras?: any[]; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [mais, setMais] = useState(false);
@@ -156,7 +157,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
           <div className="border-t border-linha pt-3 text-sm">
             <p className="truncate font-semibold">{ctx.perfil?.nome}</p>
             <p className="text-suave">{ctx.papeis.map((p) => ({ admin: "Admin", professor: "Professor", aluno: "Aluno", responsavel: "Responsável" } as any)[p]).join(" · ")}</p>
-            {ctx.equipe && <button onClick={() => verComo("primeiro")} className="mt-2 block text-suave underline">👁️ Ver como aluno</button>}
+            {verComoNivel && <VerComo academiaId={ctx.academia.id} nivel={verComoNivel as any} onEscolher={verComo} className="mt-2 text-suave" />}
             {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
             <InstalarApp className="mt-1 block text-suave underline" />
             <BotaoTema className="mt-1 block text-suave underline" />
@@ -176,8 +177,11 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
 
           {vendoComo && (
             <div className="nao-imprimir flex items-center justify-between gap-2 bg-alerta px-4 py-2 text-sm font-semibold text-black">
-              <span>👁️ Vendo o app como aluno: {vendoComo.nome}</span>
-              <button className="underline" onClick={() => verComo("")}>Voltar para a minha visão</button>
+              <span>👁️ Vendo como {vendoComo.tipo || "aluno"}: {vendoComo.nome}</span>
+              <span className="flex flex-wrap items-center gap-3">
+                <button className="underline md:hidden" onClick={() => setMais(true)}>Trocar</button>
+                <button className="underline" onClick={() => verComo("")}>Voltar para a minha visão</button>
+              </span>
             </div>
           )}
           <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 md:px-6 md:pb-12 md:pt-6 lg:px-8 lg:pt-8">{children}</main>
@@ -215,7 +219,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, outras = [], children }: 
                   {outras.map((a: any) => <Link key={a.slug} href={`/${a.slug}/app`} onClick={() => setMais(false)} className="btn-sec w-full">↔ {a.nome}</Link>)}
                 </div>
               )}
-              {ctx.equipe && <button onClick={() => { setMais(false); verComo("primeiro"); }} className="btn-sec mt-4 w-full">👁️ Ver como aluno</button>}
+              {verComoNivel && <VerComo academiaId={ctx.academia.id} nivel={verComoNivel as any} onEscolher={(v) => { setMais(false); verComo(v); }} className="mt-4 rounded-2xl bg-painel2 p-3 font-semibold" />}
               <InstalarApp className="btn mt-2 w-full" />
               <BotaoTema className="btn-sec mt-2 w-full" />
               <BotaoEfeitos className="btn-sec mt-2 w-full" />

@@ -89,9 +89,15 @@ function FormLogin() {
       {msg && <p className="text-sm text-alerta">{msg}</p>}
       <button className="btn w-full" disabled={carregando}>{carregando ? "Aguarde..." : primeiro ? "Criar minha senha" : "Entrar"}</button>
       {!primeiro && <button type="button" className="w-full text-sm text-suave underline" onClick={esqueci}>Esqueci a senha</button>}
-      <button type="button" className="w-full text-sm underline" onClick={() => { setPrimeiro(!primeiro); setMsg(""); }}>
-        {primeiro ? "Já tenho conta — entrar" : "Primeiro acesso? Criar minha senha"}
-      </button>
+      {/* A academia entrega o e-mail e uma senha provisória; no 1º acesso o app pede para trocar.
+          (O "criar minha senha" antigo só aparece com ?primeiro=1 no endereço.) */}
+      {params.get("primeiro") === "1" ? (
+        <button type="button" className="w-full text-sm underline" onClick={() => { setPrimeiro(!primeiro); setMsg(""); }}>
+          {primeiro ? "Já tenho conta — entrar" : "Primeiro acesso? Criar minha senha"}
+        </button>
+      ) : (
+        <p className="text-center text-xs text-suave">Ainda não tem senha? Peça à sua academia: ela envia seu e-mail e uma senha provisória, que você troca no primeiro acesso.</p>
+      )}
     </form>
   );
 }

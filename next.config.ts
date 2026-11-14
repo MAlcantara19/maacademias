@@ -3,13 +3,14 @@ import type { NextConfig } from "next";
 // Regras de segurança enviadas em todas as páginas (as que o teste de segurança pediu)
 const CSP = [
   "default-src 'self'",
-  // 'unsafe-eval' é necessário para o reconhecimento facial (TensorFlow) rodar no navegador
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
+  // 'unsafe-eval' é necessário para o reconhecimento facial (TensorFlow) rodar no navegador;
+  // cdn.jsdelivr.net e storage.googleapis.com: "tirar o fundo da foto" (MediaPipe)
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://brasilapi.com.br",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://brasilapi.com.br https://cdn.jsdelivr.net https://storage.googleapis.com",
   "frame-src https://www.openstreetmap.org https://drive.google.com https://www.google.com https://www.youtube.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

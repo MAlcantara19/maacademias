@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { supabaseNavegador } from "@/lib/supabase/client";
 
 // "Vou nessa aula": o aluno avisa que vai e vê quantos já confirmaram
-export function PreCheckin({ academiaId, horarioId, data, membroId, claro = false }: { academiaId: string; horarioId: string; data: string; membroId: string; claro?: boolean }) {
+// nome: quando o responsável tem mais de um filho, mostra de quem é a confirmação
+export function PreCheckin({ academiaId, horarioId, data, membroId, claro = false, nome }: { academiaId: string; horarioId: string; data: string; membroId: string; claro?: boolean; nome?: string | null }) {
   const sb = supabaseNavegador();
   const [vou, setVou] = useState(false);
   const [total, setTotal] = useState(0);
@@ -25,7 +26,7 @@ export function PreCheckin({ academiaId, horarioId, data, membroId, claro = fals
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3">
       <button onClick={alternar} className={`rounded-xl px-4 py-2 font-semibold ${claro ? (vou ? "bg-white text-black" : "border border-white/70") : vou ? "btn" : "btn-sec"}`}>
-        {vou ? "✋ Vou! (toque para desmarcar)" : "✋ Vou nessa aula"}
+        {nome ? (vou ? `✋ ${nome} vai! (toque para desmarcar)` : `✋ ${nome} vai nessa aula`) : vou ? "✋ Vou! (toque para desmarcar)" : "✋ Vou nessa aula"}
       </button>
       <span className="text-sm opacity-90">{total ? `${total} ${total === 1 ? "pessoa confirmou" : "pessoas confirmaram"}` : "Ninguém confirmou ainda"}</span>
     </div>

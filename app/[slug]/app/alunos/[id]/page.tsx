@@ -1,5 +1,5 @@
 "use client";
-import { ColarImagem } from "@/components/ColarImagem";
+import { SeletorFoto } from "@/components/RecortarFoto";
 import { comprimir } from "@/lib/imagem";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { ComparaPeso } from "@/components/ComparaPeso";
 import { CadastroRosto } from "@/components/CadastroRosto";
 import { MeusCampeonatos } from "@/components/MeusCampeonatos";
 import { FichaSaude } from "@/components/FichaSaude";
+import { LegendaSelos } from "@/components/LegendaSelos";
 import { liberado } from "@/lib/planos";
 import { DIAS, hora } from "@/lib/util";
 
@@ -242,11 +243,8 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="rotulo">Foto</label>
-              <div className="flex flex-wrap items-start gap-2">
-                <input type="file" accept="image/*" className="campo min-w-0 flex-1" onChange={(e) => f("arquivo", e.target.files?.[0])} />
-                <ColarImagem onImagem={(arq) => f("arquivo", arq)} />
-              </div>
-              {form.arquivo && <p className="mt-1 text-xs text-ok">Nova foto pronta: toque em Salvar.</p>}
+              <SeletorFoto onPronto={(arq) => f("arquivo", arq)} />
+              {form.arquivo && <p className="mt-1 text-xs text-ok">✓ Foto ajustada: toque em Salvar.</p>}
             </div>
             {ctx.equipe && <div><label className="rotulo">Nome completo</label><input className="campo" defaultValue={x.perfil?.nome || ""} onChange={(e) => f("nome", e.target.value)} /></div>}
             <div><label className="rotulo">Apelido</label><input className="campo" defaultValue={x.perfil?.apelido || ""} onChange={(e) => f("apelido", e.target.value)} /></div>
@@ -373,6 +371,8 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
             </Bloco>
           );
         })()}
+
+        <LegendaSelos ranking={false} icones={false} />
 
         <Bloco titulo="🏅 Campeonatos">
           <MeusCampeonatos academiaId={ctx.academia.id} membroId={id} podeEditar={ctx.equipe || meu} />

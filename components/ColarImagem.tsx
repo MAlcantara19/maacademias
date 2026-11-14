@@ -15,6 +15,7 @@ export function ColarImagem({ onImagem, rotulo = "📋 Colar imagem", className 
 }) {
   const [caixa, setCaixa] = useState(false);
   const [msg, setMsg] = useState("");
+  const [sobre, setSobre] = useState(false);
   const area = useRef<HTMLDivElement>(null);
 
   function usar(b: Blob) {
@@ -46,11 +47,20 @@ export function ColarImagem({ onImagem, rotulo = "📋 Colar imagem", className 
     else setMsg("O que foi colado não é uma imagem.");
   }
 
+  // arrastar e soltar (computador): arraste a foto de outra janela até o botão
+  function aoSoltar(e: React.DragEvent) {
+    e.preventDefault(); e.stopPropagation(); setSobre(false);
+    const arq = Array.from(e.dataTransfer.files || []).find((f) => f.type.startsWith("image/"));
+    if (arq) usar(arq); else setMsg("Solte um arquivo de imagem.");
+  }
+
   return (
     <span className="inline-flex flex-col gap-1">
-      <button type="button" className={className} onClick={colar}>{rotulo}</button>
+      <button type="button" className={className} onClick={colar} title="Cole uma imagem copiada ou arraste uma foto até aqui"
+        onDragOver={(e) => { e.preventDefault(); setSobre(true); }} onDragLeave={() => setSobre(false)} onDrop={aoSoltar}
+        style={sobre ? { outline: "3px dashed var(--cor)", outlineOffset: 2 } : undefined}>{sobre ? "⬇️ Solte aqui" : rotulo}</button>
       {caixa && (
-        <div ref={area} contentEditable suppressContentEditableWarning onPaste={aoColar} onInput={(e) => { (e.target as HTMLDivElement).innerHTML = ""; }}
+        <div ref={area} contentEditable suppressContentEditableWarning onPaste={aoColar} onDragOver={(e) => e.preventDefault()} onDrop={aoSoltar} onInput={(e) => { (e.target as HTMLDivElement).innerHTML = ""; }}
           className="min-h-14 rounded-xl border-2 border-dashed border-linha p-2 text-center text-xs text-suave outline-none focus:border-[var(--cor)]"
           aria-label="Cole a imagem aqui">
           Toque e segure aqui → <b>Colar</b> (no computador: Ctrl+V)

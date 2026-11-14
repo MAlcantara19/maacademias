@@ -203,3 +203,17 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 ## Atualização 18 (chamada e colar imagem)
 - Chamada: ✅ Marcar todos / ↩️ Desmarcar todos, busca, filtro Faltando/Presentes, % de presença, 🧒 aviso de menor, 🚨 cadastro pendente URGENTE (com botão Resolver), ⚕️ alerta de saúde, 📄 Baixar PDF e 🖨️ Imprimir.
 - 📋 Colar imagem: foto do aluno, carteirinha, rosto, logo, capa e banners aceitam imagem copiada (ex.: foto de perfil do WhatsApp Web → Copiar imagem). Não precisa rodar SQL novo.
+
+## Atualização 19 (recorte de foto e chamada rápida)
+- Fotos (aluno, carteirinha 3x4, logo): escolher, colar ou **arrastar** → tela **✂️ Ajustar a foto** (arrastar, zoom, girar). Logo com fundo transparente continua transparente.
+- Chamada: **⚡ Chamada rápida** (um aluno por vez: ✅ Veio / ❌ Não veio) e **📉 Faltando seguido** (quem faltou as últimas aulas, com botão de mensagem).
+
+## Atualização 20 (ver como, carteirinha em lote, faltas, selos)
+- Rode `supabase/ATUALIZAR-18.sql` (faltas seguidas e documentos com validade).
+- Menu **👁️ Visualizar como…**: escolha qualquer aluno, professor ou responsável e veja o app como ele vê.
+- **Login:** a academia cria o acesso (botão Criar login) e manda e-mail + senha provisória; no 1º acesso a pessoa troca a senha. O "criar minha senha" saiu da tela de entrar.
+- **Link do Google Maps** (até o curto maps.app.goo.gl) preenche latitude, longitude, endereço e cidade.
+- Responsável com mais de um filho: próxima aula e "Vou nessa aula" de cada criança; Minhas turmas separadas por criança.
+- Carteirinha: fundo com a logo (padrão), capa ou imagem escolhida; **PDF em lote** da turma no tamanho de cartão; **📷 Ler carteirinha** na chamada.
+- Chamada: 🎂 aniversariantes com parabéns, 👋 visitante (aula experimental), 📉 faltando seguido também na tela inicial.
+- Ranking por turma (assiduidade), legenda dos selos, 🪄 tirar o fundo da foto, validade de documentos, tabela e planilha de pendências.

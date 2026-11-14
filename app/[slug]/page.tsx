@@ -16,10 +16,44 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: a ? `${a.nome} — horários e aula experimental` : "Academia", description: a?.slogan || undefined };
 }
 
-export default async function PaginaAcademia({ params }: { params: Promise<{ slug: string }> }) {
+// Se algo der errado ao montar a página, mostra uma versão simples (nome, WhatsApp)
+// em vez da tela de erro, e anota o motivo real em "Atividade e erros" do master.
+export default async function PaginaAcademia(props: { params: Promise<{ slug: string }> }) {
+  try {
+    return await Conteudo(props);
+  } catch (e: any) {
+    if (typeof e?.digest === "string" && e.digest.startsWith("NEXT_")) throw e; // notFound/redirect
+    const { slug } = await props.params;
+    try {
+      const sb = await supabaseServidor();
+      await sb.from("erros_app").insert({ pagina: `/${slug}`, mensagem: `[servidor] ${String(e?.message || e).slice(0, 480)}`, detalhe: String(e?.stack || "").slice(0, 2000), navegador: "servidor" });
+    } catch { /* sem conexão */ }
+    const a = await buscarAcademia(slug).catch(() => null);
+    if (!a) notFound();
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-4 p-6" style={{ ["--cor" as any]: corDa(a) }}>
+        <h1 className="text-5xl font-extrabold">{String(a.nome || "")}</h1>
+        {a.slogan && <p className="text-suave">{String(a.slogan)}</p>}
+        <p className="text-suave">A página completa está sendo ajustada. Fale com a academia:</p>
+        {a.whatsapp && <a className="btn w-fit" href={`https://wa.me/${String(a.whatsapp).replace(/\D/g, "")}`} target="_blank">WhatsApp</a>}
+        <Link href="/login" className="btn-sec w-fit">Área do aluno</Link>
+      </main>
+    );
+  }
+}
+
+async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const academia = await buscarAcademia(slug);
-  if (!academia) notFound();
+  const bruta = await buscarAcademia(slug);
+  if (!bruta) notFound();
+  // dados "limpos": número é número, texto é texto (evita quebrar a página com dado estranho)
+  const num = (v: any) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  const txt = (v: any) => (v === null || v === undefined ? "" : typeof v === "string" ? v : String(v));
+  const academia: any = {
+    ...bruta, nome: txt(bruta.nome), slogan: txt(bruta.slogan), sobre: txt(bruta.sobre), endereco: txt(bruta.endereco), cidade: txt(bruta.cidade),
+    latitude: num(bruta.latitude), longitude: num(bruta.longitude), maps_url: txt(bruta.maps_url), instagram: txt(bruta.instagram), whatsapp: txt(bruta.whatsapp),
+    tema: bruta.tema && typeof bruta.tema === "object" ? bruta.tema : {}, cores: bruta.cores && typeof bruta.cores === "object" ? bruta.cores : {},
+  };
   const supabase = await supabaseServidor();
   const cor = corDa(academia);
 
@@ -44,7 +78,7 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
       (grade[h.dia_semana] ||= []).push({ ...h, turma: t.nome, modalidade_id: t.modalidade_id });
     })
   );
-  Object.values(grade).forEach((l) => l.sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio)));
+  Object.values(grade).forEach((l) => l.sort((a, b) => txt(a.hora_inicio).localeCompare(txt(b.hora_inicio))));
   const diasComAula = [1, 2, 3, 4, 5, 6, 0].filter((d) => grade[d]?.length);
 
   return (
@@ -204,7 +238,7 @@ export default async function PaginaAcademia({ params }: { params: Promise<{ slu
         <section>
           <h2 className="text-4xl font-extrabold">Onde estamos</h2>
           <p className="mt-3 text-lg">{academia.endereco}{academia.cidade ? `, ${academia.cidade}` : ""}</p>
-          {academia.latitude && (
+          {academia.latitude != null && academia.longitude != null && (
             <iframe
               title="Mapa"
               className="mt-4 h-64 w-full rounded-2xl border border-linha"

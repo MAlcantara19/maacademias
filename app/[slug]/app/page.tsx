@@ -11,6 +11,7 @@ import { liberado } from "@/lib/planos";
 import { Barra } from "@/components/Grafico";
 import { Tour } from "@/components/Tour";
 import { MeuCadastroPendente } from "@/components/MeuCadastroPendente";
+import { FaltandoSeguido } from "@/components/FaltandoSeguido";
 
 function Cartao({ titulo, children, href }: { titulo: string; children: React.ReactNode; href?: string }) {
   return (
@@ -107,7 +108,9 @@ export default function Inicio() {
           .filter((a) => a.dia > hoje || a.hora_fim > agora)
           .sort((a, b) => (a.dia + a.hora_inicio).localeCompare(b.dia + b.hora_inicio));
         const { count: indicados } = await sb.from("indicacoes").select("id", { count: "exact", head: true }).in("indicador_id", ids.length ? ids : [NENHUM]);
-        setD({ avisos, eventos, painel: painel.data || [], proxima: proximas[0], pendencias: pendencias.data || [], indicados: indicados || 0 });
+        // responsável com mais de um filho: a próxima aula de cada um
+        const porAluno = ids.map((id) => proximas.find((p) => p.membro_id === id)).filter(Boolean);
+        setD({ avisos, eventos, painel: painel.data || [], proxima: proximas[0], porAluno, pendencias: pendencias.data || [], indicados: indicados || 0 });
       }
     })();
   }, [ctx.academia.id]); // eslint-disable-line
@@ -233,22 +236,28 @@ export default function Inicio() {
               </Cartao>
             )}
           </div>
+          <FaltandoSeguido />
         </>
       ) : (
         <>
           <MeuCadastroPendente />
-          {d.proxima && (
-            <section className="rounded-2xl p-5 text-white" style={{ background: "var(--cor)" }}>
-              <p className="text-sm opacity-90">Próxima aula</p>
+          {(ctx.meusAlunos.length > 1 || (ctx.meusAlunos[0] && !ctx.meusAlunos[0].eu) ? d.porAluno || [] : d.proxima ? [d.proxima] : []).map((px: any) => {
+            const al = ctx.meusAlunos.find((m) => m.id === px.membro_id);
+            const deOutro = ctx.meusAlunos.length > 1 || !al?.eu;
+            const nome = (al?.apelido || al?.nome || "").split(" ")[0];
+            return (
+            <section key={px.membro_id + px.id} className="rounded-2xl p-5 text-white" style={{ background: px.modalidade?.cor || "var(--cor)" }}>
+              <p className="text-sm opacity-90">{deOutro ? <>🧒 <b>{al?.apelido || al?.nome}</b> · próxima aula</> : "Próxima aula"}</p>
               <p className="numero text-4xl font-bold">
-                {d.proxima.dia === hojeISO() ? "Hoje" : DIAS[d.proxima.dia_semana]} · {hora(d.proxima.hora_inicio)}
+                {px.dia === hojeISO() ? "Hoje" : DIAS[px.dia_semana]} · {hora(px.hora_inicio)}
               </p>
-              <p>{d.proxima.turma}{d.proxima.tipo_treino ? ` · treino ${d.proxima.tipo_treino}` : ""}</p>
+              <p>{px.turma}{px.tipo_treino ? ` · treino ${px.tipo_treino}` : ""}</p>
               {ctx.academia.modulos?.pre_checkin !== false && (
-                <PreCheckin academiaId={ctx.academia.id} horarioId={d.proxima.id} data={d.proxima.dia} membroId={d.proxima.membro_id} claro />
+                <PreCheckin academiaId={ctx.academia.id} horarioId={px.id} data={px.dia} membroId={px.membro_id} claro nome={deOutro ? nome : null} />
               )}
             </section>
-          )}
+            );
+          })}
           <div className="grid gap-3 sm:grid-cols-2">
             {d.painel.map((p: any) => (
               <Link key={p.membro_id} href={`${base}/alunos/${p.membro_id}`} className="flex items-center gap-4 rounded-2xl bg-painel p-4">

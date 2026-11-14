@@ -16,6 +16,7 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
   const [prof, setProf] = useState<any>(null);
   const [colegas, setColegas] = useState<any[]>([]);
   const [meuNaTurma, setMeuNaTurma] = useState<string | null>(null);
+  const [meusNaTurma, setMeusNaTurma] = useState<string[]>([]);
   const [freq, setFreq] = useState<any[]>([]);
   const [recado, setRecado] = useState<any>(null);
   const [textoRecado, setTextoRecado] = useState("");
@@ -31,8 +32,8 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
       setT(data);
       setProf(p?.[0] || null);
       setColegas(c || []);
-      const meu = (c || []).find((x: any) => ctx.meusAlunos.some((m) => m.id === x.membro_id));
-      setMeuNaTurma(meu?.membro_id || null);
+      const meus = (c || []).filter((x: any) => ctx.meusAlunos.some((m) => m.id === x.membro_id)).map((x: any) => x.membro_id);
+      setMeuNaTurma(meus[0] || null); setMeusNaTurma(meus);
       if (ctx.equipe) sb.rpc("presenca_turma", { p_turma: id }).then(({ data: f }) => setFreq(f || []));
     })();
   }, [id]); // eslint-disable-line
@@ -97,7 +98,11 @@ export default function Turma({ params }: { params: Promise<{ id: string }> }) {
           {proxima.tipo_treino && <p>Treino {proxima.tipo_treino}</p>}
           {recado?.texto && <p className="mt-2 rounded-lg bg-black/20 p-2 text-sm">📌 {recado.texto}</p>}
           {meuNaTurma && ctx.academia.modulos?.pre_checkin !== false && (
-            <PreCheckin academiaId={ctx.academia.id} horarioId={proxima.id} data={proxima.dia} membroId={meuNaTurma} claro />
+            meusNaTurma.map((id) => {
+              const al = ctx.meusAlunos.find((m) => m.id === id);
+              return <PreCheckin key={id} academiaId={ctx.academia.id} horarioId={proxima.id} data={proxima.dia} membroId={id} claro
+                nome={ctx.meusAlunos.length > 1 || !al?.eu ? (al?.apelido || al?.nome || "").split(" ")[0] : null} />;
+            })
           )}
         </section>
       )}

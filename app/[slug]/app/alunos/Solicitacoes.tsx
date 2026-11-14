@@ -31,7 +31,7 @@ export function Solicitacoes({ onAprovar }: { onAprovar: () => void }) {
     if (error) return setMsg(error.message);
     if (s.indicado_por) await sb.rpc("avaliar_conquistas", { p_membro: s.indicado_por });
     const menor = !!s.responsavel_nome;
-    setMsg(`${s.nome} aprovado(a)! Avise para entrar em “Primeiro acesso” com o e-mail ${menor ? "do responsável" : "cadastrado"}.`);
+    setMsg(`${s.nome} aprovado(a)! Para dar o acesso ao app, abra a ficha e toque em “Criar login”${menor ? " (no responsável)" : ""}: o app gera uma senha provisória para você enviar.`);
     setNovo(membroId as string);
     carregar(); onAprovar();
   }

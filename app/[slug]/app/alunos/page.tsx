@@ -10,6 +10,8 @@ import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { resumoPendencias } from "@/lib/pendencias";
 import { NovoAluno } from "./NovoAluno";
+import { TabelaPendencias } from "./TabelaPendencias";
+import { LegendaSelos } from "@/components/LegendaSelos";
 import { ImportarAlunos } from "./ImportarAlunos";
 import { Solicitacoes } from "./Solicitacoes";
 import { TrazerAlunos } from "./TrazerAlunos";
@@ -25,6 +27,7 @@ function Lista() {
   const base = `/${ctx.academia.slug}/app`;
   const [todos, setTodos] = useState<any[]>([]);
   const [pend, setPend] = useState<Record<string, string[]>>({});
+  const [tabela, setTabela] = useState(false);
   const [busca, setBusca] = useState("");
   const [situacao, setSituacao] = useState("ativos");
   const [faixaEtaria, setFaixaEtaria] = useState("");
@@ -113,7 +116,12 @@ function Lista() {
         ))}
       </div>
 
-      <ul className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button className="chip" onClick={() => setTabela(!tabela)} style={tabela ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>📊 {tabela ? "Voltar para a lista" : "Ver tabela de pendências"}</button>
+      </div>
+      {tabela && <TabelaPendencias alunos={lista} pend={pend} base={base} academia={ctx.academia.nome} />}
+
+      {!tabela && <ul className="space-y-2">
         {lista.map((a) => {
           const z = whatsapp(a.whatsapp, `Oi, ${primeiroNome(a.apelido || a.nome)}! Aqui é da ${ctx.academia.nome}.`);
           const itens = pend[a.membro_id];
@@ -152,7 +160,8 @@ function Lista() {
             </li>
           );
         })}
-      </ul>
+      </ul>}
+      <LegendaSelos titulos={false} ranking={false} />
     </div>
   );
 }

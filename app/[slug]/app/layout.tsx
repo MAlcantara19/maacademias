@@ -47,18 +47,49 @@ export default async function LayoutApp({ children, params }: { children: React.
     ...(depMembros || []).map((d: any) => ({ id: d.id, nome: d.perfis?.nome, apelido: d.perfis?.apelido, foto_url: d.perfis?.foto_url, eu: false })),
   ];
 
-  // "Ver como aluno": a equipe vê o app do jeito que um aluno vê (ótimo para demonstrar)
+  // "Visualizar como": a equipe vê o app do jeito que um aluno vê; o admin também
+  // pode ver como um professor ou um responsável (ótimo para conferir e demonstrar)
+  const podeVerComo = master || papeis.has("admin");
+  const equipeReal = equipe;
   let vendoComo: any = null;
+  let papeisVisao: string[] | null = null;
+  let professorVisao: string | null = null;
+  let perfilVisao: any = null;
   const verComo = (await cookies()).get("ver_como")?.value;
   if (equipe && verComo) {
-    const { data: exemplo } = await supabase.from("membros")
-      .select("id, perfis(nome, apelido, foto_url)").eq("academia_id", academia.id).eq("papel", "aluno").eq("ativo", true)
-      .eq(verComo === "primeiro" ? "papel" : "id", verComo === "primeiro" ? "aluno" : verComo).limit(1);
-    const ex = exemplo?.[0] as any;
-    if (ex) {
-      vendoComo = { id: ex.id, nome: ex.perfis?.apelido || ex.perfis?.nome };
-      equipe = false;
-      meusAlunos = [{ id: ex.id, nome: ex.perfis?.nome, apelido: ex.perfis?.apelido, foto_url: ex.perfis?.foto_url, eu: true }];
+    if (verComo.startsWith("prof:") && podeVerComo) {
+      const { data: pr } = await supabase.from("membros").select("id, perfis(nome, apelido, foto_url)")
+        .eq("academia_id", academia.id).eq("id", verComo.slice(5)).in("papel", ["professor", "admin"]).maybeSingle();
+      const x = pr as any;
+      if (x) {
+        vendoComo = { id: x.id, nome: x.perfis?.apelido || x.perfis?.nome, tipo: "professor" };
+        papeisVisao = ["professor"]; professorVisao = x.id; meusAlunos = []; perfilVisao = x.perfis;
+      }
+    } else if (verComo.startsWith("resp:") && podeVerComo) {
+      const pid = verComo.slice(5);
+      const [{ data: rp }, { data: deps }] = await Promise.all([
+        supabase.from("perfis").select("nome, apelido, foto_url").eq("id", pid).maybeSingle(),
+        supabase.from("responsaveis").select("dependente_id").eq("responsavel_id", pid),
+      ]);
+      const ids = (deps || []).map((d: any) => d.dependente_id);
+      const { data: kids } = ids.length
+        ? await supabase.from("membros").select("id, perfis(nome, apelido, foto_url)").eq("academia_id", academia.id).eq("papel", "aluno").eq("ativo", true).in("perfil_id", ids)
+        : { data: [] as any[] };
+      if (rp) {
+        vendoComo = { id: null, nome: (rp as any).apelido || (rp as any).nome, tipo: "responsável" };
+        papeisVisao = ["responsavel"]; equipe = false; perfilVisao = rp;
+        meusAlunos = (kids || []).map((k: any) => ({ id: k.id, nome: k.perfis?.nome, apelido: k.perfis?.apelido, foto_url: k.perfis?.foto_url, eu: false }));
+      }
+    } else if (!verComo.includes(":")) {
+      const { data: exemplo } = await supabase.from("membros")
+        .select("id, perfis(nome, apelido, foto_url)").eq("academia_id", academia.id).eq("papel", "aluno").eq("ativo", true)
+        .eq(verComo === "primeiro" ? "papel" : "id", verComo === "primeiro" ? "aluno" : verComo).limit(1);
+      const ex = exemplo?.[0] as any;
+      if (ex) {
+        vendoComo = { id: ex.id, nome: ex.perfis?.apelido || ex.perfis?.nome, tipo: "aluno" };
+        papeisVisao = ["aluno"]; equipe = false; perfilVisao = ex.perfis;
+        meusAlunos = [{ id: ex.id, nome: ex.perfis?.nome, apelido: ex.perfis?.apelido, foto_url: ex.perfis?.foto_url, eu: true }];
+      }
     }
   }
 
@@ -73,11 +104,13 @@ export default async function LayoutApp({ children, params }: { children: React.
   return (
     <Casca
       ctx={{
-        academia, perfil, papeis: vendoComo ? ["aluno"] : Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !!master, vendoComo: !!vendoComo,
-        professorId: (meus || []).find((m: any) => m.papel === "professor")?.id || null,
+        academia, perfil: perfilVisao ? { ...perfil, nome: perfilVisao.nome, apelido: perfilVisao.apelido, foto_url: perfilVisao.foto_url } : perfil,
+        papeis: papeisVisao || Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !vendoComo && !!master, vendoComo: !!vendoComo,
+        professorId: vendoComo ? professorVisao : (meus || []).find((m: any) => m.papel === "professor")?.id || null,
         membroId: vendoComo ? vendoComo.id : membroEquipe?.id || membroAluno?.id || null, meusAlunos,
       }}
       vendoComo={vendoComo}
+      verComoNivel={podeVerComo ? "admin" : equipeReal ? "equipe" : ""}
       outras={outras}
       cor={corDa(academia)}
       naoLidas={naoLidas || 0}

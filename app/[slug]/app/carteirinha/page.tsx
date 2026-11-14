@@ -1,5 +1,6 @@
 "use client";
 import { ColarImagem } from "@/components/ColarImagem";
+import { SeletorFoto } from "@/components/RecortarFoto";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toPng } from "html-to-image";
@@ -29,7 +30,7 @@ function Carteirinha() {
     modelo: podeModelos ? cfg.modelo : "classico",
     cor: podeModelos ? cfg.cor : undefined,
     nascimento: podeModelos ? cfg.nascimento : true, desde: podeModelos ? cfg.desde : true, modalidade: podeModelos ? cfg.modalidade : true, qr: podeModelos ? cfg.qr : true,
-    fundo_foto: podeCompleta && cfg.fundo_foto, verso: podeCompleta && cfg.verso,
+    fundo_foto: cfg.fundo_foto, verso: podeCompleta && cfg.verso,
   };
   async function salvarModelo() {
     const { error } = await sb.from("academias").update({ carteirinha: cfg }).eq("id", ctx.academia.id);
@@ -109,6 +110,73 @@ function Carteirinha() {
     await sb.from("perfis").update({ foto_carteirinha_url: sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl }).eq("id", p.perfil_id);
     carregar();
   }
+  // ---------- Carteirinhas em lote (PDF no tamanho de cartão, para imprimir ou mandar para a gráfica) ----------
+  const [turmasLote, setTurmasLote] = useState<any[]>([]);
+  const [lote, setLote] = useState<{ turma: string; verso: boolean } | null>(null);
+  const [loteAtual, setLoteAtual] = useState<any>(null);
+  const [loteMsg, setLoteMsg] = useState("");
+  const cartaoLote = useRef<HTMLDivElement>(null);
+  const versoLote = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ctx.equipe) sb.from("turmas").select("id, nome").eq("academia_id", ctx.academia.id).eq("ativa", true).order("nome").then(({ data }) => setTurmasLote(data || []));
+  }, []); // eslint-disable-line
+  const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  async function imagensProntas(el: HTMLElement | null) {
+    if (!el) return;
+    await Promise.all(Array.from(el.querySelectorAll("img")).map((i) => (i.complete ? Promise.resolve() : i.decode().catch(() => {}))));
+  }
+  async function gerarLote() {
+    if (!lote) return;
+    setLoteMsg("Buscando os alunos…");
+    let ids: string[] = [];
+    if (lote.turma) {
+      const { data } = await sb.from("matriculas").select("membro_id").eq("turma_id", lote.turma).eq("status", "ativa");
+      ids = (data || []).map((m: any) => m.membro_id);
+    }
+    let q = sb.from("painel_alunos").select("*").eq("academia_id", ctx.academia.id).eq("ativo", true).order("nome");
+    if (lote.turma) q = q.in("membro_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    const { data: alunos } = await q;
+    if (!alunos?.length) return setLoteMsg("Nenhum aluno nessa turma.");
+    const [{ data: fotos }, { data: cods }] = await Promise.all([
+      sb.from("perfis").select("id, foto_carteirinha_url").in("id", alunos.map((a: any) => a.perfil_id)),
+      sb.from("carteirinhas").select("membro_id, codigo").eq("tipo", "academia").eq("ativa", true).in("membro_id", alunos.map((a: any) => a.membro_id)),
+    ]);
+    const fotoDe = new Map((fotos || []).map((f: any) => [f.id, f.foto_carteirinha_url]));
+    const codDe = new Map((cods || []).map((c: any) => [c.membro_id, c.codigo]));
+    const frentes: string[] = [];
+    let versoImg: string | null = null;
+    for (const [i, a] of alunos.entries()) {
+      setLoteMsg(`Montando ${i + 1} de ${alunos.length}…`);
+      setLoteAtual({ ...a, foto: fotoDe.get(a.perfil_id) || a.foto_url, codigo: codDe.get(a.membro_id) || a.membro_id });
+      await espera(120); await imagensProntas(cartaoLote.current); await espera(80);
+      if (cartaoLote.current) frentes.push(await toPng(cartaoLote.current, { pixelRatio: 3, cacheBust: true }));
+      if (lote.verso && !versoImg && versoLote.current) versoImg = await toPng(versoLote.current, { pixelRatio: 3, cacheBust: true });
+    }
+    setLoteAtual(null);
+    setLoteMsg("Gerando o PDF…");
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const cracha = cfgValida.modelo === "cracha";
+    const W = cracha ? 54 : 85.6, H = cracha ? 85.6 : 54, gap = 3;
+    const cols = cracha ? 3 : 2, rows = cracha ? 3 : 5, porPag = cols * rows;
+    const mx = (210 - (cols * W + (cols - 1) * gap)) / 2, my = (297 - (rows * H + (rows - 1) * gap)) / 2;
+    const pagina = (imgs: string[], espelhar: boolean) => imgs.forEach((img, k) => {
+      const c = k % cols, r = Math.floor(k / cols);
+      const x = mx + (espelhar ? cols - 1 - c : c) * (W + gap), y = my + r * (H + gap);
+      doc.addImage(img, "PNG", x, y, W, H);
+      doc.setDrawColor(190); doc.setLineWidth(0.1); doc.rect(x, y, W, H); // linha de corte
+    });
+    for (let i = 0; i < frentes.length; i += porPag) {
+      if (i) doc.addPage();
+      const grupo = frentes.slice(i, i + porPag);
+      pagina(grupo, false);
+      if (versoImg) { doc.addPage(); pagina(grupo.map(() => versoImg!), true); }
+    }
+    const turmaNome = turmasLote.find((t) => t.id === lote.turma)?.nome || "todos";
+    doc.save(`carteirinhas-${turmaNome.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")}-${ano}.pdf`);
+    setLoteMsg(`✅ PDF com ${frentes.length} carteirinha(s) (${cracha ? "54 × 85,6" : "85,6 × 54"} mm, tamanho de cartão). Imprima em 100% (sem "ajustar à página").`);
+  }
+
   async function enviarFederacao() {
     if (!fed?.entidade) return setMsg("Informe a federação.");
     let imagem: string | null = null;
@@ -164,10 +232,7 @@ function Carteirinha() {
             <button className="btn-sec" onClick={papelDeParede} disabled={gerandoFundo}>{gerandoFundo ? "Gerando…" : "📱 Papel de parede (tela de bloqueio)"}</button>
             {ctx.equipe && <button className="btn-sec" onClick={salvarHistorico}>Salvar {ano} no histórico</button>}
             {ctx.admin && <button className="btn-sec" onClick={() => setEditando(!editando)}>🎨 Personalizar modelo</button>}
-            <label className="btn-sec cursor-pointer">Trocar foto da carteirinha
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => trocarFoto(e.target.files?.[0])} />
-            </label>
-            <ColarImagem rotulo="📋 Colar foto" className="btn-sec" onImagem={(arq) => trocarFoto(arq)} />
+            <SeletorFoto rotulo="📷 Trocar foto da carteirinha" className="btn-sec" formato={0.75} onPronto={(arq) => trocarFoto(arq)} />
           </div>
           {msg && <p className="text-sm text-suave">{msg}</p>}
 
@@ -194,11 +259,32 @@ function Carteirinha() {
                 ))}
                 {podeModelos && <label className="flex items-center gap-2">Cor <input type="color" value={cfg.cor || ctx.academia.cores?.primaria || "#7c3aed"} onChange={(e) => setCfg({ ...cfg, cor: e.target.value })} /></label>}
               </div>
+              <div className="space-y-2 rounded-xl bg-painel2 p-3 text-sm">
+                <p className="font-semibold">🖼️ Fundo da carteirinha</p>
+                <div className="flex flex-wrap gap-2">
+                  {([["logo", "Logo da academia (centro)"], ["capa", "Foto de capa / banner"], ["imagem", "Imagem escolhida"], ["nenhum", "Sem imagem"]] as const).map(([k, r]) => (
+                    <button key={k} type="button" className="chip" disabled={(k === "logo" && !ctx.academia.logo_url) || (k === "capa" && !ctx.academia.capa_url)}
+                      onClick={() => setCfg({ ...cfg, fundo: k, fundo_foto: false })}
+                      style={(cfg.fundo || (cfg.fundo_foto ? "capa" : "logo")) === k ? { background: "var(--cor)", borderColor: "var(--cor)", color: "#fff" } : {}}>{r}</button>
+                  ))}
+                </div>
+                {!ctx.academia.logo_url && <p className="text-xs text-suave">Cadastre a logo em Personalizar academia para usar de fundo.</p>}
+                {cfg.fundo === "imagem" && (
+                  <SeletorFoto rotulo="📁 Escolher imagem do fundo" formato={85.6 / 54} onPronto={async (arq) => {
+                    const caminho = `${ctx.academia.id}/carteirinha-fundo-${Date.now()}.jpg`;
+                    const up = await sb.storage.from("publico").upload(caminho, arq);
+                    if (up.error) return setMsg(up.error.message);
+                    setCfg({ ...cfg, fundo: "imagem", fundo_url: sb.storage.from("publico").getPublicUrl(caminho).data.publicUrl });
+                  }} />
+                )}
+                {(cfg.fundo || "logo") !== "nenhum" && (
+                  <label className="flex items-center gap-3">Destaque do fundo <input type="range" min={5} max={40} value={cfg.fundo_forca ?? 12} className="flex-1" onChange={(e) => setCfg({ ...cfg, fundo_forca: Number(e.target.value) })} /></label>
+                )}
+              </div>
               <input className="campo" maxLength={60} placeholder="Frase no rodapé (opcional), ex.: Disciplina dentro e fora do tatame" value={cfg.frase || ""} onChange={(e) => setCfg({ ...cfg, frase: e.target.value })} />
 
               {podeCompleta && (
                 <div className="space-y-2 rounded-xl bg-painel2 p-3 text-sm">
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.fundo_foto} onChange={(e) => setCfg({ ...cfg, fundo_foto: e.target.checked })} /> Usar a foto de capa da academia no fundo</label>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.verso} onChange={(e) => setCfg({ ...cfg, verso: e.target.checked })} /> Gerar o verso (contatos e regras)</label>
                   {cfg.verso && <textarea className="campo min-h-20" maxLength={240} placeholder="Texto do verso (regras, recado…)" value={cfg.verso_texto || ""} onChange={(e) => setCfg({ ...cfg, verso_texto: e.target.value })} />}
                 </div>
@@ -215,6 +301,33 @@ function Carteirinha() {
               </details>
 
               <div className="flex gap-2"><button className="btn" onClick={salvarModelo}>Salvar modelo</button><button className="btn-sec" onClick={() => { setCfg(ctx.academia.carteirinha || {}); setEditando(false); }}>Cancelar</button></div>
+            </section>
+          )}
+
+          {ctx.equipe && (
+            <section className="space-y-2 rounded-2xl bg-painel p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-2xl font-bold">🖨️ Carteirinhas em lote</h2>
+                <button className="btn-sec text-sm" onClick={() => setLote(lote ? null : { turma: "", verso: !!cfgValida.verso })}>{lote ? "Fechar" : "Gerar PDF da turma"}</button>
+              </div>
+              <p className="text-sm text-suave">Várias por folha A4, no tamanho exato do cartão, com linha de corte. Serve para imprimir aqui ou mandar para a gráfica.</p>
+              {lote && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select className="campo sm:w-auto" value={lote.turma} onChange={(e) => setLote({ ...lote, turma: e.target.value })}>
+                    <option value="">Todos os alunos ativos</option>
+                    {turmasLote.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+                  </select>
+                  {cfgValida.verso && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={lote.verso} onChange={(e) => setLote({ ...lote, verso: e.target.checked })} /> Incluir verso (frente e verso)</label>}
+                  <button className="btn" onClick={gerarLote} disabled={!!loteAtual}>📄 Gerar PDF</button>
+                </div>
+              )}
+              {loteMsg && <p className="text-sm text-suave">{loteMsg}</p>}
+              {loteAtual && (
+                <div style={{ position: "fixed", left: -10000, top: 0 }} aria-hidden>
+                  <CartaoAluno ref={cartaoLote} academia={ctx.academia} p={loteAtual} cfg={cfgValida} ano={ano} codigo={loteAtual.codigo} />
+                  {lote?.verso && <VersoCartao ref={versoLote} academia={ctx.academia} cfg={cfgValida} ano={ano} />}
+                </div>
+              )}
             </section>
           )}
 

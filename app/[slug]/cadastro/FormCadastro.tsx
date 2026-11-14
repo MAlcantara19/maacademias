@@ -151,7 +151,7 @@ export function FormCadastro({ academia, slug, modalidades, turmas, indicadoPor 
       <div className="space-y-3 rounded-2xl bg-painel p-6">
         <p className="text-3xl font-bold">Pré-matrícula enviada! 🥋</p>
         {enviado === "fila" && <p className="text-alerta">A turma escolhida está lotada: você entrou na lista de espera e será chamado quando abrir vaga.</p>}
-        <p className="text-suave">A academia vai conferir e aprovar. Depois, entre em <b>Primeiro acesso</b> com {menor ? "o e-mail do responsável" : "o seu e-mail"} para criar a senha e acompanhar tudo pelo app.</p>
+        <p className="text-suave">A academia vai conferir e aprovar. Depois ela envia o acesso ao app ({menor ? "e-mail do responsável" : "seu e-mail"} e uma senha provisória, que você troca no primeiro acesso).</p>
         <Link href="/login" className="btn">Ir para o login</Link>
       </div>
     );

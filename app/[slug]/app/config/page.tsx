@@ -1,5 +1,6 @@
 "use client";
 import { ColarImagem } from "@/components/ColarImagem";
+import { SeletorFoto } from "@/components/RecortarFoto";
 import { comprimir } from "@/lib/imagem";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,19 @@ export default function Config() {
     setBanners(data || []);
   }
   useEffect(() => { carregarBanners(); }, []); // eslint-disable-line
+
+  // link do Google Maps (até o curto maps.app.goo.gl) → latitude, longitude, endereço e cidade
+  async function pegarDoMaps() {
+    if (!a.maps_url) return setMsg("Cole o link do Google Maps primeiro.");
+    setMsg("Buscando o endereço no link…");
+    const r = await fetch("/api/maps", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: a.maps_url }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setMsg(j.erro || "Não consegui ler o link.");
+    muda("latitude", String(j.latitude)); muda("longitude", String(j.longitude));
+    if (j.endereco && !a.endereco) muda("endereco", j.endereco);
+    if (j.cidade && !a.cidade) muda("cidade", j.cidade);
+    setMsg(`📍 Localização encontrada${j.endereco ? `: ${j.endereco}` : ""}. Confira e clique em Salvar.`);
+  }
 
   async function enviar(arq: File, nome: string) {
     const caminho = `${a.id}/${nome}-${Date.now()}.${arq.name.split(".").pop()}`;
@@ -113,8 +127,8 @@ export default function Config() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.logo_url} alt="" className="h-12 w-12 rounded-lg object-cover" />
                 )}
-                <input type="file" accept="image/*" className="campo min-w-0 flex-1" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
-                <ColarImagem onImagem={setLogo} />
+                <SeletorFoto rotulo="📁 Escolher logo" transparente onPronto={setLogo} />
+                {logo && <span className="text-xs text-ok">✓ Nova logo pronta: salve.</span>}
               </div>
             </div>
             <div>
@@ -138,16 +152,12 @@ export default function Config() {
             <div><label className="rotulo">Cidade</label><input className="campo" value={a.cidade || ""} onChange={(e) => muda("cidade", e.target.value)} /></div>
             <div><label className="rotulo">Latitude</label><input className="campo" value={a.latitude ?? ""} onChange={(e) => muda("latitude", e.target.value)} /></div>
             <div><label className="rotulo">Longitude</label><input className="campo" value={a.longitude ?? ""} onChange={(e) => muda("longitude", e.target.value)} /></div>
-            <div className="sm:col-span-2"><label className="rotulo">Link do Google Maps</label><input className="campo" value={a.maps_url || ""} onChange={(e) => muda("maps_url", e.target.value)} /></div>
+            <div className="sm:col-span-2"><label className="rotulo">Link do Google Maps</label><input className="campo" placeholder="Cole aqui o link (Compartilhar → Copiar link)" value={a.maps_url || ""} onChange={(e) => muda("maps_url", e.target.value)} onBlur={() => a.maps_url && (a.latitude == null || a.latitude === "") && pegarDoMaps()} /></div>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <button className="btn-sec text-sm" onClick={() => navigator.geolocation?.getCurrentPosition(
                 (p) => { muda("latitude", p.coords.latitude.toFixed(6)); muda("longitude", p.coords.longitude.toFixed(6)); setMsg("Localização preenchida. Clique em Salvar."); },
                 () => setMsg("Não consegui pegar a localização. Libere o acesso no navegador."), { timeout: 12000 })}>📍 Estou na academia: usar minha localização</button>
-              <button className="btn-sec text-sm" onClick={() => {
-                const m = (a.maps_url || "").match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || (a.maps_url || "").match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/) || (a.maps_url || "").match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-                if (m) { muda("latitude", m[1]); muda("longitude", m[2]); setMsg("Coordenadas tiradas do link. Clique em Salvar."); }
-                else setMsg("Não achei as coordenadas no link. Abra a academia no Google Maps no computador e copie o link da barra de endereço.");
-              }}>🗺️ Pegar do link do Google Maps</button>
+              <button className="btn-sec text-sm" onClick={() => pegarDoMaps()}>🗺️ Pegar endereço do link do Google Maps</button>
             </div>
             <p className="text-xs text-suave sm:col-span-2">A latitude e a longitude fazem a academia aparecer no “Perto de mim” e no mapa, e são usadas no check-in por QR.</p>
           </div>

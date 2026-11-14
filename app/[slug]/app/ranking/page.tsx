@@ -5,6 +5,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { FAIXAS_ETARIAS, MESES, hojeISO, addDias } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
+import { LegendaSelos } from "@/components/LegendaSelos";
 
 const PERIODOS: Record<string, () => [string, string]> = {
   "Este mês": () => { const h = hojeISO(); return [h.slice(0, 8) + "01", h]; },
@@ -26,7 +27,8 @@ export default function Ranking() {
   const [periodo, setPeriodo] = useState("Este mês");
   const [modalidade, setModalidade] = useState("");
   const [turma, setTurma] = useState("");
-  const [modo, setModo] = useState<"percentual" | "quantidade" | "faixa" | "hierarquia">("percentual");
+  const [modo, setModo] = useState<"percentual" | "quantidade" | "faixa" | "hierarquia" | "turmas">("percentual");
+  const [porTurma, setPorTurma] = useState<{ turma: any; linhas: any[] }[] | null>(null);
   const [hier, setHier] = useState<any[]>([]);
   const [titulos, setTitulos] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -50,6 +52,19 @@ export default function Ranking() {
     sb.rpc("ranking_periodo", { p_acad: ctx.academia.id, p_de: de, p_ate: ate, p_modalidade: modalidade || null, p_turma: turma || null })
       .then(({ data }) => setLinhas(data || []));
   }, [periodo, modalidade, turma]); // eslint-disable-line
+
+  // Assiduidade por turma: o pódio de presença de cada turma no período
+  useEffect(() => {
+    if (modo !== "turmas" || !turmas.length) return;
+    setPorTurma(null);
+    const [de, ate] = PERIODOS[periodo]();
+    const alvo = turmas.filter((t) => (!modalidade || t.modalidade_id === modalidade) && (!turma || t.id === turma));
+    Promise.all(alvo.map(async (t) => {
+      const { data } = await sb.rpc("ranking_periodo", { p_acad: ctx.academia.id, p_de: de, p_ate: ate, p_modalidade: null, p_turma: t.id });
+      const l = (data || []).filter((r: any) => r.aulas_possiveis >= 1).sort((a: any, b: any) => (b.pct ?? -1) - (a.pct ?? -1) || b.presencas - a.presencas);
+      return { turma: t, linhas: l };
+    })).then(setPorTurma);
+  }, [modo, periodo, modalidade, turma, turmas]); // eslint-disable-line
 
   // Hierarquia: faixa e grau, depois total de aulas
   useEffect(() => {
@@ -83,7 +98,7 @@ export default function Ranking() {
       <h1 className="text-4xl font-extrabold">Ranking</h1>
 
       <div className="flex gap-1 rounded-2xl bg-painel p-1">
-        {([["percentual", "%"], ["quantidade", "Aulas"], ["faixa", "Idade"], ["hierarquia", "Hierarquia"]] as const).map(([k, v]) => (
+        {([["percentual", "%"], ["quantidade", "Aulas"], ["turmas", "Turmas"], ["faixa", "Idade"], ["hierarquia", "Hierarquia"]] as const).map(([k, v]) => (
           <button key={k} onClick={() => setModo(k)} className={`flex-1 rounded-xl py-2 font-semibold ${modo === k ? "bg-painel2" : "text-suave"}`}
             style={modo === k ? { boxShadow: "inset 0 -3px 0 var(--cor)" } : {}}>{v}</button>
         ))}
@@ -154,7 +169,34 @@ export default function Ranking() {
         );
       })()}
 
-      {modo !== "hierarquia" && <>
+      {modo === "turmas" && (
+        <div className="space-y-3">
+          <p className="text-sm text-suave">🏆 Assiduidade de cada turma: quem mais veio às aulas no período. ✨ = não faltou nenhuma.</p>
+          {porTurma === null && <p className="text-suave">Calculando…</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {porTurma?.map(({ turma: t, linhas: l }) => (
+              <section key={t.id} className="rounded-2xl bg-painel p-4">
+                <p className="text-lg font-bold">{t.nome}</p>
+                <ol className="mt-2 space-y-1.5">
+                  {l.slice(0, 5).map((r: any, i: number) => (
+                    <li key={r.membro_id} className={`flex items-center gap-2 rounded-xl p-1.5 ${meusIds.includes(r.membro_id) ? "bg-painel2 ring-2 ring-[var(--cor)]" : ""}`}>
+                      <span className="w-7 text-center text-lg">{["🥇", "🥈", "🥉"][i] || `${i + 1}º`}</span>
+                      <Avatar foto={r.foto_url} nome={r.nome} cor={r.cor_faixa} grau={r.grau} tamanho={30} mostrarFaixa={false} />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{r.apelido || r.nome}</span>
+                      {r.pct === 100 && r.aulas_possiveis >= 4 && <span title="Não faltou nenhuma aula">✨</span>}
+                      <span className="numero text-sm font-bold">{r.pct ?? 0}%</span>
+                      <span className="text-xs text-suave">{r.presencas}/{r.aulas_possiveis}</span>
+                    </li>
+                  ))}
+                  {!l.length && <p className="text-sm text-suave">Sem aulas no período.</p>}
+                </ol>
+              </section>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {modo !== "hierarquia" && modo !== "turmas" && <>
       {/* Pódio */}
       {podio.length > 0 && (
         <div className="grid grid-cols-3 items-end gap-3">
@@ -182,7 +224,7 @@ export default function Ranking() {
             <span className="numero w-8 text-center text-2xl font-bold">{r.pos}º</span>
             <Avatar foto={r.foto_url} nome={r.nome} cor={r.cor_faixa} grau={r.grau} tamanho={40} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold">{r.apelido || r.nome}</p>
+              <p className="truncate font-semibold">{r.apelido || r.nome}{r.pct === 100 && r.aulas_possiveis >= 4 && <span title="Não faltou nenhuma aula"> ✨</span>}</p>
               <p className="text-xs text-suave">{r.presencas} de {r.aulas_possiveis} aulas{r.faltas_justificadas ? ` · ${r.faltas_justificadas} justificada(s)` : ""} · {r.faixa_etaria}{titulos[r.membro_id] ? ` · ${titulos[r.membro_id]}` : ""}</p>
               <div className="mt-1"><Barra pct={r.pct} /></div>
             </div>
@@ -193,6 +235,7 @@ export default function Ranking() {
       </ol>
       <p className="text-xs text-suave">{MESES[new Date().getMonth()]}: empates dividem a mesma posição.</p>
       </>}
+      <LegendaSelos icones={false} />
     </div>
   );
 }

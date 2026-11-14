@@ -10,7 +10,10 @@ export type ConfigCartao = {
   cor?: string;            // cor de destaque (padrão: cor da academia)
   logo?: boolean;          // mostrar a logo
   nascimento?: boolean; desde?: boolean; modalidade?: boolean; qr?: boolean;
-  fundo_foto?: boolean;    // usa a foto de capa da academia de fundo (Completo)
+  fundo_foto?: boolean;    // (antigo) usa a foto de capa de fundo
+  fundo?: "logo" | "capa" | "imagem" | "nenhum"; // fundo do cartão (padrão: logo da academia)
+  fundo_url?: string;      // imagem própria escolhida para o fundo
+  fundo_forca?: number;    // 5 a 40 (% de destaque da imagem de fundo)
   frase?: string;          // frase curta no rodapé
   verso?: boolean;         // gera o verso com contatos e regras (Completo)
   verso_texto?: string;
@@ -31,7 +34,9 @@ export const CartaoAluno = forwardRef<HTMLDivElement, Props>(function CartaoAlun
   const modelo = cfg.modelo || "classico";
   const mostra = (k: keyof ConfigCartao) => cfg[k] !== false;
   const claro = modelo === "claro";
-  const fundoFoto = cfg.fundo_foto && academia.capa_url;
+  const tipoFundo = cfg.fundo || (cfg.fundo_foto ? "capa" : "logo");
+  const imgFundo = tipoFundo === "capa" ? academia.capa_url : tipoFundo === "imagem" ? cfg.fundo_url : null;
+  const forca = Math.max(5, Math.min(40, cfg.fundo_forca ?? 12)) / 100;
   const fundo = claro ? "#ffffff"
     : modelo === "faixa" ? `linear-gradient(180deg, #0f1428 0%, #0f1428 62%, ${p.cor_faixa || cor} 62%)`
     : `linear-gradient(135deg, #121a36 0%, #121a36 55%, ${cor} 140%)`;
@@ -58,13 +63,17 @@ export const CartaoAluno = forwardRef<HTMLDivElement, Props>(function CartaoAlun
       {mostra("desde") && <p className="opacity-80">Aluno desde {dataBR(p.aluno_desde)}</p>}
     </div>
   );
-  const camadaFoto = fundoFoto && (
+  // fundo: logo grande e clarinha no centro, ou a capa/uma imagem escolhida bem suave
+  const camadaFoto = imgFundo ? (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={academia.capa_url} alt="" crossOrigin="anonymous" className="absolute inset-0 h-full w-full object-cover" />
-      <div className="absolute inset-0" style={{ background: claro ? "rgba(255,255,255,.82)" : "rgba(10,14,30,.78)" }} />
+      <img src={imgFundo} alt="" crossOrigin="anonymous" className="absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0" style={{ background: claro ? `rgba(255,255,255,${1 - forca * 1.4})` : `rgba(10,14,30,${1 - forca * 1.6})` }} />
     </>
-  );
+  ) : tipoFundo === "logo" && academia.logo_url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={academia.logo_url} alt="" crossOrigin="anonymous" className="pointer-events-none absolute left-1/2 top-1/2 h-[78%] w-[78%] -translate-x-1/2 -translate-y-1/2 object-contain" style={{ opacity: forca }} />
+  ) : null;
 
   if (modelo === "cracha") {
     return (
