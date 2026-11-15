@@ -8,6 +8,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, hora, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { LeitorQR } from "@/components/LeitorQR";
+import { CheckinsGPSPendentes } from "@/components/CheckinGPS";
 import { LegendaSelos } from "@/components/LegendaSelos";
 import { Tour } from "@/components/Tour";
 import { minhasTurmas } from "@/lib/turmas";
@@ -23,7 +24,7 @@ function Chamada() {
 
   const [turmas, setTurmas] = useState<any[]>([]);
   const [turmaId, setTurmaId] = useState(params.get("turma") || "");
-  const [data, setData] = useState(hojeISO());
+  const [data, setData] = useState(params.get("data") || hojeISO());
   const [horarioId, setHorarioId] = useState(params.get("horario") || "");
   const [aula, setAula] = useState<any>(null);
   const [alunos, setAlunos] = useState<any[]>([]);
@@ -178,6 +179,18 @@ function Chamada() {
       }
     })();
   }, [turmaId, horarioId, data]); // eslint-disable-line
+
+  // depois de aceitar check-ins pelo GPS: recarrega a aula e as presenças
+  async function recarregarPresencas() {
+    const h = horariosDoDia.find((x: any) => x.id === horarioId);
+    if (!h) return;
+    const { data: a } = await sb.from("aulas").select("*").eq("turma_id", turmaId).eq("data", data).eq("hora_inicio", h.hora_inicio).maybeSingle();
+    if (!a) return;
+    setAula(a);
+    const { data: pres } = await sb.from("presencas").select("*").eq("aula_id", a.id);
+    const m = new Map<string, any>((pres || []).map((p: any) => [p.membro_id, p]));
+    presentesRef.current = m; setPresentes(m);
+  }
 
   async function garantirAula() {
     if (aula) return aula;
@@ -550,6 +563,10 @@ function Chamada() {
           </div>
         </div>
       )}
+      {!cancelada && (
+        <CheckinsGPSPendentes turmaId={turmaId} data={data} horaInicio={horariosDoDia.find((x: any) => x.id === horarioId)?.hora_inicio}
+          presentes={new Set(presentes.keys())} onMudou={recarregarPresencas} />
+      )}
       {facial && (
         <div className="rounded-2xl border-2 bg-painel p-4" style={{ borderColor: "var(--cor)" }}>
           {facial.carregando ? <p>🤳 Analisando a foto… (na primeira vez demora uns segundos)</p> : (
@@ -717,7 +734,7 @@ function Chamada() {
                         <span key={k} className="text-xs text-suave" title={al.texto}>{al.icone} {al.texto}</span>
                       ))}
                       {p?.metodo && p.metodo !== "manual" && (
-                        <span className="text-xs text-suave">📲 {p.metodo === "qr_fixo" ? "QR" : p.metodo}{p.atraso_min > 0 ? ` · ${p.atraso_min} min de atraso` : ""}</span>
+                        <span className="text-xs text-suave">{p.metodo === "gps" ? "📍 GPS" : `📲 ${p.metodo === "qr_fixo" ? "QR" : p.metodo}`}{p.atraso_min > 0 ? ` · ${p.atraso_min} min de atraso` : ""}</span>
                       )}
                     </div>
                   </div>

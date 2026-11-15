@@ -41,7 +41,7 @@ export default function Campeonatos() {
   return (
     <div className="space-y-5">
       <h1 className="text-4xl font-extrabold">Campeonatos</h1>
-      <p className="text-suave">Para criar um campeonato, use “Novo evento” no calendário com o tipo Campeonato.</p>
+      <p className="text-suave">Para criar um campeonato, use “Novo evento” no <Link className="underline" href={`${base}/calendario`}>calendário</Link> com o tipo Campeonato. Para mudar a data ou apagar, abra o campeonato e toque em “✏️ Editar / apagar”.</p>
       <section className="space-y-3">
         <h2 className="text-2xl font-bold">Próximos</h2>
         {futuros.map((e) => <Item key={e.id} e={e} />)}

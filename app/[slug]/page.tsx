@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BarraPiloto } from "@/components/TrocaConta";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { supabaseServidor } from "@/lib/supabase/server";
@@ -88,6 +89,7 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
   return (
     <div style={{ ["--cor" as any]: cor }} className="min-h-dvh bg-fundo pb-28 text-texto"
       data-modo={academia.tema?.modo || "escuro"} data-fonte={academia.tema?.fonte || "esportiva"}>
+      <BarraPiloto slug={academia.slug} />
       {/* Topo */}
       <header className="relative overflow-hidden">
         {academia.capa_url && (

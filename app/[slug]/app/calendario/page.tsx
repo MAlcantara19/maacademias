@@ -3,6 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, DIAS_CURTOS, MESES, hora, hojeISO, dataHoraBR } from "@/lib/util";
+import { EditarEvento } from "@/components/EditarEvento";
+import { BotaoAgenda } from "@/components/BotaoAgenda";
+import Link from "next/link";
 
 const ICONE: Record<string, string> = { campeonato: "🥇", prova: "🎓", evento: "🎉", feriado: "🏖️", outro: "📅" };
 
@@ -69,42 +72,18 @@ export default function Calendario() {
     setAno(d.getFullYear()); setMes(d.getMonth());
   }
 
-  async function salvarEvento() {
-    if (!novo?.titulo || !novo?.data) return;
-    await sb.from("eventos").insert({
-      academia_id: ctx.academia.id, tipo: novo.tipo || "evento", titulo: novo.titulo, descricao: novo.descricao || null,
-      inicio: new Date(`${novo.data}T${novo.hora || "08:00"}:00-03:00`).toISOString(), local: novo.local || null,
-      modalidade_id: novo.modalidade_id || null, publico: novo.publico !== false, cancela_aulas: !!novo.cancela_aulas,
-    });
-    setNovo(null); carregarEventos();
-  }
-
   const sel = doDia(dia);
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-4xl font-extrabold">Calendário</h1>
-        {ctx.equipe && <button className="btn" onClick={() => setNovo({ data: dia, tipo: "evento", publico: true })}>Novo evento</button>}
+        {ctx.equipe && <button className="btn" onClick={() => setNovo({})}>Novo evento</button>}
       </div>
 
       {novo && (
-        <div className="grid gap-2 rounded-2xl border border-linha bg-painel p-4 sm:grid-cols-2">
-          <select className="campo" value={novo.tipo} onChange={(e) => setNovo({ ...novo, tipo: e.target.value, cancela_aulas: e.target.value === "feriado" })}>
-            <option value="evento">Evento</option><option value="campeonato">Campeonato</option><option value="prova">Prova de faixa</option><option value="feriado">Feriado / sem aula</option><option value="outro">Outro</option>
-          </select>
-          <input className="campo" placeholder="Título" onChange={(e) => setNovo({ ...novo, titulo: e.target.value })} />
-          <input className="campo" type="date" value={novo.data} onChange={(e) => setNovo({ ...novo, data: e.target.value })} />
-          <input className="campo" type="time" defaultValue="08:00" onChange={(e) => setNovo({ ...novo, hora: e.target.value })} />
-          <input className="campo" placeholder="Local" onChange={(e) => setNovo({ ...novo, local: e.target.value })} />
-          <select className="campo" onChange={(e) => setNovo({ ...novo, modalidade_id: e.target.value })} defaultValue="">
-            <option value="">Todas as modalidades</option>
-            {mods.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-          </select>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked onChange={(e) => setNovo({ ...novo, publico: e.target.checked })} /> Aparece na página pública</label>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!novo.cancela_aulas} onChange={(e) => setNovo({ ...novo, cancela_aulas: e.target.checked })} /> Não tem aula nesse dia</label>
-          <div className="flex gap-2 sm:col-span-2"><button className="btn" onClick={salvarEvento}>Salvar evento</button><button className="btn-sec" onClick={() => setNovo(null)}>Cancelar</button></div>
-        </div>
+        <EditarEvento key={novo.id || "novo"} academiaId={ctx.academia.id} evento={novo.id ? novo : undefined} dataPadrao={dia} mods={mods}
+          onFechar={() => setNovo(null)} onSalvo={() => { setNovo(null); carregarEventos(); }} />
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -140,9 +119,15 @@ export default function Calendario() {
         <ul className="mt-3 space-y-2">
           {sel.evs.map((e) => (
             <li key={e.id} className="rounded-xl bg-painel2 p-3">
-              <p className="font-semibold">{ICONE[e.tipo]} {e.titulo}</p>
+              <p className="font-semibold">{ICONE[e.tipo]} {e.titulo}{e.repetir_anual ? " 🔁" : ""}</p>
               <p className="text-sm text-suave">{dataHoraBR(e.inicio)}{e.local ? ` · ${e.local}` : ""}{e.cancela_aulas ? " · sem aula" : ""}</p>
               {e.descricao && <p className="text-sm">{e.descricao}</p>}
+              <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                {e.tipo === "campeonato" && <Link className="underline" href={`/${ctx.academia.slug}/app/campeonatos/${e.id}`}>abrir campeonato</Link>}
+                {e.maps_url && <a className="underline" href={e.maps_url} target="_blank" rel="noreferrer">📍 mapa</a>}
+                <BotaoAgenda evento={e} academia={ctx.academia.nome} />
+                {ctx.equipe && <button className="underline" onClick={() => { setNovo(e); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✏️ editar / duplicar / apagar</button>}
+              </div>
             </li>
           ))}
           {sel.aulas.map((a) => (

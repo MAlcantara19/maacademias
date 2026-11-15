@@ -7,7 +7,9 @@ import { Faixa } from "./Faixa";
 // Primeiro acesso: boas-vindas e troca da senha provisória
 export function BoasVindas({ perfil, academia, equipe }: { perfil: any; academia: any; equipe: boolean }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(!!perfil && !perfil.boas_vindas_em);
+  // abre no primeiro acesso e também quando a academia gerou uma senha provisória nova
+  const [aberto, setAberto] = useState(!!perfil && (!perfil.boas_vindas_em || !!perfil.trocar_senha));
+  const [whats, setWhats] = useState<string>(perfil?.telefone || "");
   const [senha, setSenha] = useState("");
   const [senha2, setSenha2] = useState("");
   const [msg, setMsg] = useState("");
@@ -20,6 +22,12 @@ export function BoasVindas({ perfil, academia, equipe }: { perfil: any; academia
       if (senha !== senha2) return setMsg("As duas senhas não são iguais.");
       const { error } = await sb.auth.updateUser({ password: senha });
       if (error) return setMsg("Não foi possível trocar a senha: " + error.message);
+    }
+    // confere o WhatsApp do cadastro (é por ele que chegam os avisos e a senha nova)
+    if (!perfil.boas_vindas_em && whats.trim() && whats.trim() !== (perfil.telefone || "")) {
+      const d = whats.replace(/\D/g, "");
+      if (d.length < 10 || d.length > 13) return setMsg("Confira o WhatsApp: DDD + número (ex.: 24 99999-9999).");
+      await sb.rpc("conferir_meu_whatsapp", { p_telefone: whats.trim() }).then(() => {}, () => {});
     }
     await sb.rpc("marcar_boas_vindas");
     setAberto(false);
@@ -43,9 +51,19 @@ export function BoasVindas({ perfil, academia, equipe }: { perfil: any; academia
           {precisaSenha && (
             <div className="space-y-2 rounded-2xl bg-painel2 p-4">
               <p className="font-semibold">Crie sua senha</p>
-              <p className="text-sm text-suave">Você entrou com uma senha provisória. Escolha uma só sua.</p>
+              <p className="text-sm text-suave">Você entrou com uma senha provisória{perfil.senha_provisoria_ate ? " (vale por 48 horas)" : ""}. Escolha uma só sua.</p>
               <input type="password" autoComplete="new-password" className="campo" placeholder="Nova senha (mín. 6)" value={senha} onChange={(e) => setSenha(e.target.value)} />
               <input type="password" autoComplete="new-password" className="campo" placeholder="Repita a senha" value={senha2} onChange={(e) => setSenha2(e.target.value)} />
+            </div>
+          )}
+          {!perfil.boas_vindas_em && (
+            <div className="space-y-2 rounded-2xl bg-painel2 p-4">
+              <p className="font-semibold">Confira seus contatos</p>
+              <p className="text-sm text-suave">Seu login: <b className="text-texto">{perfil.email || "—"}</b>. Se estiver errado, avise a academia.</p>
+              <label className="block text-sm">Seu WhatsApp
+                <input className="campo" type="tel" inputMode="tel" placeholder="(24) 99999-9999" value={whats} onChange={(e) => setWhats(e.target.value)} />
+              </label>
+              <p className="text-xs text-suave">Também dá para entrar no app digitando o WhatsApp no lugar do e-mail.</p>
             </div>
           )}
           {msg && <p className="text-sm text-alerta">{msg}</p>}

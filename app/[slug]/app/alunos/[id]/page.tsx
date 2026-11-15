@@ -1,5 +1,5 @@
 "use client";
-import { BotaoNovaSenha } from "@/components/NovaSenha";
+import { BotaoNovaSenha, HistoricoSenhas } from "@/components/NovaSenha";
 import { MetaSemana } from "@/components/MetaSemana";
 import { SeletorFoto } from "@/components/RecortarFoto";
 import { comprimir } from "@/lib/imagem";
@@ -214,6 +214,7 @@ export default function Ficha({ params }: { params: Promise<{ id: string }> }) {
           {ctx.equipe && a.tem_login && <BotaoNovaSenha perfilId={a.perfil_id} nome={a.apelido || a.nome} telefone={x.perfil?.telefone || a.whatsapp} />}
           {ctx.equipe && <Link className="btn-sec" href={`${base}/tecnicas/exame?aluno=${id}`}>Exame de faixa</Link>}
         </div>
+        {ctx.equipe && a.tem_login && <div className="text-center"><HistoricoSenhas perfilId={a.perfil_id} /></div>}
         {/* Situação do cadastro completo (regras automáticas do banco) */}
         {(ctx.equipe || meu) && x.cadastro && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl p-3 text-sm"

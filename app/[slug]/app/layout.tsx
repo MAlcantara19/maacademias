@@ -93,6 +93,20 @@ export default async function LayoutApp({ children, params }: { children: React.
     }
   }
 
+  // Senha provisória vencida (vale 48 h): volta para a tela de entrar
+  if (!vendoComo && perfil?.trocar_senha && perfil?.senha_provisoria_ate && new Date(perfil.senha_provisoria_ate) < new Date()) {
+    redirect("/login?expirou=1");
+  }
+
+  // Login de família: o responsável escolhe de qual filho é a vez (vale neste aparelho)
+  const familiaOpcoes = !vendoComo && !equipe && meusAlunos.length > 1 ? meusAlunos : [];
+  let familiaAtual: string | null = null;
+  if (familiaOpcoes.length) {
+    const escolhido = (await cookies()).get("familia")?.value;
+    const filho = familiaOpcoes.find((m: any) => m.id === escolhido);
+    if (filho) { familiaAtual = filho.id; meusAlunos = [filho]; }
+  }
+
   // Último acesso: grava depois de a página já ter sido enviada (não atrasa a abertura)
   const dezMin = 10 * 60 * 1000;
   if (perfil && (!perfil.ultimo_acesso || Date.now() - new Date(perfil.ultimo_acesso).getTime() > dezMin)) {
@@ -107,13 +121,14 @@ export default async function LayoutApp({ children, params }: { children: React.
         academia, perfil: perfilVisao ? { ...perfil, nome: perfilVisao.nome, apelido: perfilVisao.apelido, foto_url: perfilVisao.foto_url } : perfil,
         papeis: papeisVisao || Array.from(papeis), equipe, admin: !vendoComo && papeis.has("admin"), master: !vendoComo && !!master, vendoComo: !!vendoComo,
         professorId: vendoComo ? professorVisao : (meus || []).find((m: any) => m.papel === "professor")?.id || null,
-        membroId: vendoComo ? vendoComo.id : membroEquipe?.id || membroAluno?.id || null, meusAlunos,
+        membroId: vendoComo ? vendoComo.id : familiaAtual || membroEquipe?.id || membroAluno?.id || null, meusAlunos,
       }}
       vendoComo={vendoComo}
       verComoNivel={podeVerComo ? "admin" : equipeReal ? "equipe" : ""}
       outras={outras}
       cor={corDa(academia)}
       naoLidas={naoLidas || 0}
+      familia={familiaOpcoes.length ? { atual: familiaAtual, opcoes: familiaOpcoes.map((m: any) => ({ id: m.id, nome: m.apelido || m.nome, foto: m.foto_url, eu: m.eu })) } : null}
     >
       {children}
     </Casca>

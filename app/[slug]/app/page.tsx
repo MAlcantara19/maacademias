@@ -7,6 +7,9 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, NENHUM, hora, hojeISO, addDias, dataBR, dataHoraBR, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { PreCheckin } from "@/components/PreCheckin";
+import { DicaTelaInicial } from "@/components/InstalarApp";
+import { AtivarPush } from "@/components/AtivarPush";
+import { CheckinGPS, CheckinsGPSHoje } from "@/components/CheckinGPS";
 import { AniversarioDoDia } from "@/components/AniversarioDoDia";
 import { liberado } from "@/lib/planos";
 import { Barra } from "@/components/Grafico";
@@ -157,6 +160,8 @@ export default function Inicio() {
       {tour}
       <h1 className="text-4xl font-extrabold">Olá, {primeiroNome(ctx.perfil?.apelido || ctx.perfil?.nome)}!</h1>
           <AniversarioDoDia academia={ctx.academia} equipe={ctx.equipe} />
+      {!ctx.vendoComo && <DicaTelaInicial nome={ctx.academia.nome} />}
+      {!ctx.vendoComo && <AtivarPush perfilId={ctx.perfil?.id} soConvite />}
 
       {ctx.equipe ? (
         <>
@@ -265,6 +270,7 @@ export default function Inicio() {
             )}
           </div>
           <VagasComFila />
+          <CheckinsGPSHoje academiaId={ctx.academia.id} base={base} />
           <PedidosSenha />
           <FaltandoSeguido />
         </>
@@ -286,6 +292,7 @@ export default function Inicio() {
               {ctx.academia.modulos?.pre_checkin !== false && (
                 <PreCheckin academiaId={ctx.academia.id} horarioId={px.id} data={px.dia} membroId={px.membro_id} claro nome={deOutro ? nome : null} />
               )}
+              {px.dia === hojeISO() && !ctx.vendoComo && <CheckinGPS academia={ctx.academia} membroId={px.membro_id} nome={deOutro ? nome : null} claro />}
             </section>
             );
           })}

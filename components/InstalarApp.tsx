@@ -77,3 +77,30 @@ export function InstalarApp({ className = "btn-sec", texto }: { className?: stri
     </>
   );
 }
+
+// Dica na tela inicial (celular): "coloque o app na tela inicial". Some quando
+// a pessoa instala ou toca em "agora não" (vale neste aparelho).
+export function DicaTelaInicial({ nome }: { nome: string }) {
+  const [mostrar, setMostrar] = useState(false);
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    let dispensou = false;
+    try { dispensou = !!localStorage.getItem("ma_dica_instalar"); } catch { /* */ }
+    setMostrar(!standalone && !dispensou && tipoAparelho() !== "computador");
+  }, []);
+  if (!mostrar) return null;
+  function fechar() { setMostrar(false); try { localStorage.setItem("ma_dica_instalar", String(Date.now())); } catch { /* */ } }
+  return (
+    <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-linha bg-painel p-4">
+      <span className="text-3xl" aria-hidden>📲</span>
+      <div className="min-w-0 flex-1">
+        <p className="font-bold">Coloque o app da {nome} na tela inicial</p>
+        <p className="text-sm text-suave">Abre com um toque, como um aplicativo, e já entra direto.</p>
+      </div>
+      <div className="flex gap-2">
+        <InstalarApp className="btn text-sm" texto="Como fazer" />
+        <button className="btn-sec text-sm" onClick={fechar}>Agora não</button>
+      </div>
+    </section>
+  );
+}

@@ -19,3 +19,23 @@ export const PERFIS_DEMO = [
   },
   { grupo: "Família", itens: [{ rotulo: "Responsável (pais)", icone: "👨‍👧", chave: "responsavel", email: "responsavel.piloto@example.com", obs: "acompanha 2 crianças" }] },
 ];
+
+// Roteiro de demonstração: as telas na ordem certa, já com o perfil certo
+// (perfil = chave de PERFIS_DEMO; vazio = não precisa de login)
+export const ROTEIRO_DEMO: { titulo: string; perfil: string; caminho: string; dica: string }[] = [
+  { titulo: "Página da academia", perfil: "", caminho: "", dica: "O que o público vê: horários, professores, mapa, resultados e o botão de aula experimental." },
+  { titulo: "Início do dono", perfil: "admin", caminho: "/app", dica: "Resumo do dia: alunos sumidos, aniversários, check-ins pelo GPS, pedidos de senha e primeiros passos." },
+  { titulo: "Alunos", perfil: "admin", caminho: "/app/alunos", dica: "Filtros, WhatsApp com um toque, cadastro completo, contatos para arrumar e quem nunca entrou." },
+  { titulo: "Chamada", perfil: "prof-jj", caminho: "/app/chamada", dica: "O professor só vê as turmas dele. Toque no aluno, chamada rápida, por voz, e aceite quem chegou pelo GPS." },
+  { titulo: "Calendário", perfil: "prof-jj", caminho: "/app/calendario", dica: "Aulas, eventos e feriados. Editar, duplicar, repetir todo ano e mandar para o Google Agenda." },
+  { titulo: "Campeonatos", perfil: "admin", caminho: "/app/campeonatos", dica: "Inscritos, pesagem, checklist de documentos e lembrete automático 7 dias e 1 dia antes." },
+  { titulo: "Mensalidades", perfil: "admin", caminho: "/app/mensalidades", dica: "Pix com QR e copia e cola, atrasadas com multa e recibo. (Não aparece no plano Base.)" },
+  { titulo: "Relatório do mês", perfil: "admin", caminho: "/app/relatorio", dica: "Números do mês para o dono: alunos, frequência, financeiro e funil de matrículas." },
+  { titulo: "Telão da recepção", perfil: "admin", caminho: "/app/telao", dica: "Ranking, aniversariantes, avisos e o “Bem-vindo, fulano!” de quem faz check-in." },
+  { titulo: "App do aluno", perfil: "aluno-jj", caminho: "/app", dica: "Próxima aula, “✋ Vou nessa aula” e “📍 Cheguei” pelo GPS." },
+  { titulo: "Carteirinha", perfil: "aluno-jj", caminho: "/app/carteirinha", dica: "Carteirinha digital com foto, faixa e QR." },
+  { titulo: "Ranking e selos", perfil: "aluno-jj", caminho: "/app/ranking", dica: "A frequência vira jogo: ranking do mês, selos e títulos." },
+  { titulo: "Notificações", perfil: "aluno-jj", caminho: "/app/notificacoes", dica: "Avisos no celular: turma, eventos, pendências e ranking. Cada um escolhe o que receber." },
+  { titulo: "Responsável", perfil: "responsavel", caminho: "/app", dica: "Os pais acompanham os filhos e trocam a “Vez de” cada criança." },
+  { titulo: "Personalizar", perfil: "admin", caminho: "/app/config", dica: "Cores, logo, módulos, Pix e as regras do check-in." },
+];

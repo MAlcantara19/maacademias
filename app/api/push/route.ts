@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL } from "@/lib/supabase/chaves";
+import { destinoNotificacao } from "@/lib/linkNotificacao";
 
 export const runtime = "nodejs";
 
@@ -29,8 +30,9 @@ export async function POST(req: Request) {
   ]);
   if ((pref?.tipos_desligados || []).includes(n.tipo)) return NextResponse.json({ ok: true, enviados: 0 });
 
-  const url = acad?.slug ? `/${acad.slug}/app/notificacoes` : "/login";
-  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: n.tipo });
+  // tocar na notificação abre direto a tela certa (aviso, pendência, ranking, campeonato...)
+  const url = acad?.slug ? destinoNotificacao(`/${acad.slug}/app`, n.link) : "/login";
+  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}` });
   let enviados = 0;
   for (const s of subs || []) {
     try {

@@ -16,12 +16,15 @@ import { AberturaLogo, EfeitosTela } from "@/components/EfeitosTela";
 import { efeitoDaTemporada } from "@/lib/efeitos";
 import { EstiloFaixaCtx } from "@/lib/estiloFaixa";
 import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
+import { BarraPiloto, ContasDoAparelho, EscolhaFamilia, useGuardaConta } from "@/components/TrocaConta";
+import { removerConta } from "@/lib/contasSalvas";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
-export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras = [], children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; verComoNivel?: string; outras?: any[]; children: React.ReactNode }) {
+export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras = [], familia = null, children }: { ctx: Ctx; cor: string; naoLidas: number; vendoComo?: any; verComoNivel?: string; outras?: any[]; familia?: any; children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
+  useGuardaConta(vendoComo ? null : ctx.perfil, ctx.academia.slug);
   const [mais, setMais] = useState(false);
   // cores das faixas da academia (para os graus coloridos do judô)
   const [coresFaixas, setCoresFaixas] = useState<string[][]>([]);
@@ -124,7 +127,10 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
   const principais = itens.slice(0, 4);
 
   async function sair() {
-    await supabaseNavegador().auth.signOut();
+    const sb = supabaseNavegador();
+    const { data: { session } } = await sb.auth.getSession();
+    removerConta(session?.user?.email); // sai também da lista de contas deste aparelho
+    await sb.auth.signOut({ scope: "local" });
     router.replace("/login");
   }
 
@@ -163,6 +169,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
             <p className="text-suave">{ctx.papeis.map((p) => ({ admin: "Admin", professor: "Professor", aluno: "Aluno", responsavel: "Responsável" } as any)[p]).join(" · ")}</p>
             {verComoNivel && <VerComo academiaId={ctx.academia.id} nivel={verComoNivel as any} onEscolher={verComo} className="mt-2 text-suave" />}
             {ctx.master && <Link href="/master" className="mt-1 block text-suave underline">Painel master</Link>}
+            <Link href="/" className="mt-1 block text-suave underline">🏠 Todas as academias</Link>
+            {!vendoComo && <ContasDoAparelho className="mt-2" />}
             <InstalarApp className="mt-1 block text-suave underline" />
             <BotaoTema className="mt-1 block text-suave underline" />
             <BotaoEfeitos className="mt-1 block text-suave underline" />
@@ -188,7 +196,8 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
               </span>
             </div>
           )}
-          <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 md:px-6 md:pb-12 md:pt-6 lg:px-8 lg:pt-8">{children}</main>
+          <BarraPiloto slug={ctx.academia.slug} />
+          <main className="mx-auto max-w-5xl px-4 pb-32 pt-5 md:px-6 md:pb-12 md:pt-6 lg:px-8 lg:pt-8"><EscolhaFamilia familia={familia} />{children}</main>
         </div>
 
         {/* Menu de baixo (celular) */}
@@ -224,6 +233,9 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
                 </div>
               )}
               {verComoNivel && <VerComo academiaId={ctx.academia.id} nivel={verComoNivel as any} onEscolher={(v) => { setMais(false); verComo(v); }} className="mt-4 rounded-2xl bg-painel2 p-3 font-semibold" />}
+              {ctx.master && <Link href="/master" onClick={() => setMais(false)} className="btn-sec mt-2 w-full">🛠️ Painel master</Link>}
+              <Link href="/" onClick={() => setMais(false)} className="btn-sec mt-2 w-full">🏠 Todas as academias</Link>
+              {!vendoComo && <ContasDoAparelho className="mt-3 rounded-2xl bg-painel p-1" />}
               <InstalarApp className="btn mt-2 w-full" />
               <BotaoTema className="btn-sec mt-2 w-full" />
               <BotaoEfeitos className="btn-sec mt-2 w-full" />

@@ -15,6 +15,7 @@ import { LegendaSelos } from "@/components/LegendaSelos";
 import { ImportarAlunos } from "./ImportarAlunos";
 import { Solicitacoes } from "./Solicitacoes";
 import { TrazerAlunos } from "./TrazerAlunos";
+import { ContatosComProblema, NuncaEntraram } from "@/components/NovaSenha";
 
 const ORDENS: Record<string, string> = {
   nome: "Nome (A–Z)", idade: "Idade", debito_atualizado: "Maior débito", dias_sem_vir: "Dias sem vir", frequencia_30d: "Frequência", aluno_desde: "Aluno desde",
@@ -90,6 +91,10 @@ function Lista() {
       </div>
 
       <Solicitacoes onAprovar={carregar} />
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ContatosComProblema academiaId={ctx.academia.id} base={base} />
+        <NuncaEntraram academiaId={ctx.academia.id} />
+      </div>
       {novo && <NovoAluno onFechar={() => { setNovo(false); carregar(); }} />}
       {importar && <ImportarAlunos onFechar={() => { setImportar(false); carregar(); }} />}
       {trazer && <TrazerAlunos jaAqui={todos.map((a) => a.perfil_id)} onFechar={() => { setTrazer(false); carregar(); }} />}

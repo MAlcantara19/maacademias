@@ -6,18 +6,8 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataHoraBR } from "@/lib/util";
 import { AtivarPush } from "@/components/AtivarPush";
-
-// Converte os links das notificações para as telas do app
-function destino(base: string, link?: string) {
-  if (!link) return base;
-  if (link.startsWith("/eventos/")) return `${base}/campeonatos/${link.split("/")[2]}`;
-  if (link.startsWith("/alunos/")) return `${base}${link}`;
-  const mapa: Record<string, string> = {
-    "/avisos": base, "/mensalidades": `${base}/mensalidades`, "/materiais": base, "/aniversarios": `${base}/calendario`,
-    "/alunos": `${base}/alunos`, "/gestao": `${base}/gestao`, "/meu": `${base}/meu`, "/carteirinha": `${base}/carteirinha`, "/calendario": `${base}/calendario`, "/experimentais": `${base}/experimentais`, "/pendencias": `${base}/pendencias`,
-  };
-  return mapa[link] || (link.startsWith("/pendencias") ? `${base}/pendencias` : base);
-}
+import { destinoNotificacao as destino } from "@/lib/linkNotificacao";
+import { PreferenciasAvisos } from "@/components/PreferenciasAvisos";
 
 export default function Notificacoes() {
   const ctx = useCtx();
@@ -52,6 +42,7 @@ export default function Notificacoes() {
         </p>
       )}
       <AtivarPush perfilId={ctx.perfil?.id} />
+      {!ctx.vendoComo && <PreferenciasAvisos perfilId={ctx.perfil?.id} equipe={ctx.equipe} />}
       <ul className="space-y-2">
         {lista.map((n) => (
           <li key={n.id}>

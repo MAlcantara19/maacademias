@@ -18,6 +18,7 @@ export default function Master() {
   const [agenda, setAgenda] = useState<any[]>([]);
   const [nova, setNova] = useState<any>(null);
   const [editar, setEditar] = useState<any>(null);
+  const [resetando, setResetando] = useState(false);
   const [msg, setMsg] = useState("");
   const [uso, setUso] = useState<Record<string, any>>({});
 
@@ -98,6 +99,14 @@ export default function Master() {
     </main>
   );
 
+  async function resetarPilotos() {
+    if (!confirm("Apagar os 3 pilotos e criar de novo com os dados de exemplo (datas de hoje)?\n\nTudo o que foi mexido nas demonstrações some. As outras academias não são tocadas.")) return;
+    setResetando(true); setMsg("");
+    const { data, error } = await sb.rpc("recriar_pilotos");
+    setResetando(false);
+    setMsg(error ? (error.message.includes("recriar_pilotos") ? "Rode de novo o arquivo supabase/piloto-academias.sql (ele cria o botão de reiniciar)." : "Não deu para reiniciar: " + error.message) : `✅ ${data}`);
+  }
+
   const pagantes = lista.filter((a) => Number(a.plataforma_valor) > 0);
   const previsto = pagantes.reduce((s, a) => s + Number(a.plataforma_valor), 0);
   const recebido = pagantes.filter((a) => a.plataforma_pago_mes).reduce((s, a) => s + Number(a.plataforma_valor), 0);
@@ -112,8 +121,17 @@ export default function Master() {
           <Link href="/master/calendario" className="btn-sec">📅 Calendário</Link>
           <Link href="/master/atividade" className="btn-sec">🧾 Atividade e erros</Link>
           <button className="btn" onClick={() => setNova({ cor: "#7c3aed", tipo: "academia" })}>Nova academia</button>
-          <button className="btn-sec" onClick={async () => { await sb.auth.signOut(); router.replace("/login"); }}>Sair</button>
+          <button className="btn-sec" onClick={async () => { await sb.auth.signOut({ scope: "local" }); router.replace("/login"); }}>Sair</button>
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-painel p-3 text-sm">
+        <span className="font-semibold">⚡ Atalhos:</span>
+        <Link href="/" className="btn-sec px-3 py-1.5 text-sm">🏠 Todas as academias</Link>
+        <Link href="/piloto-base/app" className="btn-sec px-3 py-1.5 text-sm">🧪 Piloto Base</Link>
+        <Link href="/piloto-intermediario/app" className="btn-sec px-3 py-1.5 text-sm">🧪 Piloto Intermediário</Link>
+        <Link href="/piloto-completo/app" className="btn-sec px-3 py-1.5 text-sm">🧪 Piloto Completo</Link>
+        <Link href="/demo" className="btn-sec px-3 py-1.5 text-sm">🎬 Demonstração</Link>
+        <button className="btn-sec px-3 py-1.5 text-sm" disabled={resetando} onClick={resetarPilotos}>{resetando ? "♻️ Reiniciando…" : "♻️ Reiniciar pilotos"}</button>
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
 

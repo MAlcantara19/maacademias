@@ -11,7 +11,7 @@ function base64ParaUint8(b64: string) {
 }
 
 // Botão para receber as notificações no celular, mesmo com o app fechado
-export function AtivarPush({ perfilId }: { perfilId?: string }) {
+export function AtivarPush({ perfilId, soConvite = false }: { perfilId?: string; soConvite?: boolean }) {
   const [estado, setEstado] = useState<"carregando" | "sem-suporte" | "ios" | "ativo" | "inativo" | "negado" | "sem-chave">("carregando");
   const [msg, setMsg] = useState("");
 
@@ -54,11 +54,30 @@ export function AtivarPush({ perfilId }: { perfilId?: string }) {
   }
 
   if (estado === "carregando" || estado === "sem-chave") return null;
+  // na tela inicial: só convida quem ainda não ativou (e deixa dispensar)
+  if (soConvite) {
+    let dispensou = false;
+    try { dispensou = !!localStorage.getItem("ma_push_dispensou"); } catch { /* */ }
+    if (estado !== "inativo" || dispensou) return null;
+    return (
+      <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-linha bg-painel p-4">
+        <span className="text-3xl" aria-hidden>🔔</span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold">Receber os avisos no celular?</p>
+          <p className="text-sm text-suave">Avisos da turma, eventos chegando, pendências e ranking — mesmo com o app fechado.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="btn text-sm" onClick={ativar}>Ativar</button>
+          <button className="btn-sec text-sm" onClick={() => { try { localStorage.setItem("ma_push_dispensou", "1"); } catch { /* */ } setEstado("carregando"); }}>Agora não</button>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="rounded-2xl bg-painel p-4">
       <p className="font-semibold">📲 Notificações no celular</p>
       {estado === "ativo" && <><p className="text-sm text-suave">Ativadas neste aparelho.</p><button className="mt-2 text-sm underline" onClick={desativar}>Desativar</button></>}
-      {estado === "inativo" && <><p className="text-sm text-suave">Receba avisos de pesagem, aniversários e mensalidades mesmo com o app fechado.</p><button className="btn mt-2" onClick={ativar}>Ativar notificações</button></>}
+      {estado === "inativo" && <><p className="text-sm text-suave">Receba avisos da turma, eventos chegando, pendências, ranking, pesagem e mensalidades mesmo com o app fechado.</p><button className="btn mt-2" onClick={ativar}>Ativar notificações</button></>}
       {estado === "negado" && <p className="text-sm text-suave">As notificações estão bloqueadas. Libere nas configurações do navegador para este site.</p>}
       {estado === "ios" && <p className="text-sm text-suave">No iPhone: toque em Compartilhar → “Adicionar à Tela de Início”, abra o app pela tela inicial e volte aqui.</p>}
       {estado === "sem-suporte" && <p className="text-sm text-suave">Este navegador não aceita notificações. Use o Chrome no Android.</p>}

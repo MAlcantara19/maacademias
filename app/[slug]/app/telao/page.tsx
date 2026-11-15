@@ -6,6 +6,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, MESES, dataHoraBR, hojeISO, hora } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { QR } from "@/components/QR";
+import { BoasVindasTelao } from "@/components/CheckinGPS";
 
 // Modo TV: quadro de avisos que passa sozinho (aniversariantes, ranking do mês,
 // próximos eventos, avisos e as aulas de hoje). Ideal para a TV da recepção.
@@ -19,6 +20,7 @@ export default function Telao() {
   const [cheia, setCheia] = useState(false);
   const [tick, setTick] = useState(0);
   const [comQR, setComQR] = useState(true);
+  const [boasVindas, setBoasVindas] = useState(true);
   const [salas, setSalas] = useState({ a: "", b: "" });
   const cor = ctx.academia.cores?.primaria || "#7c3aed";
 
@@ -139,7 +141,8 @@ export default function Telao() {
     </div>
   );
 
-  if (cheia) return <div className="fixed inset-0 z-[200]" onDoubleClick={() => document.exitFullscreen?.()}>{quadro}</div>;
+  const chegadas = boasVindas ? <BoasVindasTelao academiaId={ctx.academia.id} /> : null;
+  if (cheia) return <div className="fixed inset-0 z-[200]" onDoubleClick={() => document.exitFullscreen?.()}>{quadro}{chegadas}</div>;
   return (
     <div className="space-y-4">
       <h1 className="text-4xl font-extrabold">📺 Telão (modo TV)</h1>
@@ -149,6 +152,7 @@ export default function Telao() {
         <button className="btn" onClick={telaCheia}>⛶ Abrir em tela cheia</button>
         <Link href={`/${ctx.academia.slug}/app`} className="btn-sec">Voltar</Link>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={comQR} onChange={(e) => setComQR(e.target.checked)} /> QR de check-in no canto</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={boasVindas} onChange={(e) => setBoasVindas(e.target.checked)} /> “Bem-vindo, fulano!” quando alguém faz check-in (GPS ou QR)</label>
       </div>
       <details className="rounded-2xl bg-painel p-3 text-sm">
         <summary className="cursor-pointer font-semibold">🏟️ Modo competição: placar ao vivo de duas áreas lado a lado</summary>
@@ -159,7 +163,7 @@ export default function Telao() {
           <a className={`btn ${salas.a && salas.b ? "" : "pointer-events-none opacity-50"}`} target="_blank" href={`/placar/areas?a=${salas.a}&b=${salas.b}`}>📺 Abrir as duas áreas</a>
         </div>
       </details>
-      <div className="aspect-video w-full overflow-hidden rounded-2xl">{quadro || <p className="p-4 text-suave">Carregando…</p>}</div>
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl">{quadro || <p className="p-4 text-suave">Carregando…</p>}{chegadas}</div>
     </div>
   );
 }

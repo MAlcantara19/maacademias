@@ -235,3 +235,27 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 3. Professor, admin e master veem o aviso 🔑 e o card **Pediram nova senha** na tela inicial → **Gerar nova senha** → mandam por WhatsApp, e-mail ou copiam.
 4. O botão **🔑 Nova senha** também fica na ficha do aluno e no cadastro (para o responsável). A pessoa troca a senha no primeiro acesso.
 5. Precisa da variável `SUPABASE_SECRET_KEY` na Vercel (a mesma do "Criar login").
+
+## Atualização 25 (GPS, contas no aparelho, família, calendário)
+
+1. Rode `supabase/ATUALIZAR-22.sql` no SQL Editor (pode rodar de novo sem problema).
+2. **Calendário:** cada evento tem “✏️ editar / apagar”; no campeonato, botão “✏️ Editar / apagar” no topo.
+3. **Check-in pelo GPS:** na próxima aula de hoje o aluno toca em “📍 Cheguei na academia”. Fica em “📍 Chegaram pelo GPS” na chamada para o professor aceitar. Ligar/desligar (e “marcar direto”) em Personalizar academia → Regras. Precisa da latitude/longitude da academia.
+4. **Entrar:** aceita e-mail ou WhatsApp; “Lembrar de mim”; “Contas neste aparelho” para trocar sem senha.
+5. **Família:** o responsável com mais de um filho escolhe “Vez de: Todos / Ana / João” no topo.
+6. **Senhas:** provisória vale 48 h, histórico na ficha, “Contatos para arrumar” e “Nunca entraram” em Alunos.
+7. **Opcional:** WhatsApp automático (Z-API: `ZAPI_INSTANCIA`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`) e código por e-mail (Resend: `RESEND_API_KEY`) na Vercel. Com eles, o “Esqueci a senha” manda um código de 6 números e a pessoa cria a senha sozinha.
+8. **Pilotos:** barra amarela 🧪 no topo para trocar de piloto e de perfil; “🏠 Todas as academias” no menu.
+
+## Atualização 26 (notificações no celular, eventos e roteiro)
+
+1. Rode `supabase/ATUALIZAR-23.sql` e depois rode de novo `supabase/piloto-academias.sql` (ele cria o botão “Reiniciar pilotos”).
+2. **Notificações no celular** (precisa do push configurado — veja “Notificações no celular” acima: chaves VAPID, `PUSH_WEBHOOK_SECRET` e o Webhook do Supabase):
+   - aviso novo para a turma/modalidade/academia; pendência marcada pela equipe (aluno e responsável);
+   - eventos 1 semana e 1 dia antes; feriado na véspera; campeonato com pesagem e documentos para os inscritos;
+   - ranking: “fulano te passou” e “falta 1 treino para alcançar fulano”;
+   - fim do dia: check-ins pelo GPS que ficaram sem aceitar.
+   Cada pessoa escolhe o que toca no celular em Notificações → “⚙️ O que avisar no celular”.
+3. **Calendário:** “🔁 Repete todo ano”, “📄 Duplicar” (copia com o cronograma) e “📆 Google Agenda / .ics”.
+4. **Telão:** “Bem-vindo, fulano! 🥋” quando alguém faz check-in pelo GPS ou QR.
+5. **Pilotos:** “🎬 Roteiro” na barra amarela e “♻️ Reiniciar pilotos” no painel master.

@@ -56,11 +56,7 @@ begin
   end if;
 end $$;
 
-delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
-delete from perfis where email like '%.piloto@example.com'
-   or email in ('admin.piloto@example.com','prof.piloto@example.com','aluno.piloto@example.com','responsavel.piloto@example.com',
-                'judo.piloto@example.com','muaythai.piloto@example.com','tkd.piloto@example.com','prof.judo.piloto@example.com',
-                'prof.muaythai.piloto@example.com','prof.tkd.piloto@example.com');
+-- (a limpeza do piloto antigo fica dentro de recriar_pilotos(), mais abaixo)
 
 -- Ajudante temporário: cria pessoa + vínculo e devolve o id do membro
 create or replace function pil_pessoa(
@@ -858,18 +854,34 @@ begin
    where id = pr_jj;
 end $$;
 
--- As 3 academias piloto: mesmos alunos e dados, cada uma com seu plano
-select criar_piloto('piloto-completo',      'Piloto Completo',      'completo',      '#7c3aed', '{"modo":"escuro","fonte":"esportiva"}', true);
-select criar_piloto('piloto-intermediario', 'Piloto Intermediário', 'intermediario', '#0d9488', '{"modo":"escuro","fonte":"simples"}',   false);
-select criar_piloto('piloto-base',          'Piloto Base',          'base',          '#2563eb', '{"modo":"claro","fonte":"simples"}',    false);
--- O plano Base não tem mensalidades: tira esses dados do Piloto Base
-delete from cobrancas   where academia_id in (select id from academias where slug = 'piloto-base');
-delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
-delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
-delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
+-- Apaga e recria os 3 pilotos (também pelo botão "Reiniciar pilotos" do painel master)
+create or replace function recriar_pilotos() returns text
+language plpgsql security definer set search_path = public as $fn$
+begin
+  if auth.uid() is not null and not sou_master() then
+    raise exception 'Só o master pode reiniciar os pilotos.';
+  end if;
+  delete from academias where slug in ('academia-piloto', 'clube-de-luta-exemplo', 'piloto-base', 'piloto-intermediario', 'piloto-completo');
+  delete from perfis where email like '%.piloto@example.com'
+     or email in ('admin.piloto@example.com','prof.piloto@example.com','aluno.piloto@example.com','responsavel.piloto@example.com',
+                  'judo.piloto@example.com','muaythai.piloto@example.com','tkd.piloto@example.com','prof.judo.piloto@example.com',
+                  'prof.muaythai.piloto@example.com','prof.tkd.piloto@example.com');
 
-drop function criar_piloto(text, text, text, text, jsonb, boolean);
-drop function pil_pessoa(uuid, text, text, text, date, text);
+  -- As 3 academias piloto: mesmos alunos e dados, cada uma com seu plano
+  perform criar_piloto('piloto-completo',      'Piloto Completo',      'completo',      '#7c3aed', '{"modo":"escuro","fonte":"esportiva"}', true);
+  perform criar_piloto('piloto-intermediario', 'Piloto Intermediário', 'intermediario', '#0d9488', '{"modo":"escuro","fonte":"simples"}',   false);
+  perform criar_piloto('piloto-base',          'Piloto Base',          'base',          '#2563eb', '{"modo":"claro","fonte":"simples"}',    false);
+  -- O plano Base não tem mensalidades: tira esses dados do Piloto Base
+  delete from cobrancas   where academia_id in (select id from academias where slug = 'piloto-base');
+  delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
+  delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
+  delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
+  return 'Pilotos recriados em ' || to_char(now() at time zone 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI');
+end $fn$;
+revoke execute on function recriar_pilotos() from public, anon;
+grant execute on function recriar_pilotos() to authenticated;
+
+select recriar_pilotos();
 
 -- Resumo do que foi criado
 select

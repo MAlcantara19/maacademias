@@ -7,6 +7,9 @@ import { dataBR, dataHoraBR, whatsapp, primeiroNome } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { Barra } from "@/components/Grafico";
 import { liberado } from "@/lib/planos";
+import { EditarEvento } from "@/components/EditarEvento";
+import { BotaoAgenda } from "@/components/BotaoAgenda";
+import { useRouter } from "next/navigation";
 
 const RESULTADOS: Record<string, string> = { ouro: "🥇 Ouro", prata: "🥈 Prata", bronze: "🥉 Bronze", participou: "Participou", nao_compareceu: "Não compareceu" };
 
@@ -25,6 +28,8 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
   const [msg, setMsg] = useState("");
   const [extra, setExtra] = useState<Record<string, any>>({});
   const [pedidos, setPedidos] = useState<any[]>([]);
+  const [editando, setEditando] = useState(false);
+  const router = useRouter();
   async function decidirPedido(p: any, aprovar: boolean) {
     if (!aprovar && !confirm(`Recusar o pedido de ${p.nome}?`)) return;
     const { error } = await sb.from("inscricoes_evento").update({ status: aprovar ? "confirmada" : "recusada" }).eq("id", p.id);
@@ -125,7 +130,16 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
     <div className="space-y-5">
       <Link href={`${base}/campeonatos`} className="nao-imprimir text-sm text-suave">← Campeonatos</Link>
       <header className="imprimir-claro">
-        <h1 className="text-4xl font-extrabold">{ev.titulo}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h1 className="text-4xl font-extrabold">{ev.titulo}</h1>
+          {ctx.equipe && !editando && <button className="btn-sec nao-imprimir text-sm" onClick={() => setEditando(true)}>✏️ Editar / duplicar / apagar</button>}
+        </div>
+        {editando && (
+          <div className="nao-imprimir mt-3">
+            <EditarEvento academiaId={ctx.academia.id} evento={ev} onFechar={() => setEditando(false)}
+              onSalvo={(apagado, novoId) => { setEditando(false); if (apagado) router.push(`${base}/campeonatos`); else if (novoId) router.push(`${base}/campeonatos/${novoId}`); else carregar(); }} />
+          </div>
+        )}
         {ctx.equipe && pedidos.length > 0 && (
           <section className="nao-imprimir mt-3 space-y-2 rounded-2xl border-2 p-3" style={{ borderColor: "var(--cor)" }}>
             <p className="font-bold">🙋 Pedidos de inscrição ({pedidos.length})</p>
@@ -138,6 +152,7 @@ export default function Campeonato({ params }: { params: Promise<{ id: string }>
           </section>
         )}
         <p className="text-suave">{dataHoraBR(ev.inicio)}{ev.local ? ` · ${ev.local}` : ""} · {ctx.academia.nome}</p>
+        <p className="nao-imprimir mt-1 text-sm"><BotaoAgenda evento={ev} academia={ctx.academia.nome} /></p>
       </header>
 
       {ck && futuro && completo && (

@@ -85,6 +85,7 @@ export default function Config() {
       cores: { ...(a.cores || {}), primaria: a.cores?.primaria || "#7c3aed" },
       modulos: a.modulos, no_diretorio: a.no_diretorio,
       checkin_raio_m: Number(a.checkin_raio_m), tolerancia_atraso_min: Number(a.tolerancia_atraso_min),
+      ...(a.checkin_gps !== undefined ? { checkin_gps: a.checkin_gps !== false, checkin_gps_auto: !!a.checkin_gps_auto } : {}),
       gerar_mensalidades_auto: !!a.gerar_mensalidades_auto, multa_pct: Number(a.multa_pct || 0), juros_mes_pct: Number(a.juros_mes_pct || 0),
       juros_dias_uteis: !!a.juros_dias_uteis, aviso_vencimento_dias: Number(a.aviso_vencimento_dias), cobrar_apos_dias: Number(a.cobrar_apos_dias),
       pendencia_apos_dias: Number(a.pendencia_apos_dias), alerta_mensalidades_atrasadas: Number(a.alerta_mensalidades_atrasadas),
@@ -159,7 +160,7 @@ export default function Config() {
                 () => setMsg("Não consegui pegar a localização. Libere o acesso no navegador."), { timeout: 12000 })}>📍 Estou na academia: usar minha localização</button>
               <button className="btn-sec text-sm" onClick={() => pegarDoMaps()}>🗺️ Pegar endereço do link do Google Maps</button>
             </div>
-            <p className="text-xs text-suave sm:col-span-2">A latitude e a longitude fazem a academia aparecer no “Perto de mim” e no mapa, e são usadas no check-in por QR.</p>
+            <p className="text-xs text-suave sm:col-span-2">A latitude e a longitude fazem a academia aparecer no “Perto de mim” e no mapa, e são usadas no check-in por QR e pelo GPS.</p>
           </div>
 
           <h3 className="pt-2 text-xl font-bold">Pix das mensalidades</h3>
@@ -179,6 +180,14 @@ export default function Config() {
             <div><label className="rotulo">Alerta de sumido (dias)</label><input type="number" className="campo" value={a.alerta_dias_sem_vir} onChange={(e) => muda("alerta_dias_sem_vir", e.target.value)} /></div>
             <div><label className="rotulo">Aviso de aniversário (dias antes)</label><input type="number" className="campo" value={a.aviso_aniversario_dias} onChange={(e) => muda("aviso_aniversario_dias", e.target.value)} /></div>
           </div>
+          {a.checkin_gps !== undefined && (
+            <div className="space-y-2 rounded-2xl bg-painel2 p-3">
+              <p className="font-semibold">📍 Check-in pelo GPS do celular</p>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={a.checkin_gps !== false} onChange={(e) => muda("checkin_gps", e.target.checked)} /> O aluno pode fazer check-in pelo GPS quando chega perto da academia (sem QR)</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={a.checkin_gps === false} checked={!!a.checkin_gps_auto} onChange={(e) => muda("checkin_gps_auto", e.target.checked)} /> Já marcar presente direto (sem o professor aceitar)</label>
+              <p className="text-xs text-suave">Usa a latitude/longitude acima e o raio do check-in. Sem a opção “direto”, o check-in fica esperando o professor aceitar na chamada.</p>
+            </div>
+          )}
 
           {liberado(a.plano, "mensalidades") && (<>
           <h3 className="pt-2 text-xl font-bold">Mensalidades e cobrança</h3>
