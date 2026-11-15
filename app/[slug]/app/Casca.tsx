@@ -18,6 +18,7 @@ import { EstiloFaixaCtx } from "@/lib/estiloFaixa";
 import { supabaseNavegador as sbFaixa } from "@/lib/supabase/client";
 import { BarraPiloto, ContasDoAparelho, EscolhaFamilia, useGuardaConta } from "@/components/TrocaConta";
 import { removerConta } from "@/lib/contasSalvas";
+import { BuscaRapida } from "@/components/BuscaRapida";
 
 type Item = { href: string; rotulo: string; icone: string; m?: string };
 
@@ -149,6 +150,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
         <aside className="nao-imprimir sticky top-0 hidden h-dvh w-60 shrink-0 lg:w-64 flex-col border-r border-linha bg-painel p-4 md:flex">
           <Link href={`/${ctx.academia.slug}`} className="titulo text-2xl font-extrabold">{ctx.academia.nome}</Link>
           <Faixa cor={cor} graus={2} altura={8} className="mb-2 mt-2" />
+          {ctx.equipe && <BuscaRapida academiaId={ctx.academia.id} base={base} telas={itens} atalho className="campo mb-3 py-1.5 text-left text-sm text-suave" />}
           {outras.length > 0 && (
             <select className="campo mb-3 py-1.5 text-sm" value="" onChange={(e) => e.target.value && router.push(`/${e.target.value}/app`)} aria-label="Trocar de academia">
               <option value="">↔ Trocar de academia</option>
@@ -182,9 +184,12 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
         <div className="flex-1">
           <header className="nao-imprimir sticky top-0 z-20 flex items-center justify-between border-b border-linha bg-fundo/95 px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur md:hidden">
             <Link href={base} className="titulo truncate text-xl font-extrabold">{ctx.academia.nome}</Link>
+            <span className="flex items-center gap-1">
+            {ctx.equipe && <BuscaRapida academiaId={ctx.academia.id} base={base} telas={itens} className="p-1 text-xl" />}
             <Link href={`${base}/notificacoes`} className="relative p-1 text-xl" aria-label="Notificações">
               🔔{naoLidas > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-erro px-1.5 text-[10px] text-white">{naoLidas}</span>}
             </Link>
+            </span>
           </header>
 
           {vendoComo && (

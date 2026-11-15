@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { listarContas, marcarSessao, salvarContaAtual, sessaoVenceu, trocarParaConta, type ContaSalva } from "@/lib/contasSalvas";
 import { PERFIS_DEMO, ROTEIRO_DEMO } from "@/lib/demo";
-import { PLANOS } from "@/lib/planos";
+import { PLANOS, liberado } from "@/lib/planos";
 
 // Mantém a conta lembrada em dia (nome, foto, academia e as chaves de acesso)
 // e encerra a sessão de quem pediu para não ser lembrado quando o navegador fechou.
@@ -111,6 +111,9 @@ export function BarraPiloto({ slug }: { slug: string }) {
   const senha = process.env.NEXT_PUBLIC_DEMO_SENHA || "";
   const resto = path.slice(`/${slug}`.length);
   const perfis = PERFIS_DEMO.flatMap((g) => g.itens.map((i) => ({ ...i, grupo: g.grupo })));
+  // o roteiro pula as telas que o plano deste piloto não tem
+  const planoDoPiloto = PLANOS.find((p) => p.slugDemo === slug)?.id || "completo";
+  const roteiro = ROTEIRO_DEMO.filter((r) => !r.recurso || liberado(planoDoPiloto, r.recurso));
 
   function alternar() {
     const v = !aberta; setAberta(v);
@@ -134,7 +137,7 @@ export function BarraPiloto({ slug }: { slug: string }) {
     try { if (n === null) localStorage.removeItem("ma_roteiro"); else localStorage.setItem("ma_roteiro", String(n)); } catch { /* */ }
   }
   async function irPara(n: number) {
-    const p = ROTEIRO_DEMO[n]; if (!p) return;
+    const p = roteiro[n]; if (!p) return;
     guardarPasso(n); setLista(false);
     const email = perfis.find((x) => x.chave === p.perfil)?.email;
     if (email && email !== eu && senha) {
@@ -148,16 +151,16 @@ export function BarraPiloto({ slug }: { slug: string }) {
     }
     window.location.href = `/${slug}${p.caminho}`;
   }
-  const atual = passo !== null ? ROTEIRO_DEMO[passo] : null;
+  const atual = passo !== null ? roteiro[Math.min(passo, roteiro.length - 1)] : null;
   const painelRoteiro = (
     <>
       {atual && (
         <div className="nao-imprimir fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-xl rounded-2xl bg-black/90 p-3 text-sm text-white shadow-2xl md:bottom-4">
           <div className="flex items-center gap-2">
-            <span className="min-w-0 font-bold">🎬 {passo! + 1}/{ROTEIRO_DEMO.length} · {atual.titulo}</span>
+            <span className="min-w-0 font-bold">🎬 {passo! + 1}/{roteiro.length} · {atual.titulo}</span>
             <span className="ml-auto flex gap-1">
               <button className="rounded-lg bg-white/15 px-2 py-1 disabled:opacity-40" disabled={passo === 0 || !!entrando} onClick={() => irPara(passo! - 1)} aria-label="Passo anterior">◀</button>
-              <button className="rounded-lg bg-white px-3 py-1 font-bold text-black disabled:opacity-40" disabled={passo === ROTEIRO_DEMO.length - 1 || !!entrando} onClick={() => irPara(passo! + 1)}>{entrando ? "…" : "▶"}</button>
+              <button className="rounded-lg bg-white px-3 py-1 font-bold text-black disabled:opacity-40" disabled={passo === roteiro.length - 1 || !!entrando} onClick={() => irPara(passo! + 1)}>{entrando ? "…" : "▶"}</button>
               <button className="rounded-lg bg-white/15 px-2 py-1" onClick={() => setLista(!lista)} aria-label="Ver todos os passos">☰</button>
               <button className="rounded-lg bg-white/15 px-2 py-1" onClick={() => guardarPasso(null)} aria-label="Fechar roteiro">✕</button>
             </span>
@@ -171,7 +174,7 @@ export function BarraPiloto({ slug }: { slug: string }) {
           <div className="max-h-[80dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-painel p-4 text-texto" onClick={(e) => e.stopPropagation()}>
             <p className="mb-2 text-xl font-bold">🎬 Roteiro de demonstração</p>
             <ol className="space-y-1">
-              {ROTEIRO_DEMO.map((r, n) => (
+              {roteiro.map((r, n) => (
                 <li key={n}>
                   <button className={`w-full rounded-xl p-2 text-left ${passo === n ? "bg-painel2 font-bold" : "hover:bg-painel2"}`} onClick={() => irPara(n)}>
                     {n + 1}. {r.titulo} <span className="text-xs text-suave">· {perfis.find((x) => x.chave === r.perfil)?.grupo || "sem login"}</span>

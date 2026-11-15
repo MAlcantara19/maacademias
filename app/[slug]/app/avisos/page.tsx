@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LeituraAviso } from "@/components/CienteAviso";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { dataBR, dataHoraBR, hojeISO } from "@/lib/util";
@@ -84,6 +85,7 @@ export default function Avisos() {
               </span>
             </div>
             {a.texto && <p className="mt-1 whitespace-pre-line text-sm text-suave">{a.texto}</p>}
+            <LeituraAviso avisoId={a.id} />
             <div className="mt-2 flex gap-3 text-sm">
               <button className="underline" onClick={() => fixar(a)}>{a.fixado ? "Desafixar" : "Fixar"}</button>
               <button className="text-suave underline" onClick={() => apagar(a.id)}>Apagar</button>

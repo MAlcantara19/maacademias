@@ -11,6 +11,7 @@ export function destinoNotificacao(base: string, link?: string | null) {
   };
   if (mapa[link]) return mapa[link];
   if (link.startsWith("/pendencias")) return `${base}/pendencias`;
-  if (link.startsWith("/exportar")) return `${base}${link}`;
+  if (link.startsWith("/exportar") || link.startsWith("/chamada")) return `${base}${link}`;
+  if (link === "/") return base;
   return base;
 }

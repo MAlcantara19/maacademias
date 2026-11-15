@@ -9,6 +9,9 @@ import { Avatar } from "@/components/Avatar";
 import { PreCheckin } from "@/components/PreCheckin";
 import { DicaTelaInicial } from "@/components/InstalarApp";
 import { AtivarPush } from "@/components/AtivarPush";
+import { BotaoCiente, LeituraAviso } from "@/components/CienteAviso";
+import { linkGoogleAgenda } from "@/components/BotaoAgenda";
+import { ContagemCampeonato } from "@/components/ContagemCampeonato";
 import { CheckinGPS, CheckinsGPSHoje } from "@/components/CheckinGPS";
 import { AniversarioDoDia } from "@/components/AniversarioDoDia";
 import { liberado } from "@/lib/planos";
@@ -197,6 +200,25 @@ export default function Inicio() {
             </div>
           )}
 
+          {(() => {
+            // aula acontecendo agora (ou começando em até 30 min): atalho grande para a chamada
+            const agora = new Date().toTimeString().slice(0, 5);
+            const em30 = new Date(Date.now() + 30 * 60000).toTimeString().slice(0, 5);
+            const h = d.aulasHoje.find((x: any) => String(x.hora_inicio).slice(0, 5) <= em30 && String(x.hora_fim || "23:59").slice(0, 5) >= agora);
+            if (!h) return null;
+            const comecou = String(h.hora_inicio).slice(0, 5) <= agora;
+            return (
+              <Link href={`${base}/chamada?turma=${h.turmas.id}&horario=${h.id}`} className="flex items-center gap-4 rounded-2xl p-4 text-white shadow-lg" style={{ background: h.turmas.modalidades?.cor || "var(--cor)" }}>
+                <span className="text-4xl" aria-hidden>{comecou ? "▶️" : "⏰"}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm opacity-90">{comecou ? "Acontecendo agora" : `Começa às ${hora(h.hora_inicio)}`}</span>
+                  <span className="block truncate text-2xl font-bold">{h.turmas.nome}</span>
+                </span>
+                <span className="rounded-xl bg-white/25 px-3 py-2 font-bold">✅ Chamada</span>
+              </Link>
+            );
+          })()}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <Cartao titulo={`Aulas de hoje · ${DIAS[new Date().getDay()]}`}>
               {d.aulasHoje.length === 0 && <p className="text-suave">Sem aulas hoje.</p>}
@@ -278,6 +300,7 @@ export default function Inicio() {
         <>
           <MeuCadastroPendente />
           {ctx.academia.modulos?.campeonatos !== false && <QueroLutar />}
+          {ctx.academia.modulos?.campeonatos !== false && <ContagemCampeonato alunos={ctx.meusAlunos} base={base} />}
           {(ctx.meusAlunos.length > 1 || (ctx.meusAlunos[0] && !ctx.meusAlunos[0].eu) ? d.porAluno || [] : d.proxima ? [d.proxima] : []).map((px: any) => {
             const al = ctx.meusAlunos.find((m) => m.id === px.membro_id);
             const deOutro = ctx.meusAlunos.length > 1 || !al?.eu;
@@ -375,6 +398,7 @@ export default function Inicio() {
               <li key={a.id} className="border-l-4 pl-3" style={{ borderColor: "var(--cor)" }}>
                 <p className="font-semibold">{a.fixado ? "📌 " : ""}{a.titulo}</p>
                 {a.texto && <p className="text-sm text-suave">{a.texto}</p>}
+                {ctx.equipe ? <LeituraAviso avisoId={a.id} /> : !ctx.vendoComo && <BotaoCiente avisoId={a.id} perfilId={ctx.perfil?.id} />}
               </li>
             ))}
           </ul>
@@ -387,7 +411,7 @@ export default function Inicio() {
             {d.eventos.map((e: any) => (
               <li key={e.id} className="flex justify-between gap-3">
                 <span>{e.tipo === "campeonato" ? "🥇" : e.tipo === "feriado" ? "🏖️" : "📅"} {e.titulo}</span>
-                <span className="shrink-0 text-sm text-suave">{dataHoraBR(e.inicio)}</span>
+                <span className="shrink-0 text-sm text-suave">{dataHoraBR(e.inicio)} <a href={linkGoogleAgenda(e, ctx.academia.nome)} target="_blank" rel="noreferrer" aria-label="Adicionar ao Google Agenda" title="Adicionar ao Google Agenda">📆</a></span>
               </li>
             ))}
           </ul>

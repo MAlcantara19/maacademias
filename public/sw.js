@@ -8,7 +8,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(d.titulo || "Academia", {
       body: d.texto || "",
-      icon: "/icon-192.png",
+      icon: d.icone || "/icon-192.png",
+      image: d.imagem || undefined,
       badge: "/icon-192.png",
       data: { url: d.url || "/" },
       tag: d.tag || undefined,

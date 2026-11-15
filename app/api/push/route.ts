@@ -26,13 +26,14 @@ export async function POST(req: Request) {
   const [{ data: subs }, { data: pref }, { data: acad }] = await Promise.all([
     sb.from("push_inscricoes").select("*").eq("perfil_id", n.perfil_id),
     sb.from("preferencias_notificacao").select("tipos_desligados").eq("perfil_id", n.perfil_id).maybeSingle(),
-    n.academia_id ? sb.from("academias").select("slug").eq("id", n.academia_id).maybeSingle() : Promise.resolve({ data: null }),
+    n.academia_id ? sb.from("academias").select("slug, logo_url").eq("id", n.academia_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   if ((pref?.tipos_desligados || []).includes(n.tipo)) return NextResponse.json({ ok: true, enviados: 0 });
 
   // tocar na notificação abre direto a tela certa (aviso, pendência, ranking, campeonato...)
   const url = acad?.slug ? destinoNotificacao(`/${acad.slug}/app`, n.link) : "/login";
-  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}` });
+  // foto do aviso aparece grande na notificação (Android/Chrome); logo da academia como ícone
+  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}`, imagem: n.imagem || undefined, icone: acad?.logo_url || undefined });
   let enviados = 0;
   for (const s of subs || []) {
     try {
@@ -42,5 +43,7 @@ export async function POST(req: Request) {
       if (e?.statusCode === 404 || e?.statusCode === 410) await sb.from("push_inscricoes").delete().eq("id", s.id);
     }
   }
+  // guarda quantos aparelhos receberam (painel de entrega do master)
+  if (n.id) await sb.from("notificacoes").update({ push_enviados: enviados }).eq("id", n.id).then(() => {}, () => {});
   return NextResponse.json({ ok: true, enviados });
 }

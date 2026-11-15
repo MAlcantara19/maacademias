@@ -38,3 +38,23 @@ export function BotaoAgenda({ evento, academia, className = "underline" }: { eve
     </span>
   );
 }
+
+// "Assinar a agenda da academia": todos os eventos públicos entram e se atualizam sozinhos
+export function AssinarAgenda({ slug, nome }: { slug: string; nome: string }) {
+  const host = typeof window !== "undefined" ? window.location.host : "";
+  if (!host) return null;
+  const webcal = `webcal://${host}/${slug}/agenda.ics`;
+  const google = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
+  return (
+    <details className="rounded-2xl bg-painel p-3 text-sm">
+      <summary className="cursor-pointer font-semibold">📲 Colocar os eventos da {nome} na agenda do celular</summary>
+      <p className="mt-2 text-suave">Uma vez só: os campeonatos, provas e feriados entram na sua agenda e se atualizam sozinhos.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <a className="btn text-sm" href={google} target="_blank" rel="noreferrer">📆 Google Agenda (Android)</a>
+        <a className="btn-sec text-sm" href={webcal}>🍎 iPhone / Outlook</a>
+        <button className="btn-sec text-sm" onClick={() => navigator.clipboard?.writeText(`https://${host}/${slug}/agenda.ics`)}>📋 Copiar link</button>
+      </div>
+      <p className="mt-1 text-xs text-suave">Só entram os eventos marcados como “aparece na página pública”.</p>
+    </details>
+  );
+}

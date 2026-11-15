@@ -6,6 +6,7 @@ import { supabaseNavegador } from "@/lib/supabase/client";
 import { Faixa } from "@/components/Faixa";
 import { dataHoraBR, dinheiro } from "@/lib/util";
 import { PRECO_PLANO, ROTULO_PLANO } from "@/lib/planos";
+import { PainelEntrega } from "@/components/PainelEntrega";
 
 // Painel do dono da plataforma: todas as academias, números, calendário geral
 // e o que cada academia paga para você.
@@ -134,6 +135,7 @@ export default function Master() {
         <button className="btn-sec px-3 py-1.5 text-sm" disabled={resetando} onClick={resetarPilotos}>{resetando ? "♻️ Reiniciando…" : "♻️ Reiniciar pilotos"}</button>
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
+      <PainelEntrega />
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[[lista.length, "academias"], [totalAlunos, "alunos ativos"], [dinheiro(recebido), "você recebeu este mês"], [`${Math.round(totalMb)} MB`, "de 1.024 MB grátis em arquivos"]].map(([v, r]) => (

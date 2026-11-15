@@ -4,7 +4,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { DIAS, DIAS_CURTOS, MESES, hora, hojeISO, dataHoraBR } from "@/lib/util";
 import { EditarEvento } from "@/components/EditarEvento";
-import { BotaoAgenda } from "@/components/BotaoAgenda";
+import { AssinarAgenda, BotaoAgenda } from "@/components/BotaoAgenda";
 import Link from "next/link";
 
 const ICONE: Record<string, string> = { campeonato: "🥇", prova: "🎓", evento: "🎉", feriado: "🏖️", outro: "📅" };
@@ -112,6 +112,8 @@ export default function Calendario() {
           );
         })}
       </div>
+
+      <AssinarAgenda slug={ctx.academia.slug} nome={ctx.academia.nome} />
 
       <section className="rounded-2xl bg-painel p-4">
         <h2 className="text-2xl font-bold">{DIAS[new Date(dia + "T12:00:00").getDay()]}, {dia.slice(8)}/{dia.slice(5, 7)}</h2>

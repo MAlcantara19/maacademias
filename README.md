@@ -259,3 +259,13 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 3. **Calendário:** “🔁 Repete todo ano”, “📄 Duplicar” (copia com o cronograma) e “📆 Google Agenda / .ics”.
 4. **Telão:** “Bem-vindo, fulano! 🥋” quando alguém faz check-in pelo GPS ou QR.
 5. **Pilotos:** “🎬 Roteiro” na barra amarela e “♻️ Reiniciar pilotos” no painel master.
+
+## Atualização 27 (mais notificações e dia a dia)
+
+1. Rode `supabase/ATUALIZAR-24.sql` no SQL Editor (pode rodar de novo sem problema).
+2. Novas notificações: resumo da semana (domingo 18h), parabéns no aniversário (8h), graduação, pagamento recebido, 30 min antes da aula (professor: quantos confirmaram; aluno que tocou ✋: lembrete). Aula cancelada já avisava a turma.
+3. Avisos: o aluno toca em “👍 Ciente”; a equipe vê “👍 12 de 30 deram ciente” e quem falta. A foto do aviso aparece na notificação (Android).
+4. Calendário: “📲 Colocar os eventos na agenda do celular” (link `/SLUG/agenda.ics`, atualiza sozinho).
+5. Aluno inscrito vê a contagem regressiva do campeonato com o checklist.
+6. Equipe: 🔎 busca rápida (Ctrl+K no computador) e “▶️ Acontecendo agora” na tela inicial.
+7. Master: “🔔 Entrega das notificações”. O roteiro dos pilotos pula o que o plano não tem.
