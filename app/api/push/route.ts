@@ -33,7 +33,9 @@ export async function POST(req: Request) {
   // tocar na notificação abre direto a tela certa (aviso, pendência, ranking, campeonato...)
   const url = acad?.slug ? destinoNotificacao(`/${acad.slug}/app`, n.link) : "/login";
   // foto do aviso aparece grande na notificação (Android/Chrome); logo da academia como ícone
-  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}`, imagem: n.imagem || undefined, icone: acad?.logo_url || undefined });
+  const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}`, imagem: n.imagem || undefined, icone: acad?.logo_url || undefined,
+    // botões na própria notificação (Android/Chrome): "não vou hoje", "todos que confirmaram vieram"
+    acoes: acad?.slug && Array.isArray(n.acoes) ? n.acoes.slice(0, 2).map((a: any, i: number) => ({ id: `a${i}`, titulo: a.titulo, url: destinoNotificacao(`/${acad.slug}/app`, a.link) })) : undefined });
   let enviados = 0;
   for (const s of subs || []) {
     try {

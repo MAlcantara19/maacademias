@@ -108,6 +108,8 @@ export default async function LayoutApp({ children, params }: { children: React.
   }
 
   // Último acesso: grava depois de a página já ter sido enviada (não atrasa a abertura)
+  // um registro por pessoa por dia (relatório de engajamento); não atrasa a abertura
+  if (perfil && !vendoComo) after(async () => { await supabase.rpc("registrar_acesso", { p_academia: academia.id }).then(() => {}, () => {}); });
   const dezMin = 10 * 60 * 1000;
   if (perfil && (!perfil.ultimo_acesso || Date.now() - new Date(perfil.ultimo_acesso).getTime() > dezMin)) {
     after(async () => { await supabase.from("perfis").update({ ultimo_acesso: new Date().toISOString() }).eq("id", perfil.id); });

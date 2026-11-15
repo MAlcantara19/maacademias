@@ -269,3 +269,13 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 5. Aluno inscrito vê a contagem regressiva do campeonato com o checklist.
 6. Equipe: 🔎 busca rápida (Ctrl+K no computador) e “▶️ Acontecendo agora” na tela inicial.
 7. Master: “🔔 Entrega das notificações”. O roteiro dos pilotos pula o que o plano não tem.
+
+## Atualização 28 (página principal, avisos inteligentes e dia a dia)
+
+1. Rode `supabase/ATUALIZAR-25.sql` e depois rode de novo `supabase/piloto-academias.sql` (coloca as logos provisórias nos pilotos).
+2. **Página principal:** Painel master → “Página principal”: nome, logo, cores, efeitos, abertura com a logo e quais academias são de demonstração. O diretório separa 🥋 Academias e 🧪 Pilotos, filtra por cidade e modalidade e mostra os km de você.
+3. **Avisos:** mensagens prontas, agendar para outro dia/hora, enquete (👍/👎 com contagem) e “🔔 Lembrar quem não leu”.
+4. **Botões na notificação (Android):** “🙋 Não vou hoje” (aluno) e “✅ Todos que confirmaram vieram” (professor). No iPhone, os mesmos botões aparecem em Notificações dentro do app.
+5. **Campeonato:** na véspera e no dia, o card mostra o cronograma da categoria e quem da academia está junto.
+6. **🩺 Ficha pelo QR:** lê a carteirinha e mostra alergias, saúde e o contato de emergência (toque para ligar).
+7. **🎯 Meta pessoal** na tela inicial do aluno; **📲 Minhas aulas na agenda** em Minhas turmas; **📱 Engajamento** no Relatório do mês.

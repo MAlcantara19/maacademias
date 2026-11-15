@@ -4,6 +4,7 @@ import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
 import { MESES, dinheiro, hojeISO } from "@/lib/util";
 import { Barra } from "@/components/Grafico";
+import { Engajamento } from "@/components/Engajamento";
 
 // Relatório do mês para o dono: alunos, frequência, financeiro e funil
 export default function Relatorio() {
@@ -82,6 +83,7 @@ export default function Relatorio() {
         <p className="text-suave">Relatório de {MESES[m - 1]} de {a}</p>
       </header>
 
+      <div className="nao-imprimir"><Engajamento academiaId={ctx.academia.id} /></div>
       {!d ? <p className="text-suave">Montando o relatório…</p> : (
         <>
           <section className="imprimir-claro grid grid-cols-2 gap-3 sm:grid-cols-4">

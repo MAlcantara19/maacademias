@@ -13,7 +13,7 @@ export function ContagemCampeonato({ alunos, base }: { alunos: { id: string; nom
     if (!ids.length) return;
     (async () => {
       const { data: ins } = await sb.from("inscricoes_evento")
-        .select("id, membro_id, status, categoria_peso, peso_inscricao, eventos!inner(id, titulo, inicio, pesagem_em, local)")
+        .select("id, membro_id, status, classe, categoria_peso, peso_inscricao, eventos!inner(id, titulo, inicio, pesagem_em, local)")
         .in("membro_id", ids).neq("status", "recusada").gte("eventos.inicio", new Date().toISOString());
       const lista = (ins || []).sort((a: any, b: any) => a.eventos.inicio.localeCompare(b.eventos.inicio)).slice(0, 3);
       if (!lista.length) return setL([]);
@@ -21,7 +21,23 @@ export function ContagemCampeonato({ alunos, base }: { alunos: { id: string; nom
         sb.from("pendencias").select("membro_id, evento_id, tipo, titulo").in("membro_id", ids).neq("status", "resolvida").eq("visivel_aluno", true),
         sb.from("painel_alunos").select("membro_id, carteirinha_ok").in("membro_id", ids),
       ]);
+      // no dia (ou na véspera): cronograma da categoria e quem da academia vai junto
+      const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const amanha = new Date(Date.now() + 86400000).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const diaDe = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const perto = Array.from(new Set(lista.filter((i: any) => [hoje, amanha].includes(diaDe(i.eventos.inicio))).map((i: any) => i.eventos.id))) as string[];
+      const extras: Record<string, any> = {};
+      for (const ev of perto) {
+        const [{ data: cr }, { data: eq }] = await Promise.all([
+          sb.from("cronograma_evento").select("tipo, titulo, classe, sexo, categorias, inicio, local").eq("evento_id", ev).order("inicio"),
+          sb.rpc("equipe_no_campeonato", { p_evento: ev }),
+        ]);
+        extras[ev] = { cronograma: cr || [], equipe: eq || [] };
+      }
       setL(lista.map((i: any) => ({
+        hoje: diaDe(i.eventos.inicio) === hoje, amanha: diaDe(i.eventos.inicio) === amanha,
+        meuCrono: (extras[i.eventos.id]?.cronograma || []).filter((c: any) => (!c.classe || c.classe === i.classe) && (!c.categorias?.length || c.categorias.includes(i.categoria_peso))),
+        equipe: (extras[i.eventos.id]?.equipe || []).filter((x: any) => x.membro_id !== i.membro_id),
         ...i,
         pendencias: (pend || []).filter((p: any) => p.membro_id === i.membro_id && (p.evento_id === i.eventos.id || ["documento", "carteirinha", "peso"].includes(p.tipo))),
         carteirinha: (pa || []).find((p: any) => p.membro_id === i.membro_id)?.carteirinha_ok,
@@ -56,6 +72,35 @@ export function ContagemCampeonato({ alunos, base }: { alunos: { id: string; nom
                 <p className="text-sm opacity-90">{dataHoraBR(i.eventos.inicio)}{i.eventos.local ? ` · ${i.eventos.local}` : ""}</p>
               </div>
             </div>
+            {(i.hoje || i.amanha) && (
+              <div className="space-y-3 border-b border-linha p-4">
+                <p className="text-lg font-extrabold">{i.hoje ? "🔥 É hoje! Seu dia:" : "🌙 É amanhã! Seu cronograma:"}</p>
+                {i.meuCrono.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {i.meuCrono.map((c: any, k: number) => (
+                      <li key={k} className="flex items-center gap-3 rounded-xl bg-painel2 p-2">
+                        <span className="numero text-xl font-bold">{new Date(c.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}</span>
+                        <span className="min-w-0 text-sm"><b>{{ pesagem: "⚖️ Pesagem", luta: "🥋 Lutas", premiacao: "🏅 Premiação", apresentacao: "🎤 Apresentação" }[c.tipo as string] || c.titulo || "Programação"}</b>
+                          {c.titulo && c.tipo !== "outro" ? ` · ${c.titulo}` : ""}{c.local ? <span className="block text-xs text-suave">📍 {c.local}</span> : null}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="text-sm text-suave">O professor ainda não colocou o horário da sua categoria. Fique de olho no cronograma.</p>}
+                {i.equipe.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-sm font-semibold">🤝 Quem está com você ({i.equipe.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {i.equipe.slice(0, 16).map((x: any) => (
+                        <span key={x.membro_id} className="flex items-center gap-1.5 rounded-full bg-painel2 py-1 pl-1 pr-3 text-xs">
+                          {x.foto_url ? <img src={x.foto_url} alt="" className="h-6 w-6 rounded-full object-cover" /> : <span className="flex h-6 w-6 items-center justify-center">🥋</span>}
+                          {x.nome}{x.categoria ? <span className="text-suave"> · {x.categoria}</span> : null}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="p-4">
               <p className="mb-2 text-sm font-semibold">Pronto para lutar: {prontos} de {itens.length}</p>
               <ul className="space-y-1 text-sm">

@@ -58,3 +58,18 @@ export function AssinarAgenda({ slug, nome }: { slug: string; nome: string }) {
     </details>
   );
 }
+
+// "Minhas aulas na agenda": os horários das turmas do aluno viram eventos semanais
+export function AgendaAulas({ slug, turmas }: { slug: string; turmas: string[] }) {
+  const host = typeof window !== "undefined" ? window.location.host : "";
+  if (!host || !turmas.length) return null;
+  const caminho = `${host}/${slug}/aulas.ics?t=${turmas.join(",")}`;
+  return (
+    <section className="flex flex-wrap items-center gap-2 rounded-2xl bg-painel p-3 text-sm">
+      <span className="font-semibold">📲 Minhas aulas na agenda do celular</span>
+      <a className="btn px-3 py-1.5 text-sm" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent("webcal://" + caminho)}`} target="_blank" rel="noreferrer">📆 Google Agenda</a>
+      <a className="btn-sec px-3 py-1.5 text-sm" href={`webcal://${caminho}`}>🍎 iPhone</a>
+      <span className="w-full text-xs text-suave">Cada aula entra toda semana, com lembrete 1 hora antes. Se o horário mudar, a agenda atualiza sozinha.</span>
+    </section>
+  );
+}

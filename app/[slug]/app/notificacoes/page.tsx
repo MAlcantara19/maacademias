@@ -53,6 +53,11 @@ export default function Notificacoes() {
               {n.texto && <p className="text-sm">{n.texto}</p>}
               <p className="mt-1 text-xs text-suave">{dataHoraBR(n.criada_em)}</p>
             </Link>
+            {Array.isArray(n.acoes) && n.acoes.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-2 pl-4">
+                {n.acoes.map((a: any) => <Link key={a.link} href={destino(base, a.link)} className="btn-sec px-3 py-1 text-xs">{a.titulo}</Link>)}
+              </div>
+            )}
           </li>
         ))}
         {!lista.length && <p className="text-suave">Sem notificações por enquanto.</p>}

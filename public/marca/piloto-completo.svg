@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Logo da academia piloto (demonstração) -->
+  <defs><linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#3b0764"/></linearGradient></defs>
+  <circle cx="128" cy="128" r="124" fill="url(#f)"/>
+  <circle cx="128" cy="128" r="104" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="6" stroke-dasharray="4 10"/>
+  <rect x="24" y="160" width="208" height="26" rx="4" fill="#111827"/>
+  <rect x="112" y="152" width="32" height="42" rx="6" fill="#111827" stroke="#fff" stroke-opacity=".4" stroke-width="3"/>
+  <text x="128" y="138" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="92" fill="#fff">PC</text>
+  <text x="128" y="226" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="20" fill="#fff" letter-spacing="4">PILOTO</text>
+</svg>

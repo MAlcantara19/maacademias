@@ -876,6 +876,11 @@ begin
   delete from assinaturas where membro_id in (select m.id from membros m join academias a on a.id = m.academia_id where a.slug = 'piloto-base');
   delete from planos      where academia_id in (select id from academias where slug = 'piloto-base');
   delete from pendencias  where academia_id in (select id from academias where slug = 'piloto-base') and tipo = 'pagamento';
+  -- logo provisória de cada piloto e a marca de "demonstração" (separa das academias reais)
+  update academias set logo_url = '/marca/' || slug || '.svg' where slug in ('piloto-base', 'piloto-intermediario', 'piloto-completo');
+  if exists (select 1 from information_schema.columns where table_name = 'academias' and column_name = 'demonstracao') then
+    execute $q$update academias set demonstracao = true where slug like 'piloto-%' or slug in ('academia-piloto', 'clube-de-luta-exemplo')$q$;
+  end if;
   return 'Pilotos recriados em ' || to_char(now() at time zone 'America/Sao_Paulo', 'DD/MM/YYYY HH24:MI');
 end $fn$;
 revoke execute on function recriar_pilotos() from public, anon;

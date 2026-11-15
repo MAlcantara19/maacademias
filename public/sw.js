@@ -11,7 +11,8 @@ self.addEventListener("push", (event) => {
       icon: d.icone || "/icon-192.png",
       image: d.imagem || undefined,
       badge: "/icon-192.png",
-      data: { url: d.url || "/" },
+      data: { url: d.url || "/", acoes: d.acoes || [] },
+      actions: (d.acoes || []).map((a) => ({ action: a.id, title: a.titulo })),
       tag: d.tag || undefined,
     })
   );
@@ -19,7 +20,22 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const dados = event.notification.data || {};
+  // botão da notificação: tenta fazer direto (sem abrir o app); se não der, abre a tela da ação
+  const acao = event.action && (dados.acoes || []).find((a) => a.id === event.action);
+  if (acao) {
+    const q = acao.url.split("?")[1] || "";
+    event.waitUntil(
+      fetch("/api/acao?" + q, { method: "POST", credentials: "include" })
+        .then((r) => r.json().then((j) => ({ ok: r.ok && j.ok, j })))
+        .then(({ ok, j }) => ok
+          ? self.registration.showNotification("Feito ✓", { body: j.texto, icon: "/icon-192.png", tag: "acao-ok" })
+          : self.clients.openWindow(acao.url + (acao.url.includes("?") ? "&" : "?") + "auto=1"))
+        .catch(() => self.clients.openWindow(acao.url + (acao.url.includes("?") ? "&" : "?") + "auto=1"))
+    );
+    return;
+  }
+  const url = dados.url || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abas) => {
       for (const aba of abas) {

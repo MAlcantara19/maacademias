@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { AgendaAulas } from "@/components/BotaoAgenda";
 import { useEffect, useState } from "react";
 import { useCtx } from "@/lib/contexto";
 import { supabaseNavegador } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ export default function MinhasTurmas() {
       <h1 className="text-4xl font-extrabold">{ctx.equipe ? "Turmas" : "Minhas turmas"}</h1>
       {lista === null && <p className="text-suave">Carregando…</p>}
       {lista?.length === 0 && <p className="text-suave">Nenhuma turma ainda. Fale com a academia para fazer a matrícula.</p>}
+      {!ctx.equipe && !ctx.vendoComo && lista && lista.length > 0 && <AgendaAulas slug={ctx.academia.slug} turmas={lista.map((x: any) => x.turma.id)} />}
       {/* Responsável com mais de um filho: separa por criança (com filtro) */}
       {!ctx.equipe && ctx.meusAlunos.length > 1 && lista && lista.length > 0 && (
         <div className="flex flex-wrap gap-2">

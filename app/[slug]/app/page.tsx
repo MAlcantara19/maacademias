@@ -9,9 +9,11 @@ import { Avatar } from "@/components/Avatar";
 import { PreCheckin } from "@/components/PreCheckin";
 import { DicaTelaInicial } from "@/components/InstalarApp";
 import { AtivarPush } from "@/components/AtivarPush";
-import { BotaoCiente, LeituraAviso } from "@/components/CienteAviso";
+import { BotaoCiente, LeituraAviso, ResultadoEnquete } from "@/components/CienteAviso";
 import { linkGoogleAgenda } from "@/components/BotaoAgenda";
 import { ContagemCampeonato } from "@/components/ContagemCampeonato";
+import { LerFichaQR } from "@/components/FichaRapida";
+import { MetaPessoal } from "@/components/MetaPessoal";
 import { CheckinGPS, CheckinsGPSHoje } from "@/components/CheckinGPS";
 import { AniversarioDoDia } from "@/components/AniversarioDoDia";
 import { liberado } from "@/lib/planos";
@@ -170,6 +172,7 @@ export default function Inicio() {
         <>
           <div className="flex flex-wrap gap-2">
             <Link href={`${base}/telao`} className="btn-sec text-sm">📺 Telão (modo TV)</Link>
+            <LerFichaQR base={base} className="btn-sec text-sm" />
             <Link href={`${base}/exame-lote`} className="btn-sec text-sm">🎓 Exame em lote</Link>
             {ctx.admin && <Link href={`${base}/exportar`} className="btn-sec text-sm">📄 Relatório de impacto</Link>}
             {ctx.admin && <Link href={`${base}/exportar#backup`} className="btn-sec text-sm">📦 Backup</Link>}
@@ -301,6 +304,7 @@ export default function Inicio() {
           <MeuCadastroPendente />
           {ctx.academia.modulos?.campeonatos !== false && <QueroLutar />}
           {ctx.academia.modulos?.campeonatos !== false && <ContagemCampeonato alunos={ctx.meusAlunos} base={base} />}
+          {!ctx.vendoComo && ctx.meusAlunos.slice(0, 3).map((al) => <MetaPessoal key={al.id} aluno={al} base={base} />)}
           {(ctx.meusAlunos.length > 1 || (ctx.meusAlunos[0] && !ctx.meusAlunos[0].eu) ? d.porAluno || [] : d.proxima ? [d.proxima] : []).map((px: any) => {
             const al = ctx.meusAlunos.find((m) => m.id === px.membro_id);
             const deOutro = ctx.meusAlunos.length > 1 || !al?.eu;
@@ -398,7 +402,9 @@ export default function Inicio() {
               <li key={a.id} className="border-l-4 pl-3" style={{ borderColor: "var(--cor)" }}>
                 <p className="font-semibold">{a.fixado ? "📌 " : ""}{a.titulo}</p>
                 {a.texto && <p className="text-sm text-suave">{a.texto}</p>}
-                {ctx.equipe ? <LeituraAviso avisoId={a.id} /> : !ctx.vendoComo && <BotaoCiente avisoId={a.id} perfilId={ctx.perfil?.id} />}
+                {a.opcoes?.length > 0
+                  ? <ResultadoEnquete avisoId={a.id} opcoes={a.opcoes} perfilId={ctx.vendoComo ? null : ctx.perfil?.id} equipe={ctx.equipe} />
+                  : ctx.equipe ? <LeituraAviso avisoId={a.id} /> : !ctx.vendoComo && <BotaoCiente avisoId={a.id} perfilId={ctx.perfil?.id} />}
               </li>
             ))}
           </ul>

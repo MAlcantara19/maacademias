@@ -9,6 +9,7 @@ import { DIAS, hora, hojeISO, primeiroNome, whatsapp } from "@/lib/util";
 import { Avatar } from "@/components/Avatar";
 import { LeitorQR } from "@/components/LeitorQR";
 import { CheckinsGPSPendentes } from "@/components/CheckinGPS";
+import { LerFichaQR } from "@/components/FichaRapida";
 import { LegendaSelos } from "@/components/LegendaSelos";
 import { Tour } from "@/components/Tour";
 import { minhasTurmas } from "@/lib/turmas";
@@ -556,7 +557,11 @@ function Chamada() {
             </button>}
             <button className="btn text-sm" onClick={abrirRapida} disabled={cancelada || !alunos.length}>⚡ Chamada rápida</button>
             <button className="btn-sec text-sm" onClick={() => setLendoQR(true)} disabled={cancelada || !alunos.length}>📷 Ler carteirinha</button>
+            <LerFichaQR base={base} className="btn-sec text-sm" />
             <button className="btn-sec text-sm" onClick={() => setNovoVis(novoVis ? null : {})} disabled={cancelada}>👋 Visitante</button>
+            {vao.size > 0 && Array.from(vao).some((id) => !presentes.has(id)) && (
+              <button className="btn-sec text-sm" disabled={cancelada} onClick={() => marcarVarios(Array.from(vao).filter((id) => !presentes.has(id) && alunos.some((a) => a.membro_id === id)))}>✋ Marcar quem confirmou ({Array.from(vao).filter((id) => !presentes.has(id)).length})</button>
+            )}
             <button className="btn-sec text-sm" onClick={todos} disabled={cancelada}>✅ Marcar todos</button>
             <button className="btn-sec text-sm" onClick={desmarcarTodos} disabled={cancelada || !presentes.size}>↩️ Desmarcar todos</button>
             <button className="btn-sec text-sm" onClick={cancelarAula}>{cancelada ? "Reabrir aula" : "Cancelar aula"}</button>
