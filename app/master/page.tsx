@@ -8,6 +8,7 @@ import { dataHoraBR, dinheiro } from "@/lib/util";
 import { PRECO_PLANO, ROTULO_PLANO } from "@/lib/planos";
 import { PainelEntrega } from "@/components/PainelEntrega";
 import { EditorPlataforma } from "@/components/EditorPlataforma";
+import { DataPilotos, StatusIntegracoes, VersaoBanco } from "@/components/PainelSistema";
 
 // Painel do dono da plataforma: todas as academias, números, calendário geral
 // e o que cada academia paga para você.
@@ -133,9 +134,13 @@ export default function Master() {
         <Link href="/piloto-intermediario/app" className="btn-sec px-3 py-1.5 text-sm">🧪 Piloto Intermediário</Link>
         <Link href="/piloto-completo/app" className="btn-sec px-3 py-1.5 text-sm">🧪 Piloto Completo</Link>
         <Link href="/demo" className="btn-sec px-3 py-1.5 text-sm">🎬 Demonstração</Link>
+        <Link href="/novidades" className="btn-sec px-3 py-1.5 text-sm">🆕 Novidades</Link>
         <button className="btn-sec px-3 py-1.5 text-sm" disabled={resetando} onClick={resetarPilotos}>{resetando ? "♻️ Reiniciando…" : "♻️ Reiniciar pilotos"}</button>
+        <DataPilotos atualizar={resetando ? 0 : 1} />
       </div>
       {msg && <p className="text-sm text-alerta">{msg}</p>}
+      <VersaoBanco />
+      <StatusIntegracoes />
       <EditorPlataforma />
       <PainelEntrega />
 

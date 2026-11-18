@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   if ((pref?.tipos_desligados || []).includes(n.tipo)) return NextResponse.json({ ok: true, enviados: 0 });
 
   // tocar na notificação abre direto a tela certa (aviso, pendência, ranking, campeonato...)
-  const url = acad?.slug ? destinoNotificacao(`/${acad.slug}/app`, n.link) : "/login";
+  const url = String(n.link || "").startsWith("/master") ? n.link : acad?.slug ? destinoNotificacao(`/${acad.slug}/app`, n.link) : "/login";
   // foto do aviso aparece grande na notificação (Android/Chrome); logo da academia como ícone
   const payload = JSON.stringify({ titulo: n.titulo, texto: n.texto, url, tag: `${n.tipo}-${n.id || ""}`, imagem: n.imagem || undefined, icone: acad?.logo_url || undefined,
     // botões na própria notificação (Android/Chrome): "não vou hoje", "todos que confirmaram vieram"

@@ -93,6 +93,7 @@ export function Casca({ ctx, cor, naoLidas, vendoComo, verComoNivel = "", outras
         { href: `${base}/gestao`, rotulo: "Turmas e equipe", icone: "🗂️" },
         { href: `${base}/notificacoes`, rotulo: "Notificações", icone: "🔔" },
         { href: `${base}/config`, rotulo: "Personalizar academia", icone: "🎨" },
+        { href: "/novidades", rotulo: "Novidades do app", icone: "🆕" },
       ]
     : [
         { href: base, rotulo: "Início", icone: "🏠" },

@@ -279,3 +279,19 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 5. **Campeonato:** na véspera e no dia, o card mostra o cronograma da categoria e quem da academia está junto.
 6. **🩺 Ficha pelo QR:** lê a carteirinha e mostra alergias, saúde e o contato de emergência (toque para ligar).
 7. **🎯 Meta pessoal** na tela inicial do aluno; **📲 Minhas aulas na agenda** em Minhas turmas; **📱 Engajamento** no Relatório do mês.
+
+## Checklist depois de cada `git push`
+
+1. **Vercel → Deployments:** o deploy novo ficou **Ready** (verde)? Se ficou vermelho, abra e copie o erro.
+2. **Banco:** rodou no Supabase (SQL Editor) os `ATUALIZAR-xx.sql` novos? O painel master mostra o card “🗄️ Falta atualizar o banco” quando falta algum. Baixe o backup antes das atualizações grandes.
+3. **Variáveis:** criou alguma variável nova na Vercel (Settings → Environment Variables)? Depois de criar ou mudar, faça **Redeploy**.
+4. **Painel master → 🩺 Status das integrações:** tudo ✅? Toque em “Mandar notificação de teste” e veja se chega no celular.
+5. **Abra no celular:** página principal, entrar, tela inicial de uma academia e a chamada. Se o app instalado mostrar a versão antiga, feche e abra de novo.
+6. **Pilotos:** se mexeu nos dados de exemplo, use “♻️ Reiniciar pilotos” no master.
+7. **Novidades:** acrescente o que mudou em `lib/novidades.ts` (aparece em `/novidades` para as academias).
+
+## Atualização 29 (painel do master)
+
+1. Rode `supabase/ATUALIZAR-26.sql`. A partir dele, cada atualização nova se registra sozinha.
+2. **Painel master:** card da versão do banco (com lembrete de backup), 🩺 status das integrações com teste de notificação, data da última recriação dos pilotos e o link 🆕 Novidades.
+3. **Alerta de erro:** quando alguma tela dá erro para alguém, o master recebe uma notificação (no máximo 1 por hora para o mesmo erro).
