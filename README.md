@@ -295,3 +295,17 @@ O `piloto-academias.sql` pode ser rodado de novo a qualquer momento: ele recria 
 1. Rode `supabase/ATUALIZAR-26.sql`. A partir dele, cada atualização nova se registra sozinha.
 2. **Painel master:** card da versão do banco (com lembrete de backup), 🩺 status das integrações com teste de notificação, data da última recriação dos pilotos e o link 🆕 Novidades.
 3. **Alerta de erro:** quando alguma tela dá erro para alguém, o master recebe uma notificação (no máximo 1 por hora para o mesmo erro).
+
+## Atualização 30 (ferramentas do master)
+
+1. Rode `supabase/ATUALIZAR-27.sql` (não apaga nada).
+2. **Painel master em abas:** 🏠 Resumo (saúde das academias, erros em aberto, uso do Supabase, pagamentos em aberto e agenda), 🥋 Academias (com busca e pilotos escondidos) e 🛠️ Sistema (manutenção, novidades, backup geral, integrações).
+3. **🐞 Erros agrupados** em Atividade e erros: por tela, do mais frequente para o menos. “✅ Já corrigi” tira da lista; se o erro voltar, chega o alerta “🔁 Erro voltou”.
+4. **💬 Teste do WhatsApp** em Status das integrações: manda uma mensagem pela Z-API para o seu número e mostra o motivo se falhar.
+5. **📦 Backup geral:** uma planilha com todas as academias reais (coluna “Academia” em cada aba).
+6. **💾 Uso do Supabase:** banco (500 MB) e fotos (1 GB) do plano grátis. Acima de 80% chega um alerta no celular (1 por semana, precisa do pg_cron).
+7. **🆕 Novidades:** a equipe vê um aviso na tela inicial quando sai versão nova (some depois de lido). No master, “📣 Mandar para os admins” avisa todas as academias.
+8. **🚧 Modo manutenção:** liga antes de uma atualização grande; as academias veem “voltamos em X minutos” e o app volta sozinho. Se esquecer ligado, some 2 horas depois do previsto.
+9. **⚙️ Configurações** em Atividade e erros: quem mudou plano, módulos, preço, endereço ou ligou a manutenção.
+10. **Dependabot:** o arquivo `.github/dependabot.yml` já está no projeto. No GitHub, ative em Settings → Code security: “Dependabot alerts” e “Dependabot security updates”.
+

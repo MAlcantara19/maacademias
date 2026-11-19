@@ -1,0 +1,26 @@
+# Dependabot: abre um pedido (PR) no GitHub quando sai versão nova das bibliotecas.
+# Correções de segurança chegam assim que saem; o resto, uma vez por semana, agrupado.
+# Ative também em GitHub → Settings → Code security → "Dependabot alerts" e "Dependabot security updates".
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    labels: ["dependências"]
+    groups:
+      # Next.js, React e tipos juntos (precisam subir juntos para o build não quebrar)
+      next-react:
+        patterns: ["next", "react", "react-dom", "@types/react", "@types/react-dom"]
+      supabase:
+        patterns: ["@supabase/*"]
+      pequenas:
+        update-types: ["minor", "patch"]
+    ignore:
+      # versões grandes (major) mudam muita coisa: atualize com calma, manualmente
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

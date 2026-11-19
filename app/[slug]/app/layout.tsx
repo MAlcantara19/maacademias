@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { supabaseServidor } from "@/lib/supabase/server";
 import { buscarAcademia, corDa } from "@/lib/academia";
 import { Casca } from "./Casca";
+import { TelaManutencao } from "@/components/TelaManutencao";
 
 // Cada academia instala com o próprio nome e a própria logo
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,10 +19,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function LayoutApp({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const academia = await buscarAcademia(slug);
-  if (!academia) notFound();
-
   const supabase = await supabaseServidor();
+  // academia e modo manutenção vão juntos ao banco
+  const [academia, { data: manut }] = await Promise.all([
+    buscarAcademia(slug),
+    supabase.from("plataforma").select("manutencao, manutencao_texto, manutencao_ate").eq("id", 1).maybeSingle().then((r: any) => r, () => ({ data: null })),
+  ]);
+  if (!academia) notFound();
   // getClaims confere o login sem ir ao servidor de autenticação (mais rápido)
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) redirect(`/login?next=/${slug}/app`);
@@ -31,6 +35,11 @@ export default async function LayoutApp({ children, params }: { children: React.
   if (erroCtx) c = await contextoSemAtualizacao(supabase, academia.id, claims.claims.sub as string); // banco sem a ATUALIZAÇÃO 08
   const perfil: any = c?.perfil || null;
   const master = !!c?.master;
+  // 🚧 Modo manutenção (o master continua entrando). Some sozinho 2 h depois do previsto, caso esqueçam ligado.
+  const m: any = manut;
+  if (m?.manutencao && !master && (!m.manutencao_ate || new Date(m.manutencao_ate).getTime() + 2 * 3600000 > Date.now())) {
+    return <TelaManutencao ate={m.manutencao_ate} texto={m.manutencao_texto} nome={academia.nome} cor={corDa(academia)} />;
+  }
   const meus: any[] = c?.meus || [];
   const depMembros: any[] = (c?.dependentes || []).map((d: any) => ({ ...d, perfis: { nome: d.nome, apelido: d.apelido, foto_url: d.foto_url } }));
 

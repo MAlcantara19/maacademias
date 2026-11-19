@@ -1,7 +1,7 @@
 // Converte o link guardado na notificação para a tela do app (serve no app e no push)
 export function destinoNotificacao(base: string, link?: string | null) {
   if (!link) return base;
-  if (link.startsWith("/master")) return link;
+  if (link.startsWith("/master") || link.startsWith("/novidades")) return link;
   if (link.startsWith("/eventos/")) return `${base}/campeonatos/${link.split("/")[2]}`;
   if (link.startsWith("/alunos/")) return `${base}${link}`;
   const mapa: Record<string, string> = {

@@ -23,6 +23,7 @@ import { MeuCadastroPendente } from "@/components/MeuCadastroPendente";
 import { FaltandoSeguido } from "@/components/FaltandoSeguido";
 import { QueroLutar } from "@/components/QueroLutar";
 import { VagasComFila } from "@/components/VagasComFila";
+import { AvisoNovidades } from "@/components/AvisoNovidades";
 
 function Cartao({ titulo, children, href }: { titulo: string; children: React.ReactNode; href?: string }) {
   return (
@@ -164,7 +165,8 @@ export default function Inicio() {
     <div className="space-y-5">
       {tour}
       <h1 className="text-4xl font-extrabold">Olá, {primeiroNome(ctx.perfil?.apelido || ctx.perfil?.nome)}!</h1>
-          <AniversarioDoDia academia={ctx.academia} equipe={ctx.equipe} />
+      <AniversarioDoDia academia={ctx.academia} equipe={ctx.equipe} />
+      {ctx.equipe && !ctx.vendoComo && <AvisoNovidades perfilId={ctx.perfil?.id} vistos={ctx.perfil?.tours_vistos} />}
       {!ctx.vendoComo && <DicaTelaInicial nome={ctx.academia.nome} />}
       {!ctx.vendoComo && <AtivarPush perfilId={ctx.perfil?.id} soConvite />}
 

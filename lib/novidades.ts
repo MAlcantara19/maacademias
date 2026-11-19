@@ -2,6 +2,7 @@
 
 // Versões do banco (arquivos supabase/ATUALIZAR-xx.sql). grande = mexe em muita coisa: baixe o backup antes.
 export const VERSOES_BANCO: { versao: number; titulo: string; grande?: boolean }[] = [
+  { versao: 27, titulo: "Ferramentas do master: erros agrupados, saúde das academias, uso do Supabase, manutenção e histórico" },
   { versao: 26, titulo: "Painel do master: versão do banco, data dos pilotos e alerta de erro" },
   { versao: 25, titulo: "Página principal, avisos agendados/enquete, botões na notificação, metas e engajamento", grande: true },
   { versao: 24, titulo: "Resumo semanal, parabéns, graduação, pagamento, ciente e aviso antes da aula", grande: true },
@@ -33,6 +34,12 @@ export const VERSAO_BANCO_ATUAL = VERSOES_BANCO[0].versao;
 
 // Novidades para mostrar às academias (página /novidades)
 export const NOVIDADES: { data: string; titulo: string; itens: string[] }[] = [
+  { data: "2026-11-18", titulo: "Mais rápido e mais fácil de achar", itens: [
+    "Aviso de novidades na tela inicial (some quando você lê)",
+    "Painel do master organizado em abas: Resumo, Academias e Sistema",
+    "Correções de erros mais rápidas: agora vemos os mais frequentes primeiro",
+    "Aviso de manutenção quando uma atualização grande está sendo feita",
+  ] },
   { data: "2026-11-18", titulo: "Painel do master mais esperto", itens: [
     "Status das integrações (notificações, e-mail e WhatsApp) e botão de teste de notificação",
     "Aviso de atualização do banco pendente, com lembrete de backup",
